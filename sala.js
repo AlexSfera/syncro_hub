@@ -99,4 +99,83 @@ function ajustesChoice(choice) {
   } else {
     if(siBtn) siBtn.style.boxShadow='0 0 0 2px #3b82f6';
     if(noBtn) noBtn.style.boxShadow='none';
-    if(linesBlock) linesBlock.style.di
+    if(linesBlock) linesBlock.style.display='block';
+    if(!document.getElementById('ajustes-lines').children.length) addAjusteLine();
+    if(confirmBtn) confirmBtn.disabled=false;
+  }
+}
+
+function addAjusteLine() {
+  var container=document.getElementById('ajustes-lines');
+  var idx=container.children.length;
+  var div=document.createElement('div');
+  div.className='card';
+  div.style.marginBottom='8px';
+  div.style.padding='10px';
+  div.style.borderLeft='3px solid #3b82f6';
+  div.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+    +'<div class="fg"><label>Tipo</label>'
+    +'<select id="aj-tipo-'+idx+'" style="font-size:13px;">'
+    +'<option>Descuento</option><option>Anulación</option><option>Invitación</option>'
+    +'<option>Devolución</option><option>Rehecho</option><option>Error de cobro</option>'
+    +'<option>Error TPV</option><option>Cargo habitación incorrecto</option>'
+    +'<option>Cargo Alexander</option><option>Otro</option>'
+    +'</select></div>'
+    +'<div class="fg"><label>Nº operaciones</label>'
+    +'<input type="number" id="aj-num-'+idx+'" min="1" value="1" style="font-size:13px;"></div>'
+    +'<div class="fg"><label>Importe estimado (€)</label>'
+    +'<input type="number" id="aj-imp-'+idx+'" min="0" step="0.01" placeholder="0.00" style="font-size:13px;"></div>'
+    +'<div class="fg"><label>¿Comunicado al responsable?</label>'
+    +'<div class="toggle-group">'
+    +'<button class="tbtn" id="aj-resp-si-'+idx+'" data-idx="'+idx+'" data-val="si" onclick="setAjToggleBtn(this)">SÍ</button>'
+    +'<button class="tbtn" id="aj-resp-no-'+idx+'" data-idx="'+idx+'" data-val="no" onclick="setAjToggleBtn(this)">NO</button>'
+    +'</div></div>'
+    +'<div class="fg sp2"><label>Motivo</label>'
+    +'<input type="text" id="aj-motivo-'+idx+'" placeholder="Describe brevemente" style="font-size:13px;"></div>'
+    +'</div>'
+    +'<button onclick="this.parentElement.remove()" style="margin-top:6px;background:none;border:none;color:var(--red);font-size:11px;cursor:pointer;">✕ Eliminar línea</button>';
+  container.appendChild(div);
+}
+
+function setAjToggle(idx,val){ _ajToggles[idx]=val; }
+
+function setAjToggleBtn(btn) {
+  var idx=btn.getAttribute('data-idx');
+  var val=btn.getAttribute('data-val');
+  _ajToggles[String(idx)]=val;
+  var si=document.getElementById('aj-resp-si-'+idx);
+  var no=document.getElementById('aj-resp-no-'+idx);
+  if(si){si.classList.toggle('active',val==='si');si.style.background=val==='si'?'var(--green)':'';si.style.color=val==='si'?'#fff':'';}
+  if(no){no.classList.toggle('active',val==='no');no.style.background=val==='no'?'var(--red)':'';no.style.color=val==='no'?'#fff':'';}
+}
+
+function collectAjusteLines() {
+  var lines=[];
+  var container=document.getElementById('ajustes-lines');
+  if(!container) return lines;
+  var count=container.children.length;
+  for(var i=0;i<count;i++){
+    var tipo=(document.getElementById('aj-tipo-'+i)||{}).value||'';
+    var num=parseInt((document.getElementById('aj-num-'+i)||{}).value)||1;
+    var imp=parseFloat((document.getElementById('aj-imp-'+i)||{}).value)||0;
+    var motivo=(document.getElementById('aj-motivo-'+i)||{}).value||'';
+    var comunicado=_ajToggles[i]||'';
+    if(tipo) lines.push({tipo,num,importe:imp,motivo,comunicado_responsable:comunicado});
+  }
+  return lines;
+}
+
+function confirmAjustes() {
+  if(_ajustesChoice==='si'){
+    _ajustesLines=collectAjusteLines();
+    if(_ajustesLines.length===0){toast('Añade al menos una línea de ajuste','err');return;}
+  } else {
+    _ajustesLines=[];
+  }
+  document.getElementById('modal-ajustes').style.display='none';
+  chkOpen({});
+}
+
+function closeAjustesModal() {
+  document.getElementById('modal-ajustes').style.display='none';
+}
