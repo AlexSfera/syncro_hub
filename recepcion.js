@@ -1,14 +1,3 @@
-bash
-
-echo "// ═══════════════════════════════════════════════════
-// RECEPCIÓN — Funciones específicas
-// Depende de: shared.js (debe cargarse antes)
-// ═══════════════════════════════════════════════════"
-sed -n '3428,3450p' /mnt/user-data/uploads/BDS_v28_RECEPCION.html
-echo ""
-sed -n '4702,5403p' /mnt/user-data/uploads/BDS_v28_RECEPCION.html | grep -v "^</script>$" | grep -v "^<script>$" | grep -v "^</body>$" | grep -v "^</html>$"
-Salida
-
 // ═══════════════════════════════════════════════════
 // RECEPCIÓN — Funciones específicas
 // Depende de: shared.js (debe cargarse antes)
