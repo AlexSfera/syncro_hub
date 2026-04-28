@@ -1,1 +1,1696 @@
+// ═══════════════════════════════════════════════════════════════
+// SUPABASE CONFIG — replace localStorage with Supabase REST API
+// ═══════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://tsfhrpdpbkciofvejrao.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3GWGNkIs6byRG1F1BIxlkg_qhiRUgBt';
 
+// HTTP helper for Supabase REST API
+async function sbRequest(method, table, body=null, params='') {
+  const url = SUPABASE_URL + '/rest/v1/' + table + (params ? '?' + params : '');
+  const opts = {
+    method,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': (method === 'POST' || method === 'PATCH') ? 'return=representation' : 'return=minimal'
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('Supabase error:', method, table, err);
+    return null;
+  }
+  if (method === 'DELETE') return true;
+  const text = await res.text();
+  if (!text || text === '' || text === 'null') return method === 'PATCH' ? true : [];
+  try { return JSON.parse(text); } catch(e) { return method === 'PATCH' ? true : []; }
+}
+
+// ── ASYNC DB LAYER ──
+// All operations return promises — UI must await them
+
+async function dbGetAll(table) {
+  const data = await sbRequest('GET', table, null, 'order=created_at.asc');
+  return data || [];
+}
+
+async function dbInsert(table, row) {
+  return await sbRequest('POST', table, row);
+}
+
+async function dbUpdate(table, id, updates) {
+  return await sbRequest('PATCH', table, updates, 'id=eq.' + id);
+}
+
+async function dbDelete(table, id) {
+  return await sbRequest('DELETE', table, null, 'id=eq.' + id);
+}
+
+async function dbUpsert(table, rows) {
+  // Insert array, skip conflicts
+  return await sbRequest('POST', table, Array.isArray(rows)?rows:[rows],
+    null);
+}
+
+// ── CACHE LAYER — keep data in memory for fast reads ──
+const _cache = {};
+const _cacheTs = {};
+const CACHE_TTL = 30000; // 30 seconds
+
+async function getDB(table) {
+  const now = Date.now();
+  if (_cache[table] && (now - (_cacheTs[table]||0)) < CACHE_TTL) {
+    return _cache[table];
+  }
+  const data = await dbGetAll(table);
+  _cache[table] = data;
+  _cacheTs[table] = now;
+  return data;
+}
+
+function invalidateCache(table) {
+  delete _cache[table];
+  delete _cacheTs[table];
+}
+
+async function setDB(table, data) {
+  // setDB is used in bulk — for Supabase we upsert all rows
+  // This is called from importBackup only
+  for (const row of data) {
+    await sbRequest('POST', table, row,
+      'on_conflict=id');
+  }
+  invalidateCache(table);
+}
+
+// ── MIGRATION from localStorage to Supabase ──
+async function migrateFromLocalStorage() {
+  const tables = ['employees','shifts','merma','incidencias','tareas','cash_closings','rec_shift_data','closing_audit_log'];
+  let migrated = 0;
+  for (const t of tables) {
+    try {
+      const local = JSON.parse(localStorage.getItem('syncro_' + t) || '[]');
+      if (local.length > 0) {
+        for (const row of local) {
+          await sbRequest('POST', t, row, 'on_conflict=id&ignore_duplicates=true');
+        }
+        migrated += local.length;
+        console.log('Migrated', local.length, 'rows from', t);
+      }
+    } catch(e) { console.warn('Migration error for', t, e); }
+  }
+  return migrated;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SCHEMA VERSION & DEPT CONFIG
+const SCHEMA_VERSION = '5.0';
+const DEPTS = ['Cocina','Sala','Mantenimiento','Recepción','Administración','Economato','Limpieza'];
+const DEPT_COLORS = {
+  'Cocina':'#f59e0b','Sala':'#3b82f6','Mantenimiento':'#ef4444',
+  'Recepción':'#10b981','Administración':'#a855f7','Economato':'#06b6d4','Limpieza':'#f97316'
+};
+const DEPT_ICONS = {
+  'Cocina':'🍳','Sala':'🍽','Mantenimiento':'🔧','Recepción':'🏨',
+  'Administración':'📋','Economato':'📦','Limpieza':'🧹'
+};
+
+// Pins for role-level access
+const ROLE_PINS = {'300415':'admin','0101':'chef','1010':'fb'};
+
+// ═══════════════════════════════════════════════════════════════════════
+// GLOBAL STATE
+let currentUser = null;
+let currentPin  = '';
+let toggleState = {};
+let mermaRows   = [];
+let sinMermaFlag= false;
+let editingShiftId    = null;
+let validatingShiftId = null;
+let _editEmpId        = null;
+
+// ═══════════════════════════════════════════════════════════════════════
+// DEPT HELPERS (called from HTML template literals above)
+function deptStyle(d) {
+  const c = DEPT_COLORS[d]||'#888';
+  return `background:${c}22;color:${c};border:1px solid ${c};font-size:10px;`;
+}
+function deptIcon(d){ return DEPT_ICONS[d]||'🏢'; }
+function deptBadge(d) {
+  if(!d) return '<span class="badge b-gray">—</span>';
+  const c = DEPT_COLORS[d];
+  const icon = DEPT_ICONS[d]||'';
+  if(!c) return `<span class="badge b-gray">${d}</span>`;
+  return `<span class="badge" style="background:${c}22;color:${c};border:1px solid ${c};">${icon} ${d}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// STORAGE LAYER — replace getDB/setDB with Supabase client for multi-device
+// getDB: now handled by Supabase async version above
+// setDB: now handled by Supabase async version above
+function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+// ── DATE & FORMAT HELPERS ──
+function today(){ return new Date().toISOString().split('T')[0]; }
+function fmtDate(d){ if(!d) return '—'; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function fmtTs(ts){ if(!ts) return '—'; var d=new Date(ts); return d.toLocaleDateString('es-ES')+' '+d.toTimeString().slice(0,5); }
+function startOfWeek(){ var d=new Date(); d.setHours(0,0,0,0); var day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1); d.setDate(diff); return d.toISOString().split('T')[0]; }
+function startOfMonth(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01'; }
+function isOverdue(dl){ return dl && dl < today(); }
+async function auditLog(action,detail){
+  const logs=await getDB('audit');
+  logs.unshift({id:genId(),ts:new Date().toISOString(),user:currentUser?.nombre||'?',rol:currentUser?.rol||'?',action,detail});
+  if(logs.length>1000) logs.splice(1000);
+  await setDB('audit',logs);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MIGRATIONS — Supabase version (tables already created via SQL)
+function runMigrations(){
+  // In Supabase mode, tables are created via SQL script
+  // This function is kept for compatibility but does nothing
+  console.log('[MIGRATION] Supabase mode — tables managed via SQL');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SEED — handled by SQL script in Supabase
+async function seedEmployees(){
+  // Seed is done via SQL script — this function is a no-op in Supabase mode
+  return;
+  
+  // seed handled by SQL
+}
+async function pinOk(){
+  const employees=await getDB('employees');
+  let found=null;
+  if(ROLE_PINS[currentPin]){
+    const rol=ROLE_PINS[currentPin];
+    found=employees.find(e=>e.rol===rol&&e.estado==='Activo')||{id:'SYS_'+rol,nombre:rol==='admin'?'Administrador':rol==='fb'?'F&B Manager':rol==='jefe_recepcion'?'Jefe Recepción':'Chef',rol,estado:'Activo',pin:currentPin,responsable:1,validador:1,area:rol==='jefe_recepcion'?'Recepción':rol==='fb'?'Sala':'Cocina',puesto:rol};
+  } else {
+    found=employees.find(e=>e.pin===currentPin&&e.estado==='Activo');
+  }
+  if(!found){
+    const el=document.getElementById('pin-display');
+    el.classList.add('error'); el.textContent='ERROR';
+    document.getElementById('login-error').style.display='block';
+    setTimeout(()=>{ currentPin=''; updPin(); el.classList.remove('error'); document.getElementById('login-error').style.display='none'; },1500);
+    return;
+  }
+  currentUser=found; currentPin=''; updPin(); startApp();
+}
+function logout(){ currentUser=null; currentPin=''; updPin(); document.getElementById('app').style.display='none'; document.getElementById('login-screen').style.display='flex'; }
+document.addEventListener('keydown',e=>{ if(document.getElementById('login-screen').style.display==='none') return; if(e.key>='0'&&e.key<='9') pinPress(e.key); if(e.key==='Backspace') pinDel(); if(e.key==='Enter') pinOk(); });
+
+// ═══════════════════════════════════════════════════════════════════════
+// APP
+function fixSelectColors(){
+  document.querySelectorAll('select').forEach(function(s){
+    var computed=window.getComputedStyle(s);
+    var bg=s.style.background||s.style.backgroundColor||computed.backgroundColor||'';
+    var isLight=bg.indexOf('fff')>-1||bg.indexOf('f9fa')>-1||bg.indexOf('f3f4')>-1||bg.indexOf('f0f9')>-1;
+    if(isLight){
+      s.style.setProperty('background','#ffffff','important');
+      s.style.setProperty('color','#111827','important');
+      Array.from(s.options).forEach(function(o){
+        o.style.background='#ffffff'; o.style.color='#111827';
+      });
+    } else {
+      s.style.setProperty('background','#132540','important');
+      s.style.setProperty('color','#f0f4ff','important');
+      Array.from(s.options).forEach(function(o){
+        o.style.background='#1a3a5c'; o.style.color='#f0f4ff';
+      });
+    }
+  });
+}
+async function startApp(){
+  var ls2=document.getElementById('login-screen'); if(ls2) ls2.style.display='none';
+  // Ensure portal is completely out of the way
+  var _portal=document.getElementById('portal-screen');
+  if(_portal){ _portal.style.display='none'; _portal.style.pointerEvents='none'; _portal.style.visibility='hidden'; }
+  document.getElementById('app').style.display='block';
+  var unTop=document.getElementById('user-name-top'); if(unTop) unTop.textContent=currentUser.nombre;
+  const rl={admin:'ADMIN',chef:'CHEF',fb:'F&B',empleado:currentUser.area?currentUser.area.toUpperCase():'EMPLEADO'};
+  var urTop=document.getElementById('user-role-top'); if(urTop) urTop.textContent=rl[currentUser.rol]||currentUser.rol.toUpperCase();
+  buildNav();
+  // Show loading state
+  showScreen('readme');
+  // Preload employees into cache
+  try { await getDB('employees'); } catch(e) { console.warn('preload error', e); }
+  await populateDashEmpDropdowns();
+  setTimeout(fixSelectColors, 200);
+}
+function getScreens(rol){
+  var isSala = currentUser && currentUser.area === 'Sala';
+  var isRecepcion = currentUser && currentUser.area === 'Recepción';
+  const base=[
+    {id:'readme',    label:'📋 Info'},
+    {id:'turno',     label:'🕐 Mi Turno'},
+    {id:'caja',      label:'💰 Cierre Caja'},
+    {id:'tareas',    label:'🔗 Tareas'},
+    {id:'validacion',label:'✅ Validación'},
+    {id:'dashboard', label:'📊 Dashboard'},
+    {id:'maestro',   label:'👥 Maestro'},
+    {id:'export',    label:'⬇ Exportar'},
+    {id:'rec-caja',  label:'🏦 Caja Recepción'},
+  ];
+  if(rol==='admin'){
+    // Admin siempre ve todo, incluyendo Caja Recepción y Cierre Caja
+    return [base[0],base[1],base[2],base[3],base[4],base[5],base[6],base[7],base[8]];
+  }
+  if(rol==='chef')  return [base[0],base[1],base[3],base[4],base[5],base[7]];
+  if(rol==='fb')    return [base[0],base[1],base[2],base[3],base[4],base[5],base[7]];
+  if(rol==='jefe_recepcion') return [base[0],base[1],base[3],base[4],base[5],base[8]];
+  if(isSala)        return [base[0],base[1],base[2],base[3]];
+  if(isRecepcion)   return [base[0],base[1],base[3],base[8]];
+  return [base[0],base[1],base[3]];
+}
+
+function buildNav(){
+  // Safety: ensure portal is fully hidden when app is running
+  var ps=document.getElementById('portal-screen');
+  if(ps){ ps.style.display='none'; ps.style.pointerEvents='none'; }
+  const nav=document.getElementById('topbar-nav'); nav.innerHTML='';
+  const bnav=document.getElementById('bnav-inner'); if(bnav) bnav.innerHTML='';
+  const screens=getScreens(currentUser.rol);
+  // Nav icons for bottom nav
+  const ICONS={'readme':'📋','turno':'🕐','tareas':'🔗','validacion':'✅','dashboard':'📊','maestro':'👥','export':'⬇'};
+  const SHORT={'readme':'Info','turno':'Turno','tareas':'Tareas','validacion':'Valid.','dashboard':'Panel','maestro':'Equipo','export':'Export'};
+  screens.forEach(s=>{
+    // Desktop topbar
+    const b=document.createElement('button');
+    b.className='nav-btn'; b.id='nav-'+s.id;
+    b.innerHTML=s.label+'<span class="alert-dot" id="dot-'+s.id+'"></span>';
+    b.onclick=function(){showScreen(s.id);}; nav.appendChild(b);
+    // Mobile bottom nav
+    if(bnav){
+      const bb=document.createElement('button');
+      bb.className='bnav-btn'; bb.id='bnav-'+s.id;
+      bb.innerHTML='<span class="bnav-icon">'+(ICONS[s.id]||'●')+'</span><span class="bnav-label">'+(SHORT[s.id]||s.id)+'</span><span class="bnav-dot" id="bdot-'+s.id+'"></span>';
+      bb.onclick=function(){showScreen(s.id);}; bnav.appendChild(bb);
+    }
+  });
+  // Show bottom nav
+  var bn=document.getElementById('bottom-nav');
+  if(bn) bn.style.display='block';
+}
+async function showScreen(id){
+  // Safety: ensure portal never blocks app screens
+  var _ps=document.getElementById('portal-screen');
+  if(_ps && _ps.style.display!=='flex') { _ps.style.display='none'; _ps.style.pointerEvents='none'; }
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
+  const s=document.getElementById('screen-'+id); if(s) s.classList.add('active');
+  const nb=document.getElementById('nav-'+id); if(nb) nb.classList.add('active');
+  const bb=document.getElementById('bnav-'+id); if(bb) bb.classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='turno'){ initTurnoForm(); }
+  if(id==='tareas'){ renderTareas(); }
+  if(id==='validacion'){ switchValTab('followup'); }
+  if(id==='dashboard'){
+    // Show dept filter for admin/fb
+    var dw=document.getElementById('dash-dept-wrapper');
+    if(dw) dw.style.display=(currentUser.rol==='admin'||currentUser.rol==='fb')?'block':'none';
+    renderDashboard(); renderCostTable();
+  }
+  if(id==='rec-caja'){ renderRecepcionCajaList(); }
+  if(id==='maestro'){ renderMaestro(); }
+  updateDots();
+}
+async function updateDots(){
+  const shifts=await getDB('shifts');
+  const tareas=await getDB('tareas');
+  const hasCor=shifts.some(s=>s.employee_id===currentUser.id&&s.estado==='En corrección');
+  const pendT=tareas.filter(t=>t.dept_destino===currentUser.area&&(t.estado==='Pendiente'||t.estado==='En proceso')).length;
+  // Desktop dots
+  const valDot=document.getElementById('dot-turno'); if(valDot) valDot.classList.toggle('show',hasCor);
+  const tDot=document.getElementById('dot-tareas'); if(tDot) tDot.classList.toggle('show',pendT>0);
+  // Mobile bottom nav dots
+  const bvalDot=document.getElementById('bdot-turno'); if(bvalDot) bvalDot.classList.toggle('show',hasCor);
+  const btDot=document.getElementById('bdot-tareas'); if(btDot) btDot.classList.toggle('show',pendT>0);
+}
+async function populateDashEmpDropdowns(){
+  const employees=(await getDB('employees')).filter(e=>e.estado==='Activo');
+  ['dash-emp','dm-emp'].forEach(id=>{
+    const sel=document.getElementById(id); if(!sel) return;
+    sel.innerHTML='<option value="">Todos</option>';
+    employees.forEach(e=>{ const o=document.createElement('option'); o.value=e.nombre; o.textContent=e.nombre; o.style.background='#ffffff'; o.style.color='#111827'; sel.appendChild(o); });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TOGGLES
+function setT(name,val){
+  toggleState[name]=val;
+  const maps={
+    followup:{si:'fu-si',no:'fu-no',na:'fu-na'},
+    incidencia:{si:'i-si',no:'i-no'},
+    reqform:{si:'rf-si',no:'rf-no'},
+    reqdisc:{si:'rd-si',no:'rd-no'},
+    inci_task:{si:'it-si',no:'it-no'},
+    merma_task:{si:'mt-si',no:'mt-no'},
+    fio:{si:'fio-si',no:'fio-no'},
+    posterr_fio:{si:'posterr-fio-si',no:'posterr-fio-no'},
+    informresp:{si:'informresp-si',no:'informresp-no'},
+  };
+  const ids=maps[name]; if(!ids) return;
+  Object.entries(ids).forEach(([k,eid])=>{
+    const el=document.getElementById(eid); if(!el) return;
+    el.className='tbtn';
+    if(k===val) el.classList.add(val==='si'?'t-si':val==='no'?'t-no':'t-na');
+  });
+  if(name==='incidencia'){
+    const blk=document.getElementById('block-incidencia');
+    val==='si'?blk.classList.add('visible'):blk.classList.remove('visible');
+    if(val==='si') loadStaffImplicado();
+  }
+}
+function resetToggles(){
+  toggleState={};
+  ['fu-si','fu-no','fu-na','i-si','i-no','rf-si','rf-no','rd-si','rd-no','it-si','it-no','mt-si','mt-no'].forEach(id=>{ const el=document.getElementById(id); if(el) el.className='tbtn'; });
+  document.getElementById('block-incidencia').classList.remove('visible');
+  hideTaskGen('inci'); hideTaskGen('merma');
+}
+function showTaskGen(type){ document.getElementById('task-gen-'+type).classList.add('visible'); }
+function hideTaskGen(type){ document.getElementById('task-gen-'+type).classList.remove('visible'); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// MERMA ROWS
+function addMermaRow(data={}){
+  sinMermaFlag=false;
+  document.getElementById('sinmerma-btn').className='tbtn';
+  const rowId=genId(); mermaRows.push({rowId,...data}); renderMermaRows();
+}
+function removeMermaRow(rowId){ mermaRows=mermaRows.filter(r=>r.rowId!==rowId); renderMermaRows(); updMermaStatus(); }
+function renderMermaRows(){
+  const c=document.getElementById('merma-container'); c.innerHTML='';
+  mermaRows.forEach((row,idx)=>{
+    const div=document.createElement('div'); div.className='merma-row'; div.id='mrow-'+row.rowId;
+    div.innerHTML=`<div class="merma-row-hdr"><span>Merma #${idx+1}</span><button class="btn-del-row" onclick="removeMermaRow('${row.rowId}')">✕</button></div>
+    <div class="grid4">
+      <div class="fg sp2"><label>Producto <span class="req">*</span></label><input type="text" id="mp-${row.rowId}" value="${row.producto||''}" placeholder="ej: Salmón"></div>
+      <div class="fg"><label>Cantidad <span class="req">*</span></label><input type="number" id="mq-${row.rowId}" value="${row.cantidad||''}" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>Unidad</label><select id="mu-${row.rowId}"><option value="kg" ${row.unidad==='kg'?'selected':''}>kg</option><option value="g" ${row.unidad==='g'?'selected':''}>g</option><option value="L" ${row.unidad==='L'?'selected':''}>L</option><option value="uds" ${!row.unidad||row.unidad==='uds'?'selected':''}>uds</option><option value="raciones" ${row.unidad==='raciones'?'selected':''}>raciones</option></select></div>
+      <div class="fg sp2"><label>Causa <span class="req">*</span></label><select id="mc-${row.rowId}"><option value="">— Seleccionar —</option><option ${row.causa==='Caducidad'?'selected':''}>Caducidad</option><option ${row.causa==='Error de preparación'?'selected':''}>Error de preparación</option><option ${row.causa==='Accidente'?'selected':''}>Accidente</option><option ${row.causa==='Devolución sala'?'selected':''}>Devolución sala</option><option ${row.causa==='Exceso de producción'?'selected':''}>Exceso de producción</option><option ${row.causa==='Otro'?'selected':''}>Otro</option></select></div>
+      <div class="fg sp2"><label>Observación</label><input type="text" id="mo-${row.rowId}" value="${row.obs||''}" placeholder="Nota opcional"></div>
+    </div>`;
+    c.appendChild(div);
+  });
+  updMermaStatus();
+}
+function getMermaRow(rowId){ return {rowId,producto:document.getElementById('mp-'+rowId)?.value.trim()||'',cantidad:parseFloat(document.getElementById('mq-'+rowId)?.value)||0,unidad:document.getElementById('mu-'+rowId)?.value||'uds',causa:document.getElementById('mc-'+rowId)?.value||'',obs:document.getElementById('mo-'+rowId)?.value.trim()||''}; }
+function collectMerma(){ return mermaRows.map(r=>getMermaRow(r.rowId)); }
+function updMermaStatus(){
+  const el=document.getElementById('merma-status');
+  if(sinMermaFlag){el.textContent='✓ Sin merma en este turno';el.style.color='var(--green)';return;}
+  const n=mermaRows.length;
+  el.textContent=n===0?'Sin líneas — añade o marca "Sin merma"':`${n} línea(s) de merma`;
+  el.style.color=n===0?'var(--red)':'var(--amber)';
+}
+function toggleSinMerma(){
+  sinMermaFlag=!sinMermaFlag;
+  const btn=document.getElementById('sinmerma-btn');
+  if(sinMermaFlag){mermaRows=[];renderMermaRows();btn.className='tbtn t-si';}else{btn.className='tbtn';}
+  updMermaStatus();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TURNO FORM
+async function initTurnoForm(){
+  setDeadlineLimits();
+  editingShiftId=null;
+  document.getElementById('turno-form-mode').textContent='NUEVO';
+  document.getElementById('btn-save-turno').textContent='💾 Guardar Turno';
+  const fechaInput = document.getElementById('t-fecha');
+  fechaInput.value=today();
+  // Employees can only register today (unless shift is being corrected)
+  if(currentUser.rol==='empleado' && !editingShiftId){
+    fechaInput.min = today();
+    fechaInput.max = today();
+    fechaInput.setAttribute('readonly','readonly');
+  } else {
+    fechaInput.removeAttribute('min');
+    fechaInput.removeAttribute('max');
+    fechaInput.removeAttribute('readonly');
+  }
+  const employees=await getDB('employees');
+  const sel=document.getElementById('t-responsable');
+  sel.innerHTML='<option value="">— Seleccionar —</option>';
+  // Responsable filter: Sala sees Sala responsables, Cocina sees Cocina responsables
+  var isSalaUser = currentUser && currentUser.area === 'Sala';
+  var responsables = employees.filter(function(e) {
+    var r = e.responsable;
+    var isResp = r === 1 || r === true || r === '1' || r === 'true';
+    var isActive = e.estado === 'Activo' || e.estado === 'activo';
+    if(!isResp || !isActive) return false;
+    // Sala users: ONLY Sala area responsables
+    if(isSalaUser) return e.area === 'Sala';
+    // Cocina/Friegue users: ONLY non-Sala responsables
+    return e.area !== 'Sala';
+  });
+  responsables.forEach(function(e) {
+    var o = document.createElement('option');
+    o.value = e.id; o.textContent = e.nombre + ' — ' + e.puesto;
+    o.style.background='#ffffff'; o.style.color='#111827';
+    sel.appendChild(o);
+  });
+  if(responsables.length === 0) {
+    // Fallback: all active
+    employees.filter(function(e){return e.estado==='Activo';}).forEach(function(e){
+      var o=document.createElement('option'); o.value=e.id; o.textContent=e.nombre;
+      o.style.background='#ffffff'; o.style.color='#111827';
+      sel.appendChild(o);
+    });
+  }
+
+  // Area-specific form config
+  var salaBlock = document.getElementById('sala-fields-block');
+  var sub = document.getElementById('turno-sub');
+  var isRecepcionUser = currentUser && currentUser.area === 'Recepción';
+  if(isRecepcionUser) {
+    if(sub) sub.textContent = 'Recepción Hotel · Balcón de la Sella';
+    // Hide merma
+    var mermaSecRec = document.getElementById('merma-section');
+    if(mermaSecRec) mermaSecRec.style.display = 'none';
+    var sinMermaRec = document.getElementById('sin-merma-block');
+    if(sinMermaRec) sinMermaRec.style.display = 'none';
+    // Hide ALL servicio blocks
+    var tservM = document.getElementById('t-servicio-multi');
+    var tservC = document.getElementById('t-servicio-cocina');
+    var tservS = document.getElementById('t-servicio');
+    if(tservM) tservM.style.display='none';
+    if(tservC) tservC.style.display='none';
+    if(tservS) tservS.style.display='none';
+    // Hide the servicio FG label wrapper
+    var servLabel = document.querySelector('label[for="t-servicio"]');
+    if(servLabel && servLabel.closest('.fg')) servLabel.closest('.fg').style.display='none';
+    // Show TURNO selector
+    var recTurnoDiv = document.getElementById('rec-turno-block');
+    if(recTurnoDiv) { recTurnoDiv.style.display='block'; }
+    // Reset turno radios
+    document.querySelectorAll('input[name="rec-turno"]').forEach(function(r){ r.checked=false; });
+    updateRecTurnoStyle();
+    // Hide responsable selector
+    var tResp = document.getElementById('t-responsable');
+    if(tResp && tResp.closest('.fg')) tResp.closest('.fg').style.display='none';
+    if(!editingShiftId && !toggleState.incidencia) setT('incidencia','no');
+  } else if(isSalaUser) {
+    if(salaBlock) salaBlock.style.display = 'none'; // removed - using ajustes popup
+    var mermaSecEl = document.getElementById('merma-section');
+    if(mermaSecEl) mermaSecEl.style.display = 'none';
+    var sinMermaEl = document.getElementById('sin-merma-block');
+    if(sinMermaEl) sinMermaEl.style.display = 'none';
+    // Sala: show sala multiselect, hide cocina multiselect and single select
+    var tservSingleSala = document.getElementById('t-servicio');
+    var tservCocinaMs = document.getElementById('t-servicio-cocina');
+    if(tservSingleSala) tservSingleSala.style.display = 'none';
+    if(tservCocinaMs) tservCocinaMs.style.display = 'none';
+    if(sub) sub.textContent = 'Sala · Balcón de la Sella';
+    // Show multiselect for Sala, hide single select
+    var tservSingle = document.getElementById('t-servicio');
+    var tservMulti = document.getElementById('t-servicio-multi');
+    if(tservSingle) tservSingle.style.display = 'none';
+    if(tservMulti){ tservMulti.style.display = 'flex'; tservMulti.style.flexWrap='wrap'; tservMulti.style.gap='4px'; }
+    // Uncheck all
+    document.querySelectorAll('input[name="servicio-sala"]').forEach(function(cb){ cb.checked=false; });
+  document.querySelectorAll('input[name="servicio-cocina"]').forEach(function(cb){ cb.checked=false; });
+    // Default incidencia to 'no' for clean start
+    if(!editingShiftId && !toggleState.incidencia) setT('incidencia','no');
+  } else {
+    if(salaBlock) salaBlock.style.display = 'none';
+    if(sub) sub.textContent = 'Cocina · Balcón de la Sella';
+    // Show single select for Cocina
+    var tservSingle2 = document.getElementById('t-servicio');
+    var tservMulti2 = document.getElementById('t-servicio-multi');
+    if(tservSingle2) tservSingle2.style.display = 'block';
+    if(tservMulti2) tservMulti2.style.display = 'none';
+    var mermaSecEl2 = document.getElementById('merma-section');
+    if(mermaSecEl2) mermaSecEl2.style.display = 'block';
+    var sinMermaEl2 = document.getElementById('sin-merma-block');
+    if(sinMermaEl2) sinMermaEl2.style.display = 'block';
+    // Show servicio block for Cocina
+    var servFgBlockCoc = document.getElementById('servicio-fg-block');
+    if(servFgBlockCoc) servFgBlockCoc.style.display = 'block';
+    // Cocina: show cocina multiselect, hide sala multiselect and single select
+    var tservSingleCoc = document.getElementById('t-servicio');
+    var cocinaMulti = document.getElementById('t-servicio-cocina');
+    var salaMultiHide = document.getElementById('t-servicio-multi');
+    if(tservSingleCoc) tservSingleCoc.style.display = 'none';
+    if(cocinaMulti){ cocinaMulti.style.display='flex'; }
+    if(salaMultiHide) salaMultiHide.style.display = 'none';
+    // Show responsable
+    var tResp2 = document.getElementById('t-responsable');
+    if(tResp2 && tResp2.parentElement) tResp2.parentElement.style.display='block';
+    // Hide rec-turno-block
+    var recTurnoDivCoc = document.getElementById('rec-turno-block');
+    if(recTurnoDivCoc) recTurnoDivCoc.style.display='none';
+    // Uncheck all
+    document.querySelectorAll('input[name="servicio-cocina"]').forEach(function(cb){ cb.checked=false; });
+    if(!editingShiftId && !toggleState.incidencia) setT('incidencia','no');
+  }
+  renderCorrectionsPend();
+  renderMisTurnos();
+  updMermaStatus();
+  setTimeout(renderFollowupList, 200);
+}
+function clearTurnoForm(){
+  clearSalaFields();
+  editingShiftId=null;
+  document.getElementById('turno-form-mode').textContent='NUEVO';
+  document.getElementById('btn-save-turno').textContent='💾 Guardar Turno';
+  ['t-fecha','t-servicio','t-horas','t-obs','i-cat','i-sev','i-desc','i-accion','it-dept','it-prio','it-titulo','it-deadline','it-desc','mt-dept','mt-prio','mt-titulo','mt-deadline','mt-desc'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    if(el.tagName==='SELECT') el.value=''; else el.value=el.type==='date'?today():'';
+  });
+  const fechaInput = document.getElementById('t-fecha');
+  fechaInput.value=today();
+  // Employees can only register today (unless shift is being corrected)
+  if(currentUser.rol==='empleado' && !editingShiftId){
+    fechaInput.min = today();
+    fechaInput.max = today();
+    fechaInput.setAttribute('readonly','readonly');
+  } else {
+    fechaInput.removeAttribute('min');
+    fechaInput.removeAttribute('max');
+    fechaInput.removeAttribute('readonly');
+  }
+  resetToggles(); mermaRows=[]; sinMermaFlag=false;
+  document.getElementById('sinmerma-btn').className='tbtn';
+  renderMermaRows(); document.getElementById('turno-alert-area').innerHTML='';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CORRECCIONES PENDIENTES
+async function renderCorrectionsPend(){
+  const shifts=(await getDB('shifts')).filter(s=>s.employee_id===currentUser.id&&s.estado==='En corrección');
+  const area=document.getElementById('correcciones-area');
+  if(!shifts.length){area.innerHTML='';return;}
+  area.innerHTML=shifts.map(s=>`<div class="correction-card">
+    <div class="correction-hdr">↩ TURNO DEVUELTO — ${fmtDate(s.fecha)} · ${displayServicio(s.servicio)}</div>
+    ${s.comentario_validador?`<div style="font-size:12px;color:var(--text2);background:var(--bg);padding:8px;border-radius:var(--radius);margin-bottom:8px;font-style:italic;">"${s.comentario_validador}" — ${s.validado_por}</div>`:''}
+    <button class="btn btn-warn btn-sm" onclick="loadForCorrection('${s.id}')">✏ Abrir y corregir</button>
+  </div>`).join('');
+}
+async function loadForCorrection(shiftId){
+  const s=(await getDB('shifts')).find(x=>x.id===shiftId); if(!s) return;
+  editingShiftId=shiftId;
+  document.getElementById('turno-form-mode').textContent='CORRECCIÓN · '+fmtDate(s.fecha)+' · '+s.servicio;
+  document.getElementById('btn-save-turno').textContent='📤 Reenviar';
+  document.getElementById('t-fecha').value=s.fecha;
+  document.getElementById('t-servicio').value=s.servicio;
+  document.getElementById('t-horas').value=s.horas;
+  document.getElementById('t-responsable').value=s.responsable_id||'';
+  document.getElementById('t-obs').value=s.observacion||'';
+  setT('incidencia',s.incidencia_declarada);
+  sinMermaFlag=s.merma_declarada==='no';
+  if(sinMermaFlag) document.getElementById('sinmerma-btn').className='tbtn t-si';
+  const mermas=(await getDB('merma')).filter(m=>m.shift_id===shiftId);
+  mermaRows=[]; mermas.forEach(m=>mermaRows.push({rowId:genId(),producto:m.producto,cantidad:m.cantidad,unidad:m.unidad||'uds',causa:m.causa,obs:m.observacion||''}));
+  renderMermaRows();
+  const inci=(await getDB('incidencias')).find(i=>i.shift_id===shiftId);
+  if(inci){ document.getElementById('i-cat').value=inci.categoria||''; document.getElementById('i-sev').value=inci.severidad||''; document.getElementById('i-desc').value=inci.descripcion||''; document.getElementById('i-accion').value=inci.accion_inmediata||''; setT('reqform',inci.requiere_formacion==='Sí'?'si':'no'); setT('reqdisc',inci.requiere_disciplina==='Sí'?'si':'no'); }
+  document.getElementById('turno-form-card').scrollIntoView({behavior:'smooth'});
+  toast('Turno cargado para corrección','warn');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SAVE TURNO
+async function _doSaveTurno(){
+  // ── Read all form values (already validated by saveTurno) ──
+  const fecha    = document.getElementById('t-fecha').value;
+  var _isRecSave = currentUser && currentUser.area === 'Recepción';
+  const servicio = _isRecSave ? getRecTurnoValue() : getServicioValue();
+  const horas    = parseFloat(document.getElementById('t-horas').value)||0;
+  const resp     = document.getElementById('t-responsable').value;
+  const obs      = (document.getElementById('t-obs')||{value:''}).value.trim();
+  const ts       = new Date().toISOString();
+  const shiftId  = editingShiftId || genId();
+
+  const employees = await getDB('employees');
+  const respEmp   = employees.find(e=>e.id===resp);
+
+  // ── Merma data ──
+  const mermaData = collectMerma();
+
+  // ── Build shift object ──
+  // Sala data now collected via ajustes popup (_ajustesLines)
+  var salaData = {};
+
+  const shift = {
+    id: shiftId,
+    employee_id: currentUser.id,
+    nombre: currentUser.nombre,
+    area: currentUser.area||'Cocina',
+    puesto: currentUser.puesto||'—',
+    fecha, servicio, horas,
+    responsable_id: resp,
+    responsable_nombre: respEmp ? respEmp.nombre : '—',
+    merma_declarada: sinMermaFlag ? 'no' : 'si',
+    incidencia_declarada: toggleState.incidencia||'no',
+    observacion: obs,
+    checklist_items: JSON.stringify(_chkSavedState),
+    ajustes_sala: JSON.stringify(_ajustesLines||[]),
+    // Sala fields
+    descuentos_si: salaData.descuentos_si||false,
+    descuentos_num: salaData.descuentos_num||0,
+    descuentos_motivo: salaData.descuentos_motivo||'',
+    anulaciones_si: salaData.anulaciones_si||false,
+    anulaciones_num: salaData.anulaciones_num||0,
+    anulaciones_motivo: salaData.anulaciones_motivo||'',
+    invitaciones_si: salaData.invitaciones_si||false,
+    invitaciones_tipo: salaData.invitaciones_tipo||'',
+    invitaciones_num: salaData.invitaciones_num||0,
+    invitaciones_producto: salaData.invitaciones_producto||'',
+    invitaciones_posmews: salaData.invitaciones_posmews||false,
+    devoluciones_si: salaData.devoluciones_si||false,
+    devoluciones_num: salaData.devoluciones_num||0,
+    devoluciones_motivo: salaData.devoluciones_motivo||'',
+    devoluciones_cliente: salaData.devoluciones_cliente||false,
+    estado: 'Pendiente',
+    validado_por: null, validado_ts: null,
+    comentario_validador: null,
+    correcciones: [],
+    created_at: ts, updated_at: ts
+  };
+
+  // ── CORRECTION MODE: update existing shift ──
+  if(editingShiftId){
+    await dbUpdate('shifts', editingShiftId, {
+      fecha, servicio, horas,
+      responsable_id: resp,
+      responsable_nombre: respEmp ? respEmp.nombre : '—',
+      merma_declarada: sinMermaFlag ? 'no' : 'si',
+      incidencia_declarada: toggleState.incidencia||'no',
+      observacion: obs,
+      checklist_items: JSON.stringify(_chkSavedState),
+      estado: 'Pendiente',
+      validado_por: null, validado_ts: null,
+      comentario_validador: null,
+      correcciones: [],
+      updated_at: ts
+    });
+    // Delete old merma + incidencias for this shift, insert new
+    const allMerma = await getDB('merma');
+    for(const m of allMerma){ if(m.shift_id===editingShiftId) await dbDelete('merma',m.id); }
+    const allIncis = await getDB('incidencias');
+    for(const i of allIncis){ if(i.shift_id===editingShiftId) await dbDelete('incidencias',i.id); }
+    invalidateCache('merma'); invalidateCache('incidencias');
+    auditLog('CORRECTION_RESEND', currentUser.nombre+' — '+fecha+' — '+servicio);
+    toast('Turno corregido y reenviado','ok');
+
+  // ── NEW SHIFT ──
+  } else {
+    await dbInsert('shifts', shift);
+    invalidateCache('shifts');
+    auditLog('SAVE_SHIFT', currentUser.nombre+' — '+fecha+' — '+servicio);
+    toast('Turno guardado','ok');
+    window._lastSavedShiftId = shiftId; // for cierre caja link
+  }
+
+  // ── Save merma lines (Cocina only, not Sala) ──
+  var skipMerma = currentUser && (currentUser.area === 'Sala' || currentUser.area === 'Recepción');
+  if(!skipMerma) for(const m of mermaData){
+    await dbInsert('merma', {
+      id:genId(), shift_id:shiftId,
+      employee_id:currentUser.id, nombre:currentUser.nombre,
+      fecha, servicio,
+      producto:m.producto, cantidad:m.cantidad, unidad:m.unidad,
+      causa:m.causa, obs:m.obs||'',
+      coste_unitario:0, coste_total:0,
+      created_at:ts
+    });
+  }
+  if(!skipMerma && mermaData.length) invalidateCache('merma');
+
+  // ── Save incidencia ──
+  if(toggleState.incidencia==='si'){
+    const descEl   = document.getElementById('i-desc');
+    const accionEl = document.getElementById('i-accion');
+    const staff    = getStaffImplicado();
+    await dbInsert('incidencias', {
+      id:genId(), shift_id:shiftId,
+      employee_id:currentUser.id, nombre:currentUser.nombre,
+      fecha, servicio,
+      categoria:'Reportada por empleado',
+      severidad:'Pendiente revision',
+      descripcion: descEl ? descEl.value.trim() : '',
+      accion_inmediata: accionEl ? accionEl.value.trim() : '',
+      staff_implicado_ids: JSON.stringify(staff.ids),
+      staff_implicado_nombres: JSON.stringify(staff.nombres),
+      estado:'Abierta',
+      created_at:ts
+    });
+    invalidateCache('incidencias');
+  }
+
+  // ── Generate tasks ──
+  var tareasCreadas = 0;
+  // Task from incidencia
+  if(toggleState.incidencia==='si' && toggleState.inci_task==='si'){
+    const dept = (document.getElementById('it-dept')||{}).value||'';
+    const prio = (document.getElementById('it-prio')||{}).value||'Media';
+    const dead = (document.getElementById('it-deadline')||{}).value||fecha;
+    const desc = (document.getElementById('it-desc-task')||document.getElementById('it-desc')||{}).value||'';
+    if(dept){
+      if(dead < today()) dead = today(); // never allow past deadlines
+      await createTask({
+        titulo: 'Tarea operativa — '+servicio+' — '+fecha,
+        dept_destino: dept,
+        dept_origen: currentUser.area||'Cocina',
+        prioridad: prio, deadline: dead,
+        descripcion: desc,
+        origen: 'incidencia',
+        shift_id: shiftId,
+        creado_por: currentUser.nombre
+      });
+      tareasCreadas++;
+    }
+  }
+  // Task from merma
+  if(!sinMermaFlag && mermaData.length>0 && toggleState.merma_task==='si'){
+    const dept = (document.getElementById('mt-dept')||{}).value||'';
+    const prio = (document.getElementById('mt-prio')||{}).value||'Media';
+    const dead = (document.getElementById('mt-deadline')||{}).value||fecha;
+    const desc = (document.getElementById('mt-desc')||{}).value||'';
+    if(dept){
+      if(dead < today()) dead = today(); // never allow past deadlines
+      await createTask({
+        titulo: 'Merma — '+servicio+' — '+fecha,
+        dept_destino: dept,
+        dept_origen: currentUser.area||'Cocina',
+        prioridad: prio, deadline: dead,
+        descripcion: desc,
+        origen: 'merma',
+        shift_id: shiftId,
+        creado_por: currentUser.nombre
+      });
+      tareasCreadas++;
+    }
+  }
+
+  // ── Clean up and show result ──
+  clearTurnoForm();
+  renderCorrectionsPend();
+  await renderMisTurnos();
+  updateDots();
+
+  // Show success message
+  var alertArea = document.getElementById('turno-alert-area');
+  if(alertArea){
+    var msg = '✅ Turno guardado correctamente.';
+    if(tareasCreadas>0) msg += ' Se crearon '+tareasCreadas+' tarea(s) en la pestaña Tareas.';
+    alertArea.innerHTML = '<div class="alert a-ok" style="font-size:14px;padding:16px;line-height:1.6;">'+msg+'</div>';
+    alertArea.scrollIntoView({behavior:'smooth', block:'start'});
+    setTimeout(function(){ if(alertArea) alertArea.innerHTML=''; }, 6000);
+  }
+
+  // If tasks were created, refresh tareas screen too
+  if(tareasCreadas>0){
+    await renderTareas();
+  }
+}
+
+
+function saveTurno(){
+  // Step 1: validate the form first (reuse validation logic)
+  const alertArea=document.getElementById('turno-alert-area'); alertArea.innerHTML='';
+  const errs=[];
+  const fecha=document.getElementById('t-fecha').value;
+  var _isRecepcion = currentUser && currentUser.area === 'Recepción';
+  // Date lock: employees can only register today (unless correcting)
+  if(currentUser.rol==='empleado' && !editingShiftId && fecha !== today()){
+    alertArea.innerHTML='<div class="alert a-err">⚠ Solo puedes registrar el turno de hoy.</div>';
+    return;
+  }
+  const servicio=getServicioValue();
+  const horas=parseFloat(document.getElementById('t-horas').value);
+  const resp=_isRecepcion ? 'ok' : document.getElementById('t-responsable').value;
+  if(!fecha) errs.push('Fecha obligatoria');
+  // Servicio/Turno validation — Recepción uses rec-turno radio, not servicio
+  if(_isRecepcion){
+    if(!servicio) errs.push('Selecciona turno: Mañana, Tarde o Noche');
+  } else {
+    if(!servicio||servicio==='[]'||servicio==='') errs.push('Servicio obligatorio');
+  }
+  if(!horas||horas<=0) errs.push('Horas obligatorias');
+  // Responsable: only required for Sala and Cocina, NOT Recepción
+  if(!_isRecepcion && !resp){
+    var _isSala2 = currentUser && currentUser.area === 'Sala';
+    errs.push(_isSala2 ? 'Responsable de turno obligatorio — configura responsables de Sala en Maestro' : 'Responsable obligatorio');
+  }
+  if(!toggleState.incidencia) errs.push('Indica si hubo incidencia operativa');
+  // Merma validation — ONLY for Cocina/Friegue. Sala and Recepción exempt.
+  var _isSalaUser = currentUser && currentUser.area === 'Sala';
+  if(!_isSalaUser && !_isRecepcion){
+    if(!sinMermaFlag&&mermaRows.length===0) errs.push('Declara merma o marca Sin merma');
+    const mermaDataCheck=collectMerma();
+    mermaDataCheck.forEach(function(m,i){if(!m.producto)errs.push('Merma #'+(i+1)+': producto');if(!m.cantidad||m.cantidad<=0)errs.push('Merma #'+(i+1)+': cantidad');if(!m.causa)errs.push('Merma #'+(i+1)+': causa');});
+  }
+  if(toggleState.incidencia==='si'){
+    if(!document.getElementById('i-desc').value.trim()) errs.push('Incidencia: describe qué ocurrió');
+    var tipoInci=(document.getElementById('i-tipo-incidencia')||{}).value||''; // optional for employee
+    var staffCheck=getStaffImplicado();
+    // Only require staff if there are employees to select
+    var staffList=document.getElementById('staff-implicado-list');
+    var hasStaffToSelect=staffList&&staffList.querySelectorAll('input[type=checkbox]').length>0;
+    if(hasStaffToSelect&&staffCheck.ids.length===0) errs.push('Incidencia: selecciona al menos un staff implicado');
+  }
+  if(errs.length>0){
+    alertArea.innerHTML='<div class="alert a-err">⚠ '+errs.join(' · ')+'</div>';
+    return;
+  }
+  // Step 2: for Sala open Ajustes first, for Cocina go straight to checklist
+  if(currentUser && currentUser.area === 'Sala') {
+    openAjustesModal();
+  } else {
+    chkOpen({});
+  }
+}
+function buildInciObj(shiftId,fecha,servicio,ts){
+  var descEl=document.getElementById('i-desc');
+  var accionEl=document.getElementById('i-accion');
+  var staff=getStaffImplicado();
+  return {
+    id:genId(),shift_id:shiftId,employee_id:currentUser.id,nombre:currentUser.nombre,
+    fecha,servicio,
+    categoria:'Reportada por empleado',
+    severidad:'Pendiente revision',
+    descripcion:descEl?descEl.value.trim():'',
+    accion_inmediata:accionEl?accionEl.value.trim():'',
+    staff_implicado_ids:JSON.stringify(staff.ids),
+    staff_implicado_nombres:JSON.stringify(staff.nombres),
+    informado_responsable: toggleState.informresp||'no',
+    tipo_incidencia: (document.getElementById('i-tipo-incidencia')||{}).value||'',
+    estado:'Abierta',
+    created_at:ts
+  };
+}
+async function renderMisTurnos(){
+  const shifts=(await getDB('shifts')).filter(s=>s.employee_id===currentUser.id).sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,12);
+  const el=document.getElementById('mis-turnos-table');
+  if(!shifts.length){el.innerHTML='<div class="empty"><div class="empty-icon">📂</div><div class="empty-text">Sin registros</div></div>';return;}
+  const mermas=await getDB('merma');
+  var isSalaDept = currentUser && currentUser.area === 'Sala';
+  el.innerHTML='<table><tr><th>Fecha</th><th>Servicio</th><th>Horas</th>'+(isSalaDept?'<th>Ajustes</th>':'<th>Mermas</th>')+'<th>Incidencia</th><th>Estado</th></tr>'
+  +shifts.map(function(s){
+    const mc=mermas.filter(m=>m.shift_id===s.id).length;
+    return '<tr>'
+      +'<td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(s.fecha)+'</td>'
+      +'<td style="font-size:13px;">'+displayServicio(s.servicio)+'</td>'
+      +'<td style="font-family:var(--font-mono)">'+s.horas+'h</td>'
+      +'<td style="text-align:center">'+(isSalaDept?(function(){try{var aj=JSON.parse(s.ajustes_sala||'[]');return aj.length>0?'<span class="badge b-blue">'+aj.length+'</span>':'—';}catch(e){return '—';}})():(mc>0?'<span class="badge b-yellow">'+mc+'</span>':'—'))+'</td>'
+      +'<td style="text-align:center">'+(s.incidencia_declarada==='si'?'<span class="badge b-red">Sí</span>':'—')+'</td>'
+      +'<td>'+bEstado(s.estado)+'</td>'
+      +'</tr>';
+  }).join('') + '</table>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BADGE HELPERS
+function bFU(v){if(v==='si')return'<span class="badge b-green">SÍ</span>';if(v==='no')return'<span class="badge b-red">NO</span>';if(v==='na')return'<span class="badge b-blue">N/A</span>';return'<span class="badge b-gray">—</span>';}
+function bEstado(e){const m={'Validado':'b-green ✓ Validado','Pendiente':'b-red ● Pendiente','En corrección':'b-orange ↩ Corrección','Rechazado':'b-gray ✗ Rechazado'};const[cls,...r]=(m[e]||'b-gray '+e).split(' ');return`<span class="badge ${cls}">${r.join(' ')}</span>`;}
+function bSev(s){if(s==='Crítica')return'<span class="badge b-red">⛔ CRÍTICA</span>';if(s==='Alta')return'<span class="badge b-red">🔴 Alta</span>';if(s==='Media')return'<span class="badge b-orange">🟠 Media</span>';return'<span class="badge b-blue">🟡 Baja</span>';}
+function bPrio(p){if(p==='Alta')return'<span class="badge b-red">Alta</span>';if(p==='Media')return'<span class="badge b-orange">Media</span>';return'<span class="badge b-blue">Baja</span>';}
+function bTaskEstado(e){if(e==='Verificada')return'<span class="badge b-green">✓ Verificada</span>';if(e==='Completada')return'<span class="badge b-orange">Completada</span>';if(e==='En proceso')return'<span class="badge b-blue">En proceso</span>';return'<span class="badge b-red">Pendiente</span>';}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TASKS — CREATE
+async function createTask(data){
+  const ts=new Date().toISOString();
+  const task={id:genId(),titulo:data.titulo,dept_destino:data.dept_destino,dept_origen:data.dept_origen||currentUser.area||'Cocina',prioridad:data.prioridad,deadline:data.deadline,descripcion:data.descripcion||'',origen:data.origen||'manual',shift_id:data.shift_id||null,creado_por:data.creado_por||currentUser.nombre,estado:'Pendiente',completada_por:null,completada_ts:null,verificada_por:null,verificada_ts:null,notas_cierre:'',created_at:ts,updated_at:ts};
+  await dbInsert('tareas', task); invalidateCache('tareas');
+  auditLog('CREATE_TASK',`→ ${task.dept_destino}: ${task.titulo}`);
+  toast(`Tarea creada → ${task.dept_destino}`,'ok');
+  return task;
+}
+function openTaskModal(){
+  setDeadlineLimits();
+  document.getElementById('mt-title').textContent='Nueva Tarea Manual';
+  ['task-desc','task-deadline'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  var deptEl=document.getElementById('task-dept'); if(deptEl) deptEl.value='';
+  var prioEl=document.getElementById('task-prio'); if(prioEl) prioEl.value='';
+  var origenEl=document.getElementById('task-dept-origen'); if(origenEl) origenEl.value=currentUser.area||'Cocina';
+  document.getElementById('modal-tarea').classList.add('open');
+}
+async function saveTask(){
+  const dept=document.getElementById('task-dept').value;
+  const prio=document.getElementById('task-prio').value;
+  const dead=document.getElementById('task-deadline').value;
+  const desc=(document.getElementById('task-desc')||{}).value||'';
+  if(!dept||!prio||!dead){toast('Departamento, prioridad y deadline son obligatorios','err');return;}
+  var maxD=(function(){var d=new Date();d.setMonth(d.getMonth()+1);return d.toISOString().slice(0,10);})();
+  if(dead < today()||dead > maxD){toast('La fecha de tarea debe ser desde hoy hasta máximo 1 mes en adelante','err');return;}
+  const titulo='Tarea Manual — '+new Date().toLocaleDateString('es-ES')+' — '+dept;
+  await createTask({titulo,dept_destino:dept,dept_origen:(document.getElementById('task-dept-origen')||{}).value||currentUser.area||'Cocina',prioridad:prio,deadline:dead,descripcion:desc,origen:'manual',creado_por:currentUser.nombre});
+  await renderTareas();
+  closeModal('modal-tarea'); renderTareas(); updateDots();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TASKS — RENDER
+async function renderTareas(){
+  let tareas=await getDB('tareas');
+  const estado=document.getElementById('tk-estado').value;
+  const dept=document.getElementById('tk-dept').value;
+  const prio=document.getElementById('tk-prio').value;
+  const origen=document.getElementById('tk-origen').value;
+  const desde=document.getElementById('tk-desde').value;
+  const hasta=document.getElementById('tk-hasta').value;
+  if(estado) tareas=tareas.filter(t=>t.estado===estado);
+  if(dept) tareas=tareas.filter(t=>t.dept_destino===dept);
+  if(prio) tareas=tareas.filter(t=>t.prioridad===prio);
+  if(origen) tareas=tareas.filter(t=>t.origen===origen);
+  if(desde) tareas=tareas.filter(t=>t.created_at.slice(0,10)>=desde);
+  if(hasta) tareas=tareas.filter(t=>t.created_at.slice(0,10)<=hasta);
+  tareas.sort((a,b)=>{ const ps={Alta:3,Media:2,Baja:1}; if(a.estado==='Pendiente'&&b.estado!=='Pendiente') return -1; if(b.estado==='Pendiente'&&a.estado!=='Pendiente') return 1; return (ps[b.prioridad]||0)-(ps[a.prioridad]||0); });
+
+  // KPIs tareas
+  const all=await getDB('tareas');
+  const kpiEl=document.getElementById('tareas-kpi');
+  const pend=all.filter(t=>t.estado==='Pendiente').length;
+  const enProc=all.filter(t=>t.estado==='En proceso').length;
+  const comp=all.filter(t=>t.estado==='Completada').length;
+  const verif=all.filter(t=>t.estado==='Verificada').length;
+  const overdue=all.filter(t=>isOverdue(t.deadline)&&t.estado!=='Verificada').length;
+  kpiEl.innerHTML=`<div class="kpi-grid">
+    <div class="kpi k-red"><div class="kpi-lbl">Pendientes</div><div class="kpi-val">${pend}</div></div>
+    <div class="kpi k-blue"><div class="kpi-lbl">En proceso</div><div class="kpi-val">${enProc}</div></div>
+    <div class="kpi k-orange"><div class="kpi-lbl">Completadas</div><div class="kpi-val">${comp}</div><div class="kpi-sub">Pendientes de verificar</div></div>
+    <div class="kpi k-green"><div class="kpi-lbl">Verificadas</div><div class="kpi-val">${verif}</div></div>
+    <div class="kpi k-red"><div class="kpi-lbl">Vencidas</div><div class="kpi-val">${overdue}</div><div class="kpi-sub">Sin cerrar y deadline pasado</div></div>
+  </div>`;
+
+  const listEl=document.getElementById('tareas-list');
+  if(!tareas.length){listEl.innerHTML='<div class="empty"><div class="empty-icon">🔗</div><div class="empty-text">Sin tareas con este filtro</div></div>';return;}
+  listEl.innerHTML=tareas.map(t=>{
+    const overdue=isOverdue(t.deadline)&&t.estado!=='Verificada';
+    const prioClass=t.prioridad==='Alta'?'t-alta':t.prioridad==='Media'?'t-media':'t-baja';
+    const stateClass=t.estado==='Verificada'?'t-verificada':t.estado==='Completada'?'t-completada':'';
+    const canProgress=canProgressTask(t);
+    const canVerify=(currentUser.rol==='chef'||currentUser.rol==='fb'||currentUser.rol==='admin')&&t.estado==='Completada';
+    return `<div class="task-card ${prioClass} ${stateClass}">
+      <div class="task-meta">
+        ${bPrio(t.prioridad)} ${deptBadge(t.dept_destino)}
+        <span class="task-origin">origen: ${t.origen}</span>
+        ${t.dept_origen?`<span class="task-origin">de: ${deptIcon(t.dept_origen)} ${t.dept_origen}</span>`:''}
+        ${overdue?'<span class="badge b-red">⚠ VENCIDA</span>':''}
+        ${bTaskEstado(t.estado)}
+      </div>
+      <div class="task-title">${t.titulo}</div>
+      ${t.descripcion?`<div class="task-desc">${t.descripcion}</div>`:''}
+      <div class="task-footer">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);">
+          📅 ${fmtDate(t.deadline)} &nbsp;·&nbsp; creada por ${t.creado_por} &nbsp;·&nbsp; ${fmtDate(t.created_at.slice(0,10))}
+          ${t.completada_por?`<br>✓ Completada por ${t.completada_por} · ${fmtTs(t.completada_ts)}`:''}
+          ${t.verificada_por?`<br>✅ Verificada por ${t.verificada_por} · ${fmtTs(t.verificada_ts)}`:''}
+        </div>
+        <div class="task-actions">
+          ${canProgress&&t.estado==='Pendiente'?`<button class="btn btn-blue-outline btn-sm" style="background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue);" onclick="advanceTask('${t.id}','En proceso')">▶ Iniciar</button>`:''}
+          ${canProgress&&t.estado==='En proceso'?`<button class="btn btn-success btn-sm" onclick="advanceTask('${t.id}','Completada')">✓ Completar</button>`:''}
+          ${canVerify?`<button class="btn btn-primary btn-sm" onclick="advanceTask('${t.id}','Verificada')">✅ Verificar</button>`:''}
+          ${currentUser.rol==='admin'?`<button class="btn btn-danger btn-sm" style="margin-left:8px;" onclick="deleteTask('${t.id}')" title="Solo Admin">🗑 Eliminar</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteTask(taskId){
+  if(!currentUser || currentUser.rol !== 'admin'){
+    toast('Solo el Administrador puede eliminar tareas','err');
+    return;
+  }
+  if(!confirm('¿Eliminar esta tarea permanentemente?\nEsta acción no se puede deshacer.')) return;
+  try {
+    var delRes = await fetch(
+      SUPABASE_URL + '/rest/v1/tareas?id=eq.' + encodeURIComponent(taskId),
+      { method:'DELETE', headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'} }
+    );
+    if(delRes.ok){
+      await auditLog('DELETE_TASK', 'Tarea '+taskId+' eliminada por '+currentUser.nombre);
+      invalidateCache('tareas');
+      toast('Tarea eliminada','ok');
+      await renderTareas();
+    } else {
+      toast('Error al eliminar: '+delRes.status,'err');
+    }
+  } catch(e){ toast('Error: '+e.message,'err'); }
+}
+
+function canProgressTask(t){
+  // Solo el departamento destinatario puede avanzar Pendiente→En proceso y En proceso→Completada
+  if(t.estado==='Verificada') return false;
+  if(currentUser.rol==='admin'||currentUser.rol==='chef'||currentUser.rol==='fb') return true;
+  return currentUser.area===t.dept_destino;
+}
+
+async function advanceTask(taskId,newEstado){
+  const tareas=await getDB('tareas');
+  const idx=tareas.findIndex(t=>t.id===taskId); if(idx===-1) return;
+  if(!canProgressTask(tareas[idx])&&newEstado!=='Verificada'){toast('Solo el departamento destinatario puede avanzar esta tarea','err');return;}
+  const ts=new Date().toISOString();
+  const tUpdate = {estado:newEstado, updated_at:ts};
+  if(newEstado==='Completada'){tUpdate.completada_por=currentUser.nombre;tUpdate.completada_ts=ts;}
+  if(newEstado==='Verificada'){tUpdate.verificada_por=currentUser.nombre;tUpdate.verificada_ts=ts;}
+  await dbUpdate('tareas', taskId, tUpdate);
+  invalidateCache('tareas');
+  auditLog('TASK_ADVANCE',`${currentUser.nombre} → ${newEstado}: ${tareas[idx].titulo}`);
+  toast(`Tarea: ${newEstado}`,'ok');
+  renderTareas(); updateDots();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// VALIDACIÓN
+async function renderValidacion(){
+  let shifts=await getDB('shifts');
+  // jefe_recepcion: only see Recepción shifts
+  if(currentUser && currentUser.rol==='jefe_recepcion'){
+    shifts = shifts.filter(function(s){ return s.area==='Recepción'; });
+  }
+  const desde=document.getElementById('v-desde').value;
+  const hasta=document.getElementById('v-hasta').value;
+  const estado=document.getElementById('v-estado').value;
+  const serv=document.getElementById('v-servicio').value;
+  if(desde) shifts=shifts.filter(s=>s.fecha>=desde);
+  if(hasta) shifts=shifts.filter(s=>s.fecha<=hasta);
+  if(estado) shifts=shifts.filter(s=>s.estado===estado);
+  if(serv) shifts=shifts.filter(s=>s.servicio===serv);
+  shifts.sort((a,b)=>b.created_at.localeCompare(a.created_at));
+  const pend=shifts.filter(s=>s.estado==='Pendiente').length;
+  document.getElementById('val-alerts').innerHTML=pend>0?`<div class="alert a-warn">⚠ ${pend} registro(s) pendiente(s)</div>`:'';
+  const mermas=await getDB('merma'); const incis=await getDB('incidencias');
+  const el=document.getElementById('validacion-table');
+  if(!shifts.length){el.innerHTML='<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin registros</div></div>';return;}
+  // Build validation table without nested template literals
+  var valRows="";
+  shifts.forEach(function(s){
+    var sm=mermas.filter(function(m){return m.shift_id===s.id;});
+    var si=incis.filter(function(i){return i.shift_id===s.id;});
+    var mCP=sm.some(function(m){return !m.coste_unitario||m.coste_unitario===0;});
+    // For Sala: show ajustes count. For Cocina: show merma count
+    var isSalaShift = s.area === 'Sala';
+    var mCell;
+    if(isSalaShift){
+      try{ var aj=JSON.parse(s.ajustes_sala||'[]'); mCell=aj.length>0?'<span class="badge b-blue">'+aj.length+'</span>':'<span class="badge b-gray">—</span>'; }catch(e){ mCell='<span class="badge b-gray">—</span>'; }
+    } else {
+      mCell=sm.length>0?'<span class="badge b-yellow">'+sm.length+'</span>'+(mCP?'<span class="badge b-orange" style="margin-left:4px">€?</span>':''):'<span class="badge b-gray">—</span>';
+    }
+    var iCell=si.length>0?'<span class="badge b-red">SÍ</span>':'<span class="badge b-gray">—</span>';
+    var aCell='';
+    var sid=s.id;
+    // All action buttons in one nowrap flex row
+    var btnRevisar = (s.estado!=='Validado'&&s.estado!=='Rechazado')
+      ? '<button class="vbtn vbtn-primary" onclick="openValidarModal(\''+sid+'\')">Revisar</button>'
+      : '<span style="font-size:10px;color:var(--text3);white-space:nowrap;">'+fmtTs(s.validado_ts)+'</span>';
+    var btnVer = (currentUser.rol==='admin'||currentUser.rol==='chef'||currentUser.rol==='fb')
+      ? '<button class="vbtn vbtn-sec" onclick="openShiftDetail(\''+sid+'\')">📋 Ver</button>' : '';
+    var btnArevisar = ((currentUser.rol==='admin'||currentUser.rol==='fb')&&s.estado==='Validado')
+      ? '<button class="vbtn vbtn-warn" onclick="openPostErrorModal(\''+sid+'\')">🔍</button>' : '';
+    var btnDel = currentUser.rol==='admin'
+      ? '<button class="vbtn vbtn-del" onclick="deleteShift(\''+sid+'\')">🗑</button>' : '';
+    aCell = '<div style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap;">'+btnRevisar+btnVer+btnArevisar+btnDel+'</div>';
+    valRows+='<tr><td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(s.fecha)+'</td>'
+      +'<td><div style="font-weight:600">'+s.nombre+'</div><div style="font-size:10px;color:var(--text3)">'+s.puesto+'</div></td>'
+      +'<td>'+displayServicio(s.servicio)+'</td><td style="font-family:var(--font-mono)">'+s.horas+'h</td>'
+      +'<td>'+mCell+'</td><td>'+iCell+'</td>'
+      +'<td style="text-align:center;">'+(s.fio===true?'<span class="badge b-red">FIO</span>':s.estado!=='Pendiente'?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--text3);">—</span>')+'</td>'
+      +'<td>'+bEstado(s.estado)+'</td><td>'+aCell+'</td></tr>';
+  });
+  el.innerHTML='<table><tr><th>Fecha</th><th>Empleado</th><th>Servicio</th><th>Horas</th><th>Ajustes</th><th>Incid.</th><th>FIO</th><th>Estado</th><th>Acción</th></tr>'+valRows+'</table>';
+}
+async function openValidarModal(shiftId){
+  validatingShiftId=shiftId;
+  const s=(await getDB('shifts')).find(x=>x.id===shiftId); if(!s) return;
+  const mermas=(await getDB('merma')).filter(m=>m.shift_id===shiftId);
+  const incis=(await getDB('incidencias')).filter(i=>i.shift_id===shiftId);
+  document.getElementById('mv-title').textContent=`${s.nombre} — ${fmtDate(s.fecha)} — ${s.servicio}`;
+  // ── BUILD FULL SHIFT DETAIL FOR SUPERVISOR ──
+  var info = '';
+
+  // Block 1: Datos generales
+  info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;">';
+  info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#2ec4b6;letter-spacing:.15em;margin-bottom:8px;">DATOS DEL TURNO</div>';
+  info += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">';
+  info += '<div><span style="color:var(--text3)">Empleado: </span><strong>'+s.nombre+'</strong></div>';
+  info += '<div><span style="color:var(--text3)">Puesto: </span>'+s.puesto+'</div>';
+  info += '<div><span style="color:var(--text3)">Fecha: </span><strong>'+fmtDate(s.fecha)+'</strong></div>';
+  info += '<div><span style="color:var(--text3)">Servicio: </span><strong>'+displayServicio(s.servicio)+'</strong></div>';
+  info += '<div><span style="color:var(--text3)">Horas: </span><strong>'+s.horas+'h</strong></div>';
+  info += '<div><span style="color:var(--text3)">Responsable: </span>'+(s.responsable_nombre||'—')+'</div>';
+  if(s.observacion) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Observación: </span>'+s.observacion+'</div>';
+  info += '</div></div>';
+
+  // Block 2: Checklist
+  if(s.checklist_items){
+    try{
+      var chk=JSON.parse(s.checklist_items);
+      var isFriegueS=s.area==='Friegue'||s.puesto==='Friegue';
+      var chkItems=isFriegueS?CHK_FRIEGUE_ITEMS:CHK_COCINA_ITEMS;
+      var chkDone=chk.filter(Boolean).length;
+      info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;">';
+      info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#2ec4b6;letter-spacing:.15em;margin-bottom:8px;">CHECKLIST ('+chkDone+'/'+chk.length+')</div>';
+      chk.forEach(function(c,i){
+        if(i<chkItems.length){
+          info += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;">'
+            +'<span style="color:'+(c?'var(--green)':'var(--red)')+';font-size:14px;">'+(c?'✓':'✗')+'</span>'
+            +'<span style="color:'+(c?'var(--text)':'var(--text3)')+'">'+chkItems[i]+'</span>'
+            +'</div>';
+        }
+      });
+      info += '</div>';
+    }catch(e){}
+  }
+
+  // Block 3: Incidencia
+  if(incis.length>0){
+    incis.forEach(function(inci){
+      info += '<div style="background:var(--bg);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:10px;">';
+      info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.15em;margin-bottom:8px;">INCIDENCIA</div>';
+      info += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+      info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+inci.descripcion+'</strong></div>';
+      if(inci.accion_inmediata) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Acción tomada: </span>'+inci.accion_inmediata+'</div>';
+      if(inci.staff_implicado_nombres){
+        try{
+          var staff=JSON.parse(inci.staff_implicado_nombres);
+          if(staff.length>0){
+            info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Staff implicado: </span>';
+            info += staff.map(function(n){return '<span class="badge b-yellow" style="margin-right:4px;">'+n+'</span>';}).join('');
+            info += '</div>';
+          }
+        }catch(e){}
+      }
+      info += '</div></div>';
+    });
+  } else {
+    info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin incidencias declaradas</div>';
+  }
+
+  // Block 4: Merma (summary - full with costs below)
+  if(mermas.length>0){
+    info += '<div style="background:var(--bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:10px;">';
+    info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:8px;">MERMA ('+mermas.length+' líneas)</div>';
+    mermas.forEach(function(m){
+      info += '<div style="font-size:13px;display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">';
+      info += '<strong>'+m.producto+'</strong>';
+      info += '<span style="color:var(--text2)">'+m.cantidad+' '+m.unidad+'</span>';
+      info += '<span class="badge b-yellow">'+m.causa+'</span>';
+      if(m.obs) info += '<span style="color:var(--text3);font-size:11px;">'+m.obs+'</span>';
+      info += '</div>';
+    });
+    info += '</div>';
+  } else {
+    info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin merma declarada</div>';
+  }
+
+  // Block 5: Tareas generadas
+  var shiftTareas = (await getDB('tareas')).filter(function(t){return t.shift_id===s.id;});
+  if(shiftTareas.length>0){
+    info += '<div style="background:var(--bg);border:1px solid var(--purple);border-radius:8px;padding:12px;margin-bottom:10px;">';
+    info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--purple);letter-spacing:.15em;margin-bottom:8px;">TAREAS GENERADAS</div>';
+    shiftTareas.forEach(function(t){
+      info += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+      info += '<div><span style="color:var(--text3)">Dpto. destino: </span>'+t.dept_destino+'</div>';
+      info += '<div><span style="color:var(--text3)">Prioridad: </span>'+bPrio(t.prioridad)+'</div>';
+      info += '<div><span style="color:var(--text3)">Deadline: </span>'+fmtDate(t.deadline)+'</div>';
+      info += '<div><span style="color:var(--text3)">Origen: </span>'+t.origen+'</div>';
+      if(t.descripcion) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span>'+t.descripcion+'</div>';
+      info += '</div>';
+    });
+    info += '</div>';
+  }
+
+  document.getElementById('mv-info').innerHTML=info;
+  // Costes merma
+  let costesHtml='';
+  if(mermas.length>0){
+    costesHtml=`<div style="font-size:10px;font-weight:700;color:var(--orange);font-family:var(--font-mono);letter-spacing:.15em;margin-bottom:8px;">COSTES DE MERMA</div>`;
+    mermas.forEach(m=>{ costesHtml+=`<div class="mcoste-row ${m.coste_unitario>0?'filled':''}"><div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:center;"><div><div style="font-weight:600">${m.producto}</div><div style="font-size:11px;color:var(--text3)">${m.cantidad} ${m.unidad} · ${m.causa}</div></div><div><label style="font-size:9px">€/unidad</label><input type="number" id="mcoste-${m.id}" value="${m.coste_unitario||''}" min="0" step="0.01" placeholder="0.00" oninput="updMcoste('${m.id}','${m.cantidad}')" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px 7px;width:100%;outline:none;"></div><div><label style="font-size:9px">Total €</label><div id="mtot-${m.id}" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--orange);padding:5px 0;">${m.coste_unitario>0?(m.coste_unitario*m.cantidad).toFixed(2)+'€':'—'}</div></div></div></div>`; });
+    const tot=mermas.reduce((a,m)=>a+(m.coste_unitario||0)*m.cantidad,0);
+    costesHtml+=`<div class="mcoste-total"><span>TOTAL MERMA</span><span id="mtot-gen">${tot>0?tot.toFixed(2)+'€':'Pendiente'}</span></div>`;
+  }
+  document.getElementById('mv-costes').innerHTML=costesHtml;
+  document.getElementById('val-comentario').value='';
+  // Restore action buttons (may have been hidden by detail view)
+  document.querySelectorAll('.modal-footer .btn-warn, .modal-footer .btn-danger, .modal-footer .btn-success').forEach(function(b){
+    b.style.display='';
+  });
+  // Populate error employee selector
+  var errorEmpSel = document.getElementById('val-error-empleado');
+  if(errorEmpSel){
+    errorEmpSel.innerHTML='<option value="">— Sin error / Sin responsable —</option>';
+    getDB('employees').then(function(emps){
+      emps.filter(function(e){return e.estado==='Activo';}).forEach(function(e){
+        var o=document.createElement('option');
+        o.value=e.id; o.textContent=e.nombre+' ('+e.puesto+')';
+        o.style.background='#ffffff'; o.style.color='#111827';
+        // Pre-select the shift's employee
+        if(s && e.id===s.employee_id) o.selected=true;
+        errorEmpSel.appendChild(o);
+      });
+    });
+  }
+  // Reset FIO toggles
+  ['fio-si','fio-no'].forEach(function(id){var el=document.getElementById(id);if(el)el.className='tbtn';});
+  toggleState.fio=null;
+  document.getElementById('val-gravedad').value='';
+  document.getElementById('val-tipo-error').value='';
+  if(document.getElementById('val-num-errores')) document.getElementById('val-num-errores').value='0';
+  document.getElementById('modal-validar').classList.add('open');
+}
+async function updMcoste(mid,cant){ const v=parseFloat(document.getElementById('mcoste-'+mid).value)||0; const t=v*parseFloat(cant); document.getElementById('mtot-'+mid).textContent=t>0?t.toFixed(2)+'€':'—'; const m=(await getDB('merma')).filter(m=>m.shift_id===validatingShiftId); let total=0; m.forEach(x=>{ const inp=document.getElementById('mcoste-'+x.id); total+=(inp?parseFloat(inp.value)||0:x.coste_unitario||0)*x.cantidad; }); const el=document.getElementById('mtot-gen'); if(el) el.textContent=total>0?total.toFixed(2)+'€':'Pendiente'; }
+async function doValidacion(newEstado){
+  if(!validatingShiftId) return;
+  const comentario=document.getElementById('val-comentario').value.trim();
+  if(newEstado==='En corrección'&&!comentario){toast('Escribe qué debe corregir el empleado','err');return;}
+  // Guardar costes merma
+  const mermas=await getDB('merma');
+  for(var _mi=0;_mi<mermas.length;_mi++){
+    var _m=mermas[_mi];
+    if(_m.shift_id!==validatingShiftId) continue;
+    var _inp=document.getElementById('mcoste-'+_m.id);
+    if(_inp){var _cu=parseFloat(_inp.value)||0; await dbUpdate('merma',_m.id,{coste_unitario:_cu,coste_total:_cu*_m.cantidad});}
+  }
+  invalidateCache('merma');
+  // Actualizar shift
+  const shifts=await getDB('shifts');
+  const idx=shifts.findIndex(s=>s.id===validatingShiftId); if(idx===-1) return;
+  var fio = toggleState.fio === 'si';
+  var valGravedad = (document.getElementById('val-gravedad')||{}).value || '';
+  var valTipoError = (document.getElementById('val-tipo-error')||{}).value || '';
+  var valNumErrores = 0; // field removed
+  var errorEmpEl = document.getElementById('val-error-empleado');
+  var errorEmpId = errorEmpEl ? errorEmpEl.value : '';
+  var errorEmpNombre = errorEmpEl && errorEmpEl.selectedOptions[0] ? errorEmpEl.selectedOptions[0].textContent : '';
+
+  // CRITICAL: save all validation fields to Supabase
+  var valCosteMerma = parseFloat((document.getElementById('val-coste-total')||{}).value)||0;
+  var updatePayload = {
+    estado: newEstado,
+    validado_por: currentUser.nombre,
+    validado_ts: new Date().toISOString(),
+    comentario_validador: comentario,
+    fio: fio,
+    gravedad_error: valGravedad,
+    tipo_error: valTipoError,
+    impacto_bonus: (document.getElementById('val-impacto-bonus')||{}).value||'',
+    num_errores: valNumErrores,
+    error_employee_id: errorEmpId,
+    error_employee_nombre: errorEmpNombre,
+    coste_merma_supervisor: valCosteMerma,
+  };
+
+  console.log('[VALIDACION] Saving:', updatePayload);
+  var saveResult = await dbUpdate('shifts', validatingShiftId, updatePayload);
+  console.log('[VALIDACION] Result:', saveResult);
+  invalidateCache('shifts');
+  if(newEstado==='Validado'){
+    const incis=await getDB('incidencias');
+    for(const i of incis){ if(i.shift_id===validatingShiftId) await dbUpdate('incidencias',i.id,{estado:'Gestionada'}); }
+    invalidateCache('incidencias');
+  }
+  auditLog('VALIDACION',`${currentUser.nombre} → ${newEstado}`);
+  closeModal('modal-validar'); renderValidacion();
+  toast(`Registro: ${newEstado}`,newEstado==='Validado'?'ok':'warn');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DASHBOARD
+async function renderDashboard(){
+  const periodo=document.getElementById('dash-periodo').value;
+  const servFilt=document.getElementById('dash-serv').value;
+  const empFilt=document.getElementById('dash-emp').value;
+  const tipoErrorFilt=(document.getElementById('dash-tipo-error')||{}).value||'';
+  const sevFilt=(document.getElementById('dash-sev')||{}).value||'';
+  const diCat=document.getElementById('di-cat').value;
+  const diSev=document.getElementById('di-sev').value;
+  const diEstado=document.getElementById('di-estado').value;
+  const dmCausa=document.getElementById('dm-causa').value;
+  const dmEmp=document.getElementById('dm-emp').value;
+
+  let desde=null;
+  if(periodo==='hoy') desde=today();
+  if(periodo==='semana') desde=startOfWeek();
+  if(periodo==='mes') desde=startOfMonth();
+
+  let shifts=await getDB('shifts');
+  // Admin dept filter
+  var deptFilter=(document.getElementById('dash-dept')||{}).value||'';
+  if(deptFilter){
+    shifts = shifts.filter(function(s){ return s.area===deptFilter; });
+  } else if(currentUser.rol==='jefe_recepcion'){
+    shifts = shifts.filter(function(s){ return s.area==='Recepción'; });
+  }
+  let mermas=await getDB('merma');
+  let incis=await getDB('incidencias');
+  const tareas=await getDB('tareas');
+
+  if(desde){shifts=shifts.filter(s=>s.fecha>=desde);mermas=mermas.filter(m=>m.fecha>=desde);incis=incis.filter(i=>i.fecha>=desde);}
+  if(servFilt){shifts=shifts.filter(s=>s.servicio===servFilt);mermas=mermas.filter(m=>m.servicio===servFilt);incis=incis.filter(i=>i.servicio===servFilt);}
+  if(empFilt) shifts=shifts.filter(s=>s.nombre===empFilt);
+  if(tipoErrorFilt) shifts=shifts.filter(s=>s.tipo_error===tipoErrorFilt);
+  if(sevFilt) shifts=shifts.filter(s=>s.gravedad_error===sevFilt);
+
+  const pl={hoy:'Hoy',semana:'Esta semana',mes:'Este mes',todo:'Total'};
+  document.getElementById('dash-sub').textContent=`${pl[periodo]} ${servFilt?'· '+servFilt:''} ${empFilt?'· '+empFilt:''}`;
+
+  // Global KPIs
+  const totalH=shifts.length;
+  const valH=shifts.filter(s=>s.estado==='Validado').length;
+  const pendH=shifts.filter(s=>s.estado==='Pendiente').length;
+  const totalHoras=shifts.reduce((a,s)=>a+(parseFloat(s.horas)||0),0);
+  const costeMerma=mermas.reduce((a,m)=>a+(m.coste_total||0),0);
+  const inciAb=incis.filter(i=>i.estado==='Abierta').length;
+  const pctFU=0; // follow-up field removed
+  const tasksPend=tareas.filter(t=>t.estado==='Pendiente').length;
+  const totalFIO=shifts.filter(s=>s.fio===true).length;
+  const totalErrores=shifts.reduce((a,s)=>a+(parseInt(s.num_errores)||0),0);
+  document.getElementById('kpi-grid').innerHTML=
+    '<div class="kpi k-amber"><div class="kpi-lbl">Turnos</div><div class="kpi-val">'+totalH+'</div><div class="kpi-sub">'+valH+' validados · '+pendH+' pendientes</div></div>'+
+    '<div class="kpi k-green"><div class="kpi-lbl">Horas</div><div class="kpi-val">'+totalHoras.toFixed(1)+'h</div><div class="kpi-sub">Prom. '+(totalH?(totalHoras/totalH).toFixed(1):0)+'h/turno</div></div>'+
+    '<div class="kpi k-orange"><div class="kpi-lbl">Coste merma</div><div class="kpi-val">'+costeMerma.toFixed(0)+'€</div><div class="kpi-sub">'+mermas.length+' líneas totales</div></div>'+
+    '<div class="kpi k-red"><div class="kpi-lbl">Incidencias</div><div class="kpi-val">'+inciAb+'</div><div class="kpi-sub">'+incis.length+' total · '+inciAb+' abiertas</div></div>'+
+    (function(){
+    var fioEl=document.getElementById('dash-fio-count');
+    if(fioEl) fioEl.textContent='('+totalFIO+' registros)';
+    return (function(){
+    var fioToday=shifts.filter(function(s){return (s.fio===true||s.fio===1||s.fio==='true')&&s.fecha===today();}).length;
+    var fioCrit=shifts.filter(function(s){return s.fio===true&&(s.gravedad_error==='Alta'||s.gravedad_error==='Crítica');}).length;
+    var fioPend=shifts.filter(function(s){return s.fio===true&&(!s.validado_por);}).length;
+    var fioByEmp={};
+    shifts.filter(function(s){return s.fio===true&&s.error_employee_nombre;}).forEach(function(s){
+      fioByEmp[s.error_employee_nombre]=(fioByEmp[s.error_employee_nombre]||0)+1;
+    });
+    var topEmp=Object.keys(fioByEmp).sort(function(a,b){return fioByEmp[b]-fioByEmp[a];})[0]||'—';
+    return '<div class="kpi k-red"><div class="kpi-lbl">FIO total</div><div class="kpi-val">'+totalFIO+'</div><div class="kpi-sub">'+fioToday+' hoy</div></div>'
+      +'<div class="kpi k-red"><div class="kpi-lbl">FIO Alta/Crítica</div><div class="kpi-val">'+fioCrit+'</div><div class="kpi-sub">Máx. severidad</div></div>'
+      +'<div class="kpi k-orange"><div class="kpi-lbl">FIO Pendiente</div><div class="kpi-val">'+fioPend+'</div><div class="kpi-sub">Sin validar</div></div>'
+      +'<div class="kpi k-amber"><div class="kpi-lbl">+ FIO empleado</div><div class="kpi-val" style="font-size:13px;font-weight:700;">'+topEmp+'</div><div class="kpi-sub">'+(fioByEmp[topEmp]||0)+' FIO</div></div>';
+  })();
+  })()+
+
+    '<div class="kpi k-purple"><div class="kpi-lbl">Tareas pend.</div><div class="kpi-val">'+tasksPend+'</div><div class="kpi-sub">'+tareas.filter(function(t){return t.estado==='Verificada';}).length+' verificadas</div></div>';
+
+  // Empleados
+  const eMap={};
+  shifts.forEach(s=>{ if(!eMap[s.nombre]) eMap[s.nombre]={nombre:s.nombre,puesto:s.puesto,turnos:0,horas:0,mermas:0,incis:0}; eMap[s.nombre].turnos++;eMap[s.nombre].horas+=parseFloat(s.horas)||0;if(s.merma_declarada==='si')eMap[s.nombre].mermas++;if(s.incidencia_declarada==='si')eMap[s.nombre].incis++; });
+  const eRows=Object.values(eMap).sort((a,b)=>b.horas-a.horas);
+  const empEl=document.getElementById('dash-emp-table');
+  // FIO counted by RESPONSIBLE (error_employee_id/nombre)
+  var fioMap={};
+  shifts.filter(function(s){return s.fio===true||s.fio===1||s.fio==='true';}).forEach(function(s){
+    // Count FIO to the person responsible (error_employee), not the reporter
+    var respKey = s.error_employee_nombre || s.nombre;
+    if(!fioMap[respKey]) fioMap[respKey] = 0;
+    fioMap[respKey]++;
+    // Also ensure that person appears in empMap (they may not have filed shifts in filter)
+    if(!eMap[respKey]) eMap[respKey]={nombre:respKey,puesto:s.error_employee_nombre?s.puesto:'—',turnos:0,horas:0,mermas:0,incis:0};
+  });
+  Object.keys(eMap).forEach(function(k){ eMap[k].fio_count = fioMap[eMap[k].nombre]||0; });
+  const eRows2=Object.values(eMap).sort((a,b)=>b.horas-a.horas);
+  empEl.innerHTML=eRows2.length?'<table><tr><th>Empleado</th><th>Turnos</th><th>Horas</th><th>Incid.</th><th>FIO</th></tr>'+eRows2.map(function(e){
+    return '<tr><td><div style="font-weight:600">'+e.nombre+'</div><div style="font-size:11px;color:var(--text3)">'+e.puesto+'</div></td><td style="font-family:var(--font-mono)">'+e.turnos+'</td><td style="font-family:var(--font-mono)">'+e.horas.toFixed(1)+'h</td><td>'+( e.incis>0?'<span class="badge b-red">'+e.incis+'</span>':'—')+'</td><td>'+(e.fio_count>0?'<span class="badge b-red">'+e.fio_count+'</span>':'—')+'</td><td style="font-family:var(--font-mono);color:'+(e.error_count>0?'var(--red)':'var(--text3)')+'">'+( e.error_count>0?e.error_count:'—')+'</td></tr>';
+  }).join('')+'</table>':'<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">Sin datos</div></div>';
+
+  // Alertas
+  const msgs=[];
+  if(pendH>0) msgs.push({t:'warn',m:`${pendH} turno(s) pendiente(s) de validación`});
+  const sinCoste=mermas.filter(m=>!m.coste_unitario||m.coste_unitario===0).length;
+  if(sinCoste>0) msgs.push({t:'warn',m:`${sinCoste} línea(s) de merma sin coste`});
+  if(shifts.filter(s=>s.follow_up==='no').length) msgs.push({t:'err',m:`${shifts.filter(s=>s.follow_up==='no').length} turno(s) con follow-up NO`});
+  const crit=incis.filter(i=>i.severidad==='Crítica'&&i.estado==='Abierta');
+  if(crit.length) msgs.push({t:'err',m:`⛔ ${crit.length} incidencia(s) CRÍTICA(s) sin cerrar`});
+  const overdueT=tareas.filter(t=>isOverdue(t.deadline)&&t.estado!=='Verificada').length;
+  if(overdueT>0) msgs.push({t:'err',m:`${overdueT} tarea(s) vencida(s) sin cerrar`});
+  if(!msgs.length) msgs.push({t:'ok',m:'Sin alertas activas en el periodo'});
+  document.getElementById('dash-alertas').innerHTML=msgs.map(x=>`<div class="alert a-${x.t==='ok'?'ok':x.t==='err'?'err':'warn'}">${x.m}</div>`).join('');
+
+  // INCIDENCIAS filtradas
+  let inciF=[...incis];
+  if(diCat) inciF=inciF.filter(i=>i.categoria===diCat);
+  if(diSev) inciF=inciF.filter(i=>i.severidad===diSev);
+  if(diEstado) inciF=inciF.filter(i=>i.estado===diEstado);
+
+  const inciKpiEl=document.getElementById('kpi-incis');
+  const iAb=inciF.filter(i=>i.estado==='Abierta').length;
+  const iCrit=inciF.filter(i=>i.severidad==='Crítica').length;
+  const iForm=inciF.filter(i=>i.requiere_formacion==='Sí').length;
+  const iDisc=inciF.filter(i=>i.requiere_disciplina==='Sí').length;
+  inciKpiEl.innerHTML=`<div class="kpi k-red"><div class="kpi-lbl">Total (filtro)</div><div class="kpi-val">${inciF.length}</div></div><div class="kpi k-red"><div class="kpi-lbl">Abiertas</div><div class="kpi-val">${iAb}</div></div><div class="kpi k-red"><div class="kpi-lbl">Críticas</div><div class="kpi-val">${iCrit}</div></div><div class="kpi k-orange"><div class="kpi-lbl">Req. Formación</div><div class="kpi-val">${iForm}</div></div><div class="kpi k-orange"><div class="kpi-lbl">Req. Disciplina</div><div class="kpi-val">${iDisc}</div></div>`;
+
+  const inciTbl=document.getElementById('dash-inci-table');
+  inciTbl.innerHTML=inciF.length?`<table><tr><th>Fecha</th><th>Declarante</th><th>Servicio</th><th>Categoría</th><th>Sev.</th><th>Descripción</th><th>Estado</th><th>Form.</th><th>Disc.</th></tr>
+  ${inciF.sort((a,b)=>{const s={Crítica:4,Alta:3,Media:2,Baja:1};return(s[b.severidad]||0)-(s[a.severidad]||0);}).map(i=>`<tr><td style="font-family:var(--font-mono);font-size:10px">${fmtDate(i.fecha)}</td><td>${i.nombre}</td><td>${i.servicio}</td><td style="font-size:11px">${i.categoria}</td><td>${bSev(i.severidad)}</td><td style="font-size:11px;color:var(--text2);max-width:200px">${i.descripcion}</td><td>${i.estado==='Abierta'?'<span class="badge b-red">Abierta</span>':'<span class="badge b-green">Gestionada</span>'}</td><td>${i.requiere_formacion==='Sí'?'<span class="badge b-yellow">SÍ</span>':'—'}</td><td>${i.requiere_disciplina==='Sí'?'<span class="badge b-red">SÍ</span>':'—'}</td></tr>`).join('')}</table>`:'<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin incidencias con este filtro</div></div>';
+
+  // MERMA filtrada
+  let mermaF=[...mermas];
+  if(dmCausa) mermaF=mermaF.filter(m=>m.causa===dmCausa);
+  if(dmEmp) mermaF=mermaF.filter(m=>m.nombre===dmEmp);
+
+  const mKpi=document.getElementById('kpi-merma');
+  const totalMermaLineas=mermaF.length;
+  const totalMermaCosto=mermaF.reduce((a,m)=>a+(m.coste_total||0),0);
+  const sinCosto=mermaF.filter(m=>!m.coste_unitario||m.coste_unitario===0).length;
+  const causaMap={};
+  mermaF.forEach(m=>{if(!causaMap[m.causa])causaMap[m.causa]={causa:m.causa,lineas:0,coste:0};causaMap[m.causa].lineas++;causaMap[m.causa].coste+=(m.coste_total||0);});
+  const topCausa=Object.values(causaMap).sort((a,b)=>b.coste-a.coste)[0];
+  mKpi.innerHTML=`<div class="kpi k-orange"><div class="kpi-lbl">Líneas merma</div><div class="kpi-val">${totalMermaLineas}</div></div><div class="kpi k-orange"><div class="kpi-lbl">Coste total</div><div class="kpi-val">${totalMermaCosto.toFixed(0)}€</div></div><div class="kpi k-red"><div class="kpi-lbl">Sin coste</div><div class="kpi-val">${sinCosto}</div><div class="kpi-sub">Líneas pendientes de valorar</div></div><div class="kpi k-amber"><div class="kpi-lbl">Top causa</div><div class="kpi-val" style="font-size:15px;">${topCausa?.causa||'—'}</div><div class="kpi-sub">${topCausa?topCausa.coste.toFixed(2)+'€':''}</div></div>`;
+
+  const mTbl=document.getElementById('dash-merma-table');
+  mTbl.innerHTML=mermaF.length?`<table><tr><th>Fecha</th><th>Declarante</th><th>Servicio</th><th>Producto</th><th>Cantidad</th><th>Causa</th><th>€/u</th><th>Total €</th></tr>
+  ${mermaF.map(m=>`<tr><td style="font-family:var(--font-mono);font-size:10px">${fmtDate(m.fecha)}</td><td>${m.nombre}</td><td>${m.servicio}</td><td style="font-weight:600">${m.producto}</td><td style="font-family:var(--font-mono)">${m.cantidad} ${m.unidad}</td><td style="font-size:11px">${m.causa}</td><td style="font-family:var(--font-mono)">${m.coste_unitario>0?m.coste_unitario+'€':'<span style="color:var(--text3)">—</span>'}</td><td style="font-family:var(--font-mono);color:var(--orange)">${m.coste_total>0?m.coste_total.toFixed(2)+'€':'<span style="color:var(--text3)">—</span>'}</td></tr>`).join('')}</table>`:'<div class="empty"><div class="empty-icon">🗑</div><div class="empty-text">Sin merma con este filtro</div></div>';
+
+  // TAREAS POR DPTO
+  const deptGrid=document.getElementById('dept-task-grid');
+  deptGrid.innerHTML=DEPTS.map(d=>{
+    const dt=tareas.filter(t=>t.dept_destino===d);
+    const dp=dt.filter(t=>t.estado==='Pendiente').length;
+    const de=dt.filter(t=>t.estado==='En proceso').length;
+    const dc=dt.filter(t=>t.estado==='Completada').length;
+    const dv=dt.filter(t=>t.estado==='Verificada').length;
+    const c=DEPT_COLORS[d];
+    return `<div class="dept-kpi" style="border-color:${c}44"><div class="dept-kpi-name" style="color:${c}">${DEPT_ICONS[d]} ${d}</div><div class="dept-kpi-val" style="color:${c}">${dt.length}</div><div class="dept-kpi-sub">${dp} pend. · ${de} proceso · ${dc} comp. · ${dv} verif.</div></div>`;
+  }).join('');
+
+  const tasksTbl=document.getElementById('dash-tasks-table');
+  const openTasks=tareas.filter(t=>t.estado!=='Verificada').sort((a,b)=>{ const ps={Alta:3,Media:2,Baja:1}; return (ps[b.prioridad]||0)-(ps[a.prioridad]||0); });
+  tasksTbl.innerHTML=openTasks.length?`<table><tr><th>Dpto.</th><th>Prioridad</th><th>Tarea</th><th>Origen</th><th>Deadline</th><th>Estado</th><th>Creada por</th></tr>
+  ${openTasks.map(t=>`<tr><td>${deptBadge(t.dept_destino)}</td><td>${bPrio(t.prioridad)}</td><td style="font-weight:600;font-size:12px">${t.titulo}</td><td><span class="task-origin">${t.origen}</span></td><td style="font-family:var(--font-mono);font-size:10px;${isOverdue(t.deadline)?'color:var(--red);font-weight:700':''}">${fmtDate(t.deadline)}${isOverdue(t.deadline)?' ⚠':''}</td><td>${bTaskEstado(t.estado)}</td><td style="font-size:11px;color:var(--text3)">${t.creado_por}</td></tr>`).join('')}</table>`:'<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin tareas abiertas</div></div>';
+  // ── FIO Table ──────────────────────────────────────────
+  var fioEl2=document.getElementById('dash-fio-table');
+  if(fioEl2){
+    var fioShifts2=shifts.filter(function(s){return s.fio===true||s.fio===1||s.fio==='true'||s.fio==='1';});
+    var fioKpiEl=document.getElementById('dash-fio-count');
+    if(fioKpiEl) fioKpiEl.textContent='('+fioShifts2.length+' registros)';
+    if(!fioShifts2.length){
+      fioEl2.innerHTML='<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin FIO en el periodo</div></div>';
+    } else {
+      var fioRows2='';
+      fioShifts2.forEach(function(s){
+        var staffI=incis.filter(function(i){return i.shift_id===s.id;});
+        var sn='—'; try{if(staffI.length&&staffI[0].staff_implicado_nombres){var ar=JSON.parse(staffI[0].staff_implicado_nombres);sn=ar.join(', ');}}catch(e){}
+        var infR=staffI.length?(staffI[0].informado_responsable==='si'?'<span class="badge b-green">✓ Sí</span>':'<span class="badge b-gray">No</span>'):'—';
+        fioRows2+='<tr>'
+          +'<td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(s.fecha)+'</td>'
+          +'<td style="font-weight:600">'+s.nombre+'</td>'
+          +'<td>'+(s.error_employee_nombre||'—')+'</td>'
+          +'<td style="font-size:11px">'+sn+'</td>'
+          +'<td style="font-size:13px;">'+displayServicio(s.servicio)+'</td>'
+          +'<td>'+(s.tipo_error?'<span class="badge b-orange">'+s.tipo_error+'</span>':'—')+'</td>'
+          +'<td>'+(s.gravedad_error==='Alta'?'<span class="badge b-red">Alta</span>':s.gravedad_error==='Media'?'<span class="badge b-orange">Media</span>':s.gravedad_error?'<span class="badge b-blue">Baja</span>':'—')+'</td>'
+          +'<td style="font-size:11px;color:var(--text2)">'+(s.comentario_validador||'—')+'</td>'
+          +'<td>'+infR+'</td>'
+          +'<td>'+bEstado(s.estado)+'</td>'
+          +'</tr>';
+      });
+      fioEl2.innerHTML='<div style="overflow-x:auto"><table><tr>'
+        +'<th>Fecha</th><th>Reporta</th><th>Responsable error</th><th>Staff implicado</th>'
+        +'<th>Servicio</th><th>Tipo</th><th>Gravedad</th><th>Comentario</th><th>Informado resp.</th><th>Estado</th>'
+        +'</tr>'+fioRows2+'</table></div>';
+    }
+  }
+
+  // ── Incidencias table ──────────────────────────────────
+  var inciEl2=document.getElementById('dash-inci-table');
+  if(inciEl2){
+    if(!incis.length){
+      inciEl2.innerHTML='<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Sin incidencias en el periodo</div></div>';
+    } else {
+      var iRows2='';
+      incis.forEach(function(i){
+        var sn='—'; try{if(i.staff_implicado_nombres){var ar=JSON.parse(i.staff_implicado_nombres);if(ar.length)sn=ar.join(', ');}}catch(e){}
+        var infR2=i.informado_responsable==='si'?'<span class="badge b-green">✓ Sí</span>':'<span class="badge b-gray">No</span>';
+        iRows2+='<tr>'
+          +'<td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(i.fecha)+'</td>'
+          +'<td style="font-weight:600">'+i.nombre+'</td>'
+          +'<td style="font-size:11px">'+sn+'</td>'
+          +'<td>'+displayServicio(i.servicio||'—')+'</td>'
+          +'<td style="max-width:180px;font-size:12px">'+i.descripcion+'</td>'
+          +'<td style="font-size:11px">'+(i.accion_inmediata||'—')+'</td>'
+          +'<td>'+infR2+'</td>'
+          +'<td>'+bEstado(i.estado)+'</td>'
+          +'</tr>';
+      });
+      inciEl2.innerHTML='<div style="overflow-x:auto"><table><tr>'
+        +'<th>Fecha</th><th>Reporta</th><th>Staff implicado</th><th>Servicio</th><th>Descripción</th><th>Acción</th><th>Informado resp.</th><th>Estado</th>'
+        +'</tr>'+iRows2+'</table></div>';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MAESTRO
+async function renderMaestro(){
+  const employees=(await getDB('employees')).filter(e=>e.id!=='E13');
+  document.getElementById('maestro-table').innerHTML=`<table><tr><th>Nombre</th><th>Área</th><th>Puesto</th><th>Estado</th><th>Resp.</th><th>Val.</th><th>Rol</th><th>€/h</th><th>PIN</th><th>Acciones</th></tr>
+  ${employees.map(e=>`<tr><td><strong>${e.nombre}</strong></td><td>${deptBadge(e.area)}</td><td style="font-size:11px">${e.puesto}</td><td>${e.estado==='Activo'?'<span class="badge b-green">Activo</span>':e.estado==='Baja'?'<span class="badge b-red">Baja</span>':'<span class="badge b-yellow">'+e.estado+'</span>'}</td><td>${e.responsable==1?'<span class="badge b-blue">SÍ</span>':'—'}</td><td>${e.validador==1?'<span class="badge b-yellow">SÍ</span>':'—'}</td><td style="font-family:var(--font-mono);font-size:10px">${e.rol}</td><td style="font-family:var(--font-mono)">${parseFloat(e.coste)>0?parseFloat(e.coste).toFixed(2)+'€':'—'}</td><td style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">${e.pin}</td><td style="white-space:nowrap"><button class="btn btn-secondary btn-sm" onclick="openEmpModal('${e.id}')">Editar</button> ${(currentUser.rol==='admin'||(currentUser.rol==='fb'&&e.rol!=='admin'))?
+              (e.estado==='Activo'?
+                `<button class="btn btn-danger btn-sm" onclick="toggleEmp('${e.id}','Baja')">Baja</button>`:
+                `<button class="btn btn-success btn-sm" onclick="toggleEmp('${e.id}','Activo')">Activar</button>`
+              ):
+              '<span style="font-size:11px;color:var(--text3);">—</span>'
+            }</td></tr>`).join('')}</table>`;
+}
+async function openEmpModal(empId){
+  _editEmpId=empId||null;
+  if(empId){ const e=(await getDB('employees')).find(x=>x.id===empId); if(!e) return; document.getElementById('me-title').textContent='Editar: '+e.nombre; document.getElementById('emp-nombre').value=e.nombre; document.getElementById('emp-area').value=e.area; document.getElementById('emp-puesto').value=e.puesto; document.getElementById('emp-pin').value=e.pin; document.getElementById('emp-coste').value=(e.coste&&parseFloat(e.coste)>0)?parseFloat(e.coste):''; document.getElementById('emp-estado').value=e.estado; document.getElementById('emp-resp').value=(e.responsable==1||e.responsable===true||e.responsable==='1'||e.responsable==='true')?'1':'0'; document.getElementById('emp-val').value=(e.validador==1||e.validador===true||e.validador==='1'||e.validador==='true')?'1':'0'; document.getElementById('emp-rol').value=e.rol; document.getElementById('emp-obs').value=e.obs||'';
+  } else { document.getElementById('me-title').textContent='Nuevo Empleado'; ['emp-nombre','emp-pin','emp-coste','emp-obs'].forEach(id=>document.getElementById(id).value=''); ['emp-area','emp-puesto','emp-estado'].forEach(id=>{ const el=document.getElementById(id); if(el) el.selectedIndex=0; }); document.getElementById('emp-resp').value='0'; document.getElementById('emp-val').value='0'; document.getElementById('emp-rol').value='empleado'; }
+  document.getElementById('modal-empleado').classList.add('open');
+}
+async function saveEmpleado(){
+  const nombre=document.getElementById('emp-nombre').value.trim();
+  const pin=document.getElementById('emp-pin').value.trim();
+  if(!nombre){toast('Nombre obligatorio','err');return;}
+  if(!pin||pin.length<4){toast('PIN mínimo 4 dígitos','err');return;}
+  const employees=await getDB('employees');
+  if(employees.find(e=>e.pin===pin&&e.id!==_editEmpId)){toast('PIN ya en uso','err');return;}
+  var costeVal = parseFloat(document.getElementById('emp-coste').value)||0;
+  const emp={
+    nombre, pin,
+    area: document.getElementById('emp-area').value,
+    puesto: document.getElementById('emp-puesto').value,
+    coste: isNaN(costeVal) ? 0 : costeVal,
+    estado: document.getElementById('emp-estado').value,
+    responsable: parseInt(document.getElementById('emp-resp').value)||0,
+    validador: parseInt(document.getElementById('emp-val').value)||0,
+    rol: document.getElementById('emp-rol').value,
+    obs: (document.getElementById('emp-obs')||{value:''}).value.trim(),
+    updated_at: new Date().toISOString()
+  };
+  // Explicit payload - ensure coste is always sent as number
+  var empPayload = {
+    nombre: emp.nombre, pin: emp.pin, area: emp.area, puesto: emp.puesto,
+    coste: parseFloat(emp.coste)||0, estado: emp.estado,
+    responsable: emp.responsable, validador: emp.validador,
+    rol: emp.rol, obs: emp.obs||''
+  };
+  if(_editEmpId){
+    // Direct fetch PATCH — bypasses sbRequest abstraction for reliability
+    var patchRes = await fetch(
+      SUPABASE_URL + '/rest/v1/employees?id=eq.' + encodeURIComponent(_editEmpId),
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(empPayload)
+      }
+    );
+    console.log('[EMP PATCH] id:', _editEmpId, 'coste:', empPayload.coste, 'status:', patchRes.status);
+    if(!patchRes.ok){
+      var errTxt = await patchRes.text();
+      console.error('[EMP PATCH ERROR]', patchRes.status, errTxt);
+      toast('Error Supabase: ' + patchRes.status + ' — ' + errTxt.substring(0,60), 'err');
+      return;
+    }
+  } else {
+    empPayload.id = 'E' + Date.now();
+    empPayload.fecha_alta = today();
+    empPayload.created_at = new Date().toISOString();
+    await dbInsert('employees', empPayload);
+  }
+  invalidateCache('employees');
+  auditLog('SAVE_EMP', nombre+' — coste:'+costeVal+'€/h');
+  closeModal('modal-empleado');
+  setTimeout(async function(){
+    invalidateCache('employees');
+    await renderMaestro();
+    toast((_editEmpId?'Empleado actualizado':'Empleado creado')+' — coste: '+costeVal+'€/h','ok');
+  }, 200);
+}
+async function toggleEmp(empId,newEstado){ const employees=await getDB('employees'); const idx=employees.findIndex(e=>e.id===empId); if(idx===-1) return; employees[idx].estado=newEstado; await setDB('employees',employees); renderMaestro(); toast('Estado: '+newEstado,'ok'); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXPORT
+function toCSV(rows,cols){ const h=cols.join(';'); const b=rows.map(r=>cols.map(c=>{ const v=r[c]??''; return typeof v==='string'&&(v.includes(';')||v.includes('\n'))?`"${v}"`:v; }).join(';')); return [h,...b].join('\n'); }
+function dl(content,filename){ const blob=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url); }
+async function exportCSV(type){
+  if(type==='employees') { dl(toCSV(await getDB('employees'),['id','nombre','area','puesto','pin','estado','responsable','validador','rol','coste','fecha_alta']),'BDS_Maestro.csv'); }
+  if(type==='shifts') { dl(toCSV(await getDB('shifts'),['id','fecha','servicio','nombre','area','puesto','horas','responsable_nombre','follow_up','merma_declarada','incidencia_declarada','observacion','estado','validado_por','validado_ts','comentario_validador','created_at']),'BDS_Input.csv'); }
+  if(type==='incidencias') { dl(toCSV(await getDB('incidencias'),['id','fecha','servicio','nombre','categoria','severidad','descripcion','accion_inmediata','requiere_formacion','requiere_disciplina','estado','created_at']),'BDS_Incidencias.csv'); }
+  if(type==='merma') { dl(toCSV(await getDB('merma'),['id','fecha','servicio','nombre','producto','cantidad','unidad','causa','obs','coste_unitario','coste_total','created_at']),'BDS_Merma.csv'); }
+  if(type==='tareas') { dl(toCSV(await getDB('tareas'),['id','titulo','dept_destino','dept_origen','prioridad','deadline','descripcion','origen','estado','creado_por','completada_por','completada_ts','verificada_por','verificada_ts','created_at']),'BDS_Tareas.csv'); }
+  if(type==='horas') { const shifts=await getDB('shifts'); const employees=await getDB('employees'); const map={}; shifts.forEach(s=>{ if(!map[s.employee_id]){ const e=employees.find(x=>x.id===s.employee_id)||{}; map[s.employee_id]={nombre:s.nombre,puesto:s.puesto,horas:0,turnos:0,coste_hora:e.coste||0}; } map[s.employee_id].horas+=parseFloat(s.horas)||0; map[s.employee_id].turnos++; }); const rows=Object.values(map).map(r=>({...r,coste_total:(r.horas*r.coste_hora).toFixed(2)})); dl(toCSV(rows,['nombre','puesto','turnos','horas','coste_hora','coste_total']),'BDS_Horas.csv'); }
+  toast('CSV descargado','ok');
+}
+async function exportFiltered(){ const desde=document.getElementById('exp-desde').value; const hasta=document.getElementById('exp-hasta').value; let shifts=await getDB('shifts'); if(desde) shifts=shifts.filter(s=>s.fecha>=desde); if(hasta) shifts=shifts.filter(s=>s.fecha<=hasta); dl(toCSV(shifts,['id','fecha','servicio','nombre','area','puesto','horas','responsable_nombre','follow_up','merma_declarada','incidencia_declarada','observacion','estado','validado_por','validado_ts','created_at']),`BDS_Export_${desde||'inicio'}_${hasta||'hoy'}.csv`); toast('CSV filtrado descargado','ok'); }
+async function exportBackup(){
+  const tables={
+    employees: await getDB('employees'),
+    shifts: await getDB('shifts'),
+    merma: await getDB('merma'),
+    incidencias: await getDB('incidencias'),
+    tareas: await getDB('tareas')
+  };
+  const backup={schema_version:SCHEMA_VERSION,exported_at:new Date().toISOString(),tables};
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='BDS_Backup_v'+SCHEMA_VERSION+'_'+today()+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('Backup JSON exportado','ok');
+}
+async function importBackup(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      const backup=JSON.parse(e.target.result);
+      if(!backup.tables) throw new Error('Formato invalido');
+      for(const [table,rows] of Object.entries(backup.tables)){
+        if(!Array.isArray(rows)) continue;
+        for(const row of rows){ try{ await dbInsert(table,row); }catch(e2){} }
+        invalidateCache(table);
+      }
+      toast('Backup importado','ok');
+    }catch(err){ toast('Error: '+err.message,'err'); }
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MODAL HELPERS
+function closeModal(id){ document.getElementById(id).classList.remove('open'); if(id==='modal-validar') validatingShiftId=null; if(id==='modal-empleado') _editEmpId=null; }
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===e.currentTarget) closeModal(e.currentTarget.id); }));
+function toast(msg,type='ok'){ const c=document.getElementById('toast-c'); const t=document.createElement('div'); t.className=`toast ${type}`; t.textContent=msg; c.appendChild(t); setTimeout(()=>{ t.style.animation='toastOut .3s ease forwards'; setTimeout(()=>{ if(c.contains(t)) c.removeChild(t); },300); },3200); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT — portal controls display, NOT this script
+runMigrations();
+seedEmployees();
+mermaRows=[];
+// Hide both by default — portal will call launchCocina() after PIN
+document.getElementById('login-screen').style.display='none';
+document.getElementById('app').style.display='none';
+
+
+</script>
