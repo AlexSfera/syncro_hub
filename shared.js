@@ -1688,6 +1688,9 @@ function toast(msg,type='ok'){ const c=document.getElementById('toast-c'); const
 runMigrations();
 seedEmployees();
 mermaRows=[];
-// Hide both by default — portal will call launchCocina() after PIN
-document.getElementById('login-screen').style.display='none';
-document.getElementById('app').style.display='none';
+document.addEventListener('DOMContentLoaded', function() {
+  var ls = document.getElementById('login-screen');
+  var ap = document.getElementById('app');
+  if(ls) ls.style.display='none';
+  if(ap) ap.style.display='none';
+});
