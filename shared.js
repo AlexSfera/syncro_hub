@@ -1691,6 +1691,3 @@ mermaRows=[];
 // Hide both by default — portal will call launchCocina() after PIN
 document.getElementById('login-screen').style.display='none';
 document.getElementById('app').style.display='none';
-
-
-</script>
