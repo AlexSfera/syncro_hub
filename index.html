@@ -814,8 +814,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="filter-bar">
         <div class="fg"><label>Periodo</label>
           <select id="dash-periodo" onchange="renderDashboard()"><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes">Este mes</option><option value="todo">Todo</option></select></div>
-          <div class="fg" id="dash-dept-wrapper" style="display:none;"><label>Departamento</label>
-            <select id="dash-dept" onchange="renderDashboard()" style="color:#111827;background:#ffffff;">
+          id="dash-dept-wrapper" style="display:block;";"><label>Departamento</label>
+            <select id="dash-dept" onchange="onDashDeptChange()" style="color:#111827;background:#ffffff;">
               <option value="">Todos</option>
               <option value="Recepción">Recepción</option>
               <option value="Sala">Sala</option>
@@ -853,7 +853,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="kpi-grid" id="kpi-incis"></div>
       <div class="card"><div class="card-title">INCIDENCIAS — DETALLE</div><div class="tbl-wrap" id="dash-inci-table"></div></div>
 
-      <div class="sec-div">Merma</div>
+      <div id="dash-sec-merma"><div class="sec-div">Merma</div>
       <div class="filter-bar" style="margin-bottom:10px;">
         <div class="fg"><label>Causa</label>
           <select id="dm-causa" onchange="renderDashboard()"><option value="">Todas</option><option>Caducidad</option><option>Error de preparación</option><option>Accidente</option><option>Devolución sala</option><option>Exceso de producción</option><option>Otro</option></select></div>
@@ -861,12 +861,13 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <select id="dm-emp" onchange="renderDashboard()"><option value="">Todos</option></select></div>
       </div>
       <div class="kpi-grid" id="kpi-merma"></div>
-      <div class="card"><div class="card-title">MERMA — DETALLE</div><div class="tbl-wrap" id="dash-merma-table"></div></div>
+      <div class="card"><div class="card-title">MERMA — DETALLE</div><div class="tbl-wrap" id="dash-merma-table"></div></div></div>
 
       <div class="sec-div">Tareas por departamento</div>
       <div class="dept-grid" id="dept-task-grid"></div>
       <div class="card"><div class="card-title">TAREAS ABIERTAS POR DPTO</div><div class="tbl-wrap" id="dash-tasks-table"></div></div>
-            <div class="card" style="margin-top:14px;border-top:2px solid #3b82f6;">
+      <div class="card" style="margin-top:14px;border-top:2px solid #3b82f6;">
+      <div class="card" style="margin-top:14px;" id="dash-kpi-especifico"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
           <div class="card-title" style="color:#3b82f6;margin-bottom:0;">COSTES DE PERSONAL</div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
@@ -1654,6 +1655,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 <script src="sala.js"></script>
 <script src="caja.js"></script>
 <script src="recepcion.js"></script>
+<script src="dashboard.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════
 // CHECKLIST PRE-TURNO
