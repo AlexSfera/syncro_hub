@@ -37,6 +37,36 @@ function getDashDeptsForUser() {
 
 // ── ESTADO ACTUAL DEL DASHBOARD ──────────────────────────────
 var _dashCurrentDept = null;
+var _dashCurrentTab = 'turnos';
+
+function _activateDashTab(tabId) {
+  _dashCurrentTab = tabId;
+  document.querySelectorAll('.dash-tab').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.dash-panel').forEach(function(panel) {
+    panel.classList.toggle('active', panel.id === 'tab-panel-' + tabId);
+  });
+}
+
+// ── SKELETON LOADER ───────────────────────────────────────────
+function _showDashSkeleton() {
+  var kpiEl = document.getElementById('kpi-grid');
+  if (kpiEl) {
+    kpiEl.innerHTML = [1,2,3,4,5].map(function() {
+      return '<div class="kpi"><div class="skel skel-kpi"></div></div>';
+    }).join('');
+  }
+  var espEl = document.getElementById('dash-kpi-especifico');
+  if (espEl) espEl.innerHTML = '<div class="skel skel-card"></div>';
+  var empEl = document.getElementById('dash-emp-table');
+  if (empEl) empEl.innerHTML = [1,2,3].map(function() {
+    return '<div class="skel skel-row"></div>';
+  }).join('');
+  var alertEl = document.getElementById('dash-alertas');
+  if (alertEl) alertEl.innerHTML = '<div class="skel skel-row"></div>'
+    + '<div class="skel skel-row" style="width:70%;margin-top:8px"></div>';
+}
 
 // ── RENDERIZADO PRINCIPAL ─────────────────────────────────────
 async function renderDashboard() {
@@ -57,6 +87,9 @@ async function renderDashboard() {
   }
 
   var deptCfg = DASH_DEPTS.find(function(d) { return d.id === _dashCurrentDept; }) || DASH_DEPTS[0];
+
+  // Topbar dept accent
+  document.documentElement.style.setProperty('--topbar-accent-color', deptCfg.color);
 
   // Actualizar selector si existe
   if (deptSel) {
@@ -87,6 +120,9 @@ async function renderDashboard() {
   if (periodo === 'hoy') desde = today();
   if (periodo === 'semana') desde = startOfWeek();
   if (periodo === 'mes') desde = startOfMonth();
+
+  // Mostrar skeleton mientras cargan los datos
+  _showDashSkeleton();
 
   // Cargar datos
   var allShifts = await getDB('shifts');
@@ -170,6 +206,9 @@ async function renderDashboard() {
   if (secMerma) {
     secMerma.style.display = (_dashCurrentDept === 'Cocina' || _dashCurrentDept === 'FnB') ? 'block' : 'none';
   }
+
+  // Restaurar pestaña activa tras el render
+  _activateDashTab(_dashCurrentTab);
 }
 
 // ── SELECTOR DE DEPARTAMENTO ──────────────────────────────────
@@ -642,8 +681,9 @@ function onDashDeptChange() {
   var el = document.getElementById('dash-dept');
   if (el) {
     _dashCurrentDept = el.value;
-    el._built = false; // permitir rebuild si cambia la lista
+    el._built = false;
   }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   renderDashboard();
 }
 

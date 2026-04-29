@@ -111,7 +111,7 @@ const SCHEMA_VERSION = '5.0';
 const DEPTS = ['Cocina','Sala','Mantenimiento','Recepción','Administración','Economato','Limpieza'];
 const DEPT_COLORS = {
   'Cocina':'#f59e0b','Sala':'#3b82f6','Mantenimiento':'#ef4444',
-  'Recepción':'#10b981','Administración':'#a855f7','Economato':'#06b6d4','Limpieza':'#f97316'
+  'Recepción':'#8b5cf6','Administración':'#a855f7','Economato':'#06b6d4','Limpieza':'#f97316'
 };
 const DEPT_ICONS = {
   'Cocina':'🍳','Sala':'🍽','Mantenimiento':'🔧','Recepción':'🏨',
@@ -277,7 +277,16 @@ function buildNav(){
   const bnav=document.getElementById('bnav-inner'); if(bnav) bnav.innerHTML='';
   const screens=getScreens(currentUser.rol);
   // Nav icons for bottom nav
-  const ICONS={'readme':'📋','turno':'🕐','tareas':'🔗','validacion':'✅','dashboard':'📊','maestro':'👥','export':'⬇'};
+  const _svg=(p)=>'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+  const ICONS={
+    'readme':    _svg('<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'),
+    'turno':     _svg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+    'tareas':    _svg('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'),
+    'validacion':_svg('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'),
+    'dashboard': _svg('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'),
+    'maestro':   _svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+    'export':    _svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>')
+  };
   const SHORT={'readme':'Info','turno':'Turno','tareas':'Tareas','validacion':'Valid.','dashboard':'Panel','maestro':'Equipo','export':'Export'};
   screens.forEach(s=>{
     // Desktop topbar
@@ -298,6 +307,8 @@ function buildNav(){
   if(bn) bn.style.display='block';
 }
 async function showScreen(id){
+  // Reset topbar dept accent when leaving dashboard
+  if(id !== 'dashboard') document.documentElement.style.removeProperty('--topbar-accent-color');
   // Safety: ensure portal never blocks app screens
   var _ps=document.getElementById('portal-screen');
   if(_ps && _ps.style.display!=='flex') { _ps.style.display='none'; _ps.style.pointerEvents='none'; }

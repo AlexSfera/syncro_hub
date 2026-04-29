@@ -10,7 +10,7 @@
 :root {
   --bg:#f9fafb; --bg2:#ffffff; --bg3:#f3f4f6; --bg4:#e5e7eb;
   --border:#d1d5db; --border2:#9ca3af;
-  --text:#111827; --text2:#374151; --text3:#6b7280;
+  --text:#111827; --text2:#374151; --text3:#4b5563;
   --amber:#d97706; --amber2:#fbbf24; --amber-dim:rgba(217,119,6,.12);
   --green:#10b981; --green-dim:rgba(16,185,129,.12);
   --red:#ef4444; --red-dim:rgba(239,68,68,.12);
@@ -21,7 +21,7 @@
   --font-mono:'JetBrains Mono',monospace;
   --font-ui:'Inter',sans-serif;
   --radius:6px; --radius2:10px;
-  --shadow:0 4px 24px rgba(0,0,0,.5);
+  --shadow:0 4px 16px rgba(0,0,0,.12);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-height:100vh;font-size:16px;line-height:1.7;}
@@ -49,7 +49,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 
 /* ── APP SHELL ── */
 #app{display:none;min-height:100vh;}
-.topbar{background:var(--bg2);border-bottom:2px solid var(--border);padding:0 16px;height:56px;box-shadow:0 1px 6px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;}
+.topbar{background:var(--bg2);border-bottom:2px solid var(--topbar-accent-color,var(--border));padding:0 16px;height:56px;box-shadow:0 1px 6px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;transition:border-color .25s;}
 .topbar-logo{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.2em;color:#2ec4b6;text-transform:uppercase;white-space:nowrap;display:none;}
 .topbar-sep{display:none;}
 .topbar-nav{display:none;} /* hidden on all — replaced by bottom nav */
@@ -85,7 +85,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 .bnav-btn:hover{color:var(--text2);}
 .bnav-btn.active{color:#2ec4b6;}
 .bnav-btn.active .bnav-icon{color:#2ec4b6;}
-.bnav-icon{font-size:18px;line-height:1;}
+.bnav-icon{line-height:0;display:flex;align-items:center;justify-content:center;}
 .bnav-label{font-size:8px;font-weight:700;letter-spacing:.06em;}
 .bnav-dot{position:absolute;top:6px;right:calc(50% - 14px);width:7px;height:7px;background:var(--red);border-radius:50%;display:none;border:2px solid var(--bg2);}
 .bnav-dot.show{display:block;}
@@ -116,7 +116,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 
 /* ── CARD ── */
 .card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:18px;margin-bottom:14px;}
-.card-title{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);margin-bottom:14px;}
+.card-title{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);margin-bottom:14px;}
 .card-title .accent{color:var(--amber);}
 
 /* ── FORM ── */
@@ -218,13 +218,13 @@ textarea{resize:vertical;min-height:60px;}
 /* ── TABLE ── */
 .tbl-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:12px;}
-th{font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);padding:9px 11px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+th{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);padding:9px 11px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
 td{padding:9px 11px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:rgba(255,255,255,.018);}
 
 /* ── BADGES ── */
-.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
 .b-green{background:var(--green-dim);color:var(--green);border:1px solid var(--green);}
 .b-red{background:var(--red-dim);color:var(--red);border:1px solid var(--red);}
 .b-yellow{background:var(--amber-dim);color:var(--amber);border:1px solid var(--amber);}
@@ -305,6 +305,27 @@ tr:hover td{background:rgba(255,255,255,.018);}
 .toast.warn{border-color:var(--amber);color:var(--amber);}
 @keyframes toastIn{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);}}
 @keyframes toastOut{from{opacity:1;}to{opacity:0;transform:translateX(16px);}}
+
+/* ── SKELETON LOADER ── */
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skel{background:linear-gradient(90deg,var(--bg4) 25%,var(--bg3) 50%,var(--bg4) 75%);background-size:200% 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:var(--radius);}
+.skel-kpi{height:80px;}
+.skel-row{height:18px;margin-bottom:8px;border-radius:var(--radius);}
+.skel-card{height:110px;}
+
+/* ── REDUCED MOTION ── */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;}
+}
+
+/* ── DASH TABS ── */
+.dash-tabs{display:flex;gap:0;margin:18px 0 0;border-bottom:2px solid var(--bg4);overflow-x:auto;scrollbar-width:none;}
+.dash-tabs::-webkit-scrollbar{display:none;}
+.dash-tab{flex-shrink:0;padding:9px 18px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:var(--font-mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);cursor:pointer;transition:color .15s,border-color .15s;}
+.dash-tab:hover{color:var(--text1);}
+.dash-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.dash-panel{display:none;padding-top:14px;}
+.dash-panel.active{display:block;}
 .ver-badge{position:fixed;bottom:8px;left:12px;font-family:var(--font-mono);font-size:9px;color:var(--text3);pointer-events:none;}
 
 /* ── SECTION DIVIDER ── */
@@ -336,16 +357,17 @@ tr:hover td{background:rgba(255,255,255,.018);}
   }
 }
 #portal-pin-modal{position:fixed;inset:0;z-index:1100;background:rgba(0,0,10,.6);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px;}
-.pdept-card{background:#f0f9ff;border:1px solid #2a3347;border-radius:12px;padding:18px 14px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:7px;}
+.pdept-card{background:#f0f9ff;border:1px solid #2a3347;border-radius:12px;padding:18px 14px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:7px;touch-action:manipulation;}
 .pdept-card.active-dept{border-top-width:2px;}
 .pdept-card.active-dept:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(46,196,182,.2);}
 .pdept-card.active-dept:active{transform:scale(.97);}
 .pdept-card.soon-dept{opacity:.5;cursor:default;pointer-events:none;border-top-width:2px;background:#f9fafb;}
 .p-pin-box{background:#0f2035;border:1px solid #2e5a8a;border-radius:8px;padding:14px;font-family:var(--font-mono);font-size:26px;font-weight:700;letter-spacing:.3em;color:#f59e0b;text-align:center;margin-bottom:14px;min-height:56px;display:flex;align-items:center;justify-content:center;}
 .p-pin-box.p-err{border-color:#ef4444 !important;color:#ef4444;}
-.p-key{background:#1e3558;border:1px solid #244570;border-radius:7px;color:#f0f4ff;font-family:var(--font-mono);font-size:16px;font-weight:600;padding:14px;cursor:pointer;transition:all .12s;}
+.p-key{background:#1e3558;border:1px solid #244570;border-radius:7px;color:#f0f4ff;font-family:var(--font-mono);font-size:16px;font-weight:600;padding:14px;cursor:pointer;transition:all .12s;touch-action:manipulation;user-select:none;}
 .p-key:hover{background:#244570;}
 .p-key:active{transform:scale(.93);}
+.p-pin-box{user-select:none;}
 .p-ok{background:rgba(46,196,182,.15) !important;border:1px solid #2ec4b6 !important;color:#2ec4b6 !important;font-weight:700 !important;}
 .p-ok:hover{background:#2ec4b6 !important;color:#080a0f !important;}
 
@@ -376,7 +398,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <button class="p-key" onclick="pK('0')">0</button>
         <button class="p-key" onclick="pBk()" style="color:#f59e0b;">⌫</button>
       </div>
-      <button onclick="pGo()" style="width:100%;padding:12px;background:#2ec4b6;border:none;border-radius:8px;color:#0B1F33;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.05em;">ENTRAR →</button>
+      <button onclick="pGo()" style="width:100%;padding:12px;background:#2ec4b6;border:none;border-radius:8px;color:#0B1F33;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.05em;touch-action:manipulation;user-select:none;">ENTRAR →</button>
     </div>
   </div>
 
@@ -787,12 +809,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <div class="fg"><label>Periodo</label>
           <select id="dash-periodo" onchange="renderDashboard()"><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes">Este mes</option><option value="todo">Todo</option></select></div>
           <div class="fg" id="dash-dept-wrapper" style="display:block;"><label>Departamento</label>
-            <select id="dash-dept" onchange="onDashDeptChange()" style="color:#111827;background:#ffffff;">
-              <option value="">Todos</option>
-              <option value="Recepción">Recepción</option>
-              <option value="Sala">Sala</option>
-              <option value="Cocina">Cocina</option>
-            </select>
+            <select id="dash-dept" onchange="onDashDeptChange()" style="color:#111827;background:#ffffff;"></select>
           </div>
         <div class="fg"><label>Servicio</label>
           <select id="dash-serv" onchange="renderDashboard()"><option value="">Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option><option>Evento</option></select></div>
@@ -807,65 +824,84 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <!-- KPIs globales -->
       <div class="kpi-grid" id="kpi-grid"></div>
 
-      <div class="sec-div">Turnos</div>
-      <div class="two-col">
-        <div class="card"><div class="card-title">TURNOS POR EMPLEADO</div><div id="dash-emp-table"></div></div>
-        <div class="card"><div class="card-title">ALERTAS ACTIVAS</div><div id="dash-alertas"></div></div>
-      </div>
-
-      <div class="sec-div">Incidencias</div>
-      <div class="filter-bar" style="margin-bottom:10px;">
-        <div class="fg"><label>Categoría</label>
-          <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Higiene</option><option>Temperatura</option><option>Calidad del plato</option><option>Disciplina</option><option>Accidente</option><option>Comunicación</option><option>Equipamiento</option><option>Suministro</option><option>Otro</option></select></div>
-        <div class="fg"><label>Severidad</label>
-          <select id="di-sev" onchange="renderDashboard()"><option value="">Todas</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
-        <div class="fg"><label>Estado incidencia</label>
-          <select id="di-estado" onchange="renderDashboard()"><option value="">Todas</option><option>Abierta</option><option>Gestionada</option></select></div>
-      </div>
-      <div class="kpi-grid" id="kpi-incis"></div>
-      <div class="card"><div class="card-title">INCIDENCIAS — DETALLE</div><div class="tbl-wrap" id="dash-inci-table"></div></div>
-
-      <div id="dash-sec-merma" style="display:none;"><div class="sec-div">Merma</div>
-      <div class="filter-bar" style="margin-bottom:10px;">
-        <div class="fg"><label>Causa</label>
-          <select id="dm-causa" onchange="renderDashboard()"><option value="">Todas</option><option>Caducidad</option><option>Error de preparación</option><option>Accidente</option><option>Devolución sala</option><option>Exceso de producción</option><option>Otro</option></select></div>
-        <div class="fg"><label>Declarante</label>
-          <select id="dm-emp" onchange="renderDashboard()"><option value="">Todos</option></select></div>
-      </div>
-      <div class="kpi-grid" id="kpi-merma"></div>
-      <div class="card"><div class="card-title">MERMA — DETALLE</div><div class="tbl-wrap" id="dash-merma-table"></div></div></div>
-
-      <div class="sec-div">Tareas por departamento</div>
-      <div class="dept-grid" id="dept-task-grid"></div>
-      <div class="card"><div class="card-title">TAREAS ABIERTAS POR DPTO</div><div class="tbl-wrap" id="dash-tasks-table"></div></div>
-      <div class="card" style="margin-top:14px;border-top:2px solid #3b82f6;">
+      <!-- KPI específico del departamento activo -->
       <div class="card" style="margin-top:14px;" id="dash-kpi-especifico"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-          <div class="card-title" style="color:#3b82f6;margin-bottom:0;">COSTES DE PERSONAL</div>
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-            <div><label style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px;">Departamento</label>
-              <select id="cost-dept-filter" onchange="renderCostTable()" style="font-size:13px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;background:#f9fafb;color:#111827;">
-                <option value="">Todos</option>
-                <option value="Cocina">Cocina</option>
-                <option value="Sala">Sala</option>
-                <option value="Friegue">Friegue</option>
-              </select>
-            </div>
-            <div><label style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px;">Periodo</label>
-              <select id="cost-period-filter" onchange="renderCostTable()" style="font-size:13px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;background:#f9fafb;color:#111827;">
-                <option value="semana">Esta semana</option>
-                <option value="mes">Este mes</option>
-                <option value="hoy">Hoy</option>
-                <option value="todo">Todo</option>
-              </select>
+
+      <!-- ── TABS ─────────────────────────────────────────────── -->
+      <div class="dash-tabs" role="tablist" aria-label="Secciones del dashboard">
+        <button class="dash-tab active" role="tab" data-tab="turnos" onclick="_activateDashTab('turnos')">Turnos</button>
+        <button class="dash-tab" role="tab" data-tab="incidencias" onclick="_activateDashTab('incidencias')">Incidencias</button>
+        <button class="dash-tab" role="tab" data-tab="tareas" onclick="_activateDashTab('tareas')">Tareas</button>
+        <button class="dash-tab" role="tab" data-tab="costes" onclick="_activateDashTab('costes')">Costes</button>
+      </div>
+
+      <!-- Panel: Turnos -->
+      <div class="dash-panel active" id="tab-panel-turnos" role="tabpanel">
+        <div class="two-col">
+          <div class="card"><div class="card-title">TURNOS POR EMPLEADO</div><div id="dash-emp-table"></div></div>
+          <div class="card"><div class="card-title">ALERTAS ACTIVAS</div><div id="dash-alertas"></div></div>
+        </div>
+        <div class="card" style="margin-top:14px;border-top:2px solid var(--red);"><div class="card-title" style="color:var(--red);">⚠ FIO — FALLOS INDIVIDUALES OPERATIVOS <span id="dash-fio-count" style="font-size:12px;color:var(--text3);font-weight:400;margin-left:8px;"></span></div><div class="tbl-wrap" id="dash-fio-table"></div></div>
+      </div>
+
+      <!-- Panel: Incidencias -->
+      <div class="dash-panel" id="tab-panel-incidencias" role="tabpanel">
+        <div class="filter-bar" style="margin-bottom:10px;">
+          <div class="fg"><label>Categoría</label>
+            <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Higiene</option><option>Temperatura</option><option>Calidad del plato</option><option>Disciplina</option><option>Accidente</option><option>Comunicación</option><option>Equipamiento</option><option>Suministro</option><option>Otro</option></select></div>
+          <div class="fg"><label>Severidad</label>
+            <select id="di-sev" onchange="renderDashboard()"><option value="">Todas</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
+          <div class="fg"><label>Estado incidencia</label>
+            <select id="di-estado" onchange="renderDashboard()"><option value="">Todas</option><option>Abierta</option><option>Gestionada</option></select></div>
+        </div>
+        <div class="kpi-grid" id="kpi-incis"></div>
+        <div class="card"><div class="card-title">INCIDENCIAS — DETALLE</div><div class="tbl-wrap" id="dash-inci-table"></div></div>
+        <div id="dash-sec-merma" style="display:none;">
+          <div class="sec-div">Merma</div>
+          <div class="filter-bar" style="margin-bottom:10px;">
+            <div class="fg"><label>Causa</label>
+              <select id="dm-causa" onchange="renderDashboard()"><option value="">Todas</option><option>Caducidad</option><option>Error de preparación</option><option>Accidente</option><option>Devolución sala</option><option>Exceso de producción</option><option>Otro</option></select></div>
+            <div class="fg"><label>Declarante</label>
+              <select id="dm-emp" onchange="renderDashboard()"><option value="">Todos</option></select></div>
+          </div>
+          <div class="kpi-grid" id="kpi-merma"></div>
+          <div class="card"><div class="card-title">MERMA — DETALLE</div><div class="tbl-wrap" id="dash-merma-table"></div></div>
+        </div>
+      </div>
+
+      <!-- Panel: Tareas -->
+      <div class="dash-panel" id="tab-panel-tareas" role="tabpanel">
+        <div class="dept-grid" id="dept-task-grid"></div>
+        <div class="card"><div class="card-title">TAREAS ABIERTAS POR DPTO</div><div class="tbl-wrap" id="dash-tasks-table"></div></div>
+      </div>
+
+      <!-- Panel: Costes -->
+      <div class="dash-panel" id="tab-panel-costes" role="tabpanel">
+        <div class="card" style="border-top:2px solid #3b82f6;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+            <div class="card-title" style="color:#3b82f6;margin-bottom:0;">COSTES DE PERSONAL</div>
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+              <div><label style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px;">Departamento</label>
+                <select id="cost-dept-filter" onchange="renderCostTable()" style="font-size:13px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;background:#f9fafb;color:#111827;">
+                  <option value="">Todos</option>
+                  <option value="Cocina">Cocina</option>
+                  <option value="Sala">Sala</option>
+                  <option value="Friegue">Friegue</option>
+                </select>
+              </div>
+              <div><label style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px;">Periodo</label>
+                <select id="cost-period-filter" onchange="renderCostTable()" style="font-size:13px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;background:#f9fafb;color:#111827;">
+                  <option value="semana">Esta semana</option>
+                  <option value="mes">Este mes</option>
+                  <option value="hoy">Hoy</option>
+                  <option value="todo">Todo</option>
+                </select>
+              </div>
             </div>
           </div>
+          <div id="dash-cost-table"><div class="empty"><div class="empty-text">Selecciona un periodo</div></div></div>
         </div>
-        <div id="dash-cost-table"><div class="empty"><div class="empty-text">Selecciona un periodo</div></div></div>
       </div>
-
-<div class="card" style="margin-top:14px;border-top:2px solid var(--red);"><div class="card-title" style="color:var(--red);">⚠ FIO — FALLOS INDIVIDUALES OPERATIVOS <span id="dash-fio-count" style="font-size:12px;color:var(--text3);font-weight:400;margin-left:8px;"></span></div><div class="tbl-wrap" id="dash-fio-table"></div></div>
-      <div class="card" style="margin-top:14px;border-top:2px solid var(--red);"><div class="card-title" style="color:var(--red);">📋 INCIDENCIAS DEL PERIODO</div><div class="tbl-wrap" id="dash-inci-table"><div class="empty"><div class="empty-text">Sin incidencias en el periodo</div></div></div></div>
     </div>
 
     <!-- ══ MAESTRO ══ -->
@@ -2734,65 +2770,7 @@ async function declineCajaOffer() {
   await _doSaveTurno();
 }
 
-async function renderCostTable() {
-  var el = document.getElementById('dash-cost-table');
-  if(!el) return;
-  var deptF   = (document.getElementById('cost-dept-filter')||{}).value||'';
-  var periodF = (document.getElementById('cost-period-filter')||{}).value||'semana';
-  var t = today();
-  var fromD = periodF==='mes'?startOfMonth():periodF==='hoy'?t:periodF==='todo'?'2020-01-01':startOfWeek();
-  var employees = await getDB('employees');
-  var shifts    = await getDB('shifts');
-  var filtShifts = shifts.filter(function(s){ return s.fecha>=fromD&&s.fecha<=t; });
-  var costMap = {};
-  employees.filter(function(e){
-    return e.estado==='Activo'&&(!deptF||e.area===deptF);
-  }).forEach(function(e){
-    costMap[e.id]={nombre:e.nombre,puesto:e.puesto,area:e.area,ch:parseFloat(e.coste)||0,h:0,n:0};
-  });
-  filtShifts.forEach(function(s){
-    if(!costMap[s.employee_id]) return;
-    costMap[s.employee_id].h+=parseFloat(s.horas)||0;
-    costMap[s.employee_id].n++;
-  });
-  var rows=Object.values(costMap).sort(function(a,b){return (b.ch*b.h)-(a.ch*a.h)||b.n-a.n;});
-  if(!rows.length){ el.innerHTML='<div class="empty"><div class="empty-text">Sin datos en el periodo</div></div>'; return; }
-  var totH=rows.reduce(function(s,e){return s+e.h;},0);
-  var totC=rows.reduce(function(s,e){return s+e.ch*e.h;},0);
-  var depts={};
-  rows.forEach(function(e){ if(!depts[e.area])depts[e.area]={h:0,c:0}; depts[e.area].h+=e.h; depts[e.area].c+=e.ch*e.h; });
-  var trs=rows.map(function(e){
-    var ct=e.ch*e.h;
-    var noC=e.ch===0;
-    return '<tr>'
-      +'<td><div style="font-weight:600">'+e.nombre+'</div><div style="font-size:11px;color:var(--text3)">'+e.puesto+'</div></td>'
-      +'<td><span class="badge '+(e.area==='Sala'?'b-blue':e.area==='Cocina'?'b-orange':'b-gray')+'">'+e.area+'</span></td>'
-      +'<td style="text-align:center;font-family:var(--font-mono)">'+e.n+'</td>'
-      +'<td style="text-align:center;font-family:var(--font-mono)">'+e.h.toFixed(1)+'h</td>'
-      +'<td style="text-align:right;font-family:var(--font-mono)">'+(noC?'<span style="color:var(--amber)">⚠ Sin coste</span>':e.ch.toFixed(2)+'€/h')+'</td>'
-      +'<td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#3b82f6">'+(noC?'—':ct.toFixed(2)+'€')+'</td>'
-      +'</tr>';
-  }).join('');
-  var subs=Object.entries(depts).map(function(kv){
-    return '<tr style="background:var(--bg3)">'
-      +'<td colspan="3" style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.1em">SUBTOTAL '+kv[0].toUpperCase()+'</td>'
-      +'<td style="text-align:center;font-family:var(--font-mono);font-weight:700">'+kv[1].h.toFixed(1)+'h</td>'
-      +'<td></td>'
-      +'<td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#3b82f6">'+kv[1].c.toFixed(2)+'€</td>'
-      +'</tr>';
-  }).join('');
-  el.innerHTML='<div style="overflow-x:auto"><table>'
-    +'<tr><th>Empleado</th><th>Dept.</th><th style="text-align:center">Turnos</th><th style="text-align:center">Horas</th><th style="text-align:right">€/hora</th><th style="text-align:right">Coste</th></tr>'
-    +trs+subs
-    +'<tr style="background:var(--bg2);border-top:2px solid var(--border)">'
-    +'<td colspan="3" style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.1em">TOTAL GENERAL</td>'
-    +'<td style="text-align:center;font-family:var(--font-mono);font-weight:700">'+totH.toFixed(1)+'h</td>'
-    +'<td></td>'
-    +'<td style="text-align:right;font-family:var(--font-mono);font-size:16px;font-weight:700;color:#3b82f6">'+totC.toFixed(2)+'€</td>'
-    +'</tr></table>'
-    +(rows.some(function(e){return e.ch===0;})?'<div style="font-size:11px;color:var(--amber);margin-top:8px;font-family:var(--font-mono)">⚠ Algunos empleados sin coste/hora — edítalos en Maestro para ver coste real.</div>':'')
-    +'</div>';
-}
+// renderCostTable() — defined in dashboard.js (respects _dashCurrentDept)
 
 function fixLeadingZeros(el) {
   // Remove leading zeros from numeric inputs
@@ -2861,7 +2839,7 @@ function updatePortalClock(){
 updatePortalClock();
 setInterval(updatePortalClock, 30000);
 
-var _pD='',_pP='';
+var _pD='',_pP='',_pGoBusy=false;
 function _pClk(){
   var d=new Date();
   var ds=['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
@@ -2875,51 +2853,59 @@ _pClk();
 setInterval(_pClk,30000);
 
 function pSel(dept,label,color){
-  _pD=dept; _pP='';
+  _pD=dept; _pP=''; _pGoBusy=false;
   var box=document.getElementById('p-pin-box');
   var lbl=document.getElementById('pdept-lbl');
   var err=document.getElementById('p-err');
-  if(box){box.textContent='* * * *';box.className='p-pin-box';box.style.borderColor='#3a4560';box.style.color='#f59e0b';}
+  if(box){box.textContent='* * * *';box.className='p-pin-box';box.style.borderColor='rgba(46,196,182,.3)';box.style.color='#2ec4b6';}
   if(lbl){lbl.textContent=label;lbl.style.color=color;}
-  if(err) err.style.display='none';
+  if(err){err.style.display='none';err.textContent='';}
   document.getElementById('portal-pin-modal').style.display='flex';
 }
 
 function pK(d){
-  if(_pP.length>=6) return;
+  if(_pGoBusy||_pP.length>=6) return;
   _pP+=d;
   var box=document.getElementById('p-pin-box');
   if(box) box.textContent=_pP.replace(/./g,'*');
 }
 
 function pBk(){
+  if(_pGoBusy) return;
   _pP=_pP.slice(0,-1);
   var box=document.getElementById('p-pin-box');
   if(box) box.textContent=_pP.length===0?'* * * *':_pP.replace(/./g,'*');
 }
 
 function pClose(){
-  _pP='';
+  _pP=''; _pGoBusy=false;
   document.getElementById('portal-pin-modal').style.display='none';
 }
 
 async function pGo(){
+  if(_pGoBusy) return;
+  if(_pP.length < 4) return;
+  _pGoBusy=true;
+
+  // Snapshot PIN before any async gap — prevents race if _pP mutates during await
+  var pin=_pP;
+
   // Step 1: seed
   runMigrations();
   seedEmployees();
-  
+
   // Step 2: check PIN
   var RP={'300415':'admin','0101':'chef','1010':'fb'};
   var emps=await getDB('employees');
   var u=null;
-  
-  if(RP[_pP]){
-    var r=RP[_pP];
+
+  if(RP[pin]){
+    var r=RP[pin];
     u=emps.find(function(e){return e.rol===r&&e.estado==='Activo';});
     if(!u){
       u={id:'SYS_'+r,
          nombre:r==='admin'?'Administrador':r==='chef'?'Chef':'F&B Manager',
-         rol:r,estado:'Activo',pin:_pP,
+         rol:r,estado:'Activo',pin:pin,
          responsable:r==='chef'?1:0,validador:1,
          area:'Administracion',
          puesto:r==='admin'?'Administrador':r==='chef'?'Jefe de Cocina':'F&B Manager',
@@ -2927,26 +2913,25 @@ async function pGo(){
          fecha_alta:new Date().toISOString().split('T')[0]};
     }
   } else {
-    u=emps.find(function(e){return e.pin===_pP&&e.estado==='Activo';});
+    u=emps.find(function(e){return e.pin===pin&&e.estado==='Activo';});
   }
-  
-  // Step 3: wrong PIN?
+
+  // Step 3: wrong PIN — reset and allow retry
   if(!u){
     var box=document.getElementById('p-pin-box');
     var err=document.getElementById('p-err');
-    if(box){box.className='p-pin-box p-err';box.textContent='ERROR';box.style.borderColor='#ef4444';box.style.color='#ef4444';}
-    if(err) err.style.display='block';
+    if(box){box.className='p-pin-box p-err';box.textContent='PIN incorrecto';box.style.borderColor='#ef4444';box.style.color='#ef4444';}
+    if(err){err.textContent='Inténtalo de nuevo';err.style.display='block';}
     setTimeout(function(){
-      _pP='';
-      if(box){box.className='p-pin-box';box.textContent='* * * *';box.style.borderColor='#3a4560';box.style.color='#f59e0b';}
-      if(err) err.style.display='none';
+      _pP=''; _pGoBusy=false;
+      if(box){box.className='p-pin-box';box.textContent='* * * *';box.style.borderColor='rgba(46,196,182,.3)';box.style.color='#2ec4b6';}
+      if(err){err.style.display='none';err.textContent='';}
     },1500);
     return;
   }
-  
-  // Step 4: launch
+
+  // Step 4: launch (keep _pGoBusy=true — modal closes, no more interaction needed)
   document.getElementById('portal-pin-modal').style.display='none';
-  // Launch for any dept selection, or admin/fb from anywhere
   _pLaunch(u);
 }
 
@@ -2972,9 +2957,9 @@ function logout(){
 document.addEventListener('keydown',function(e){
   var m=document.getElementById('portal-pin-modal');
   if(!m||m.style.display==='none') return;
-  if(e.key>='0'&&e.key<='9') pK(e.key);
-  else if(e.key==='Backspace') pBk();
-  else if(e.key==='Enter') pGo();
+  if(e.key>='0'&&e.key<='9'){ e.preventDefault(); pK(e.key); }
+  else if(e.key==='Backspace'){ e.preventDefault(); pBk(); }
+  else if(e.key==='Enter'){ e.preventDefault(); pGo(); }
   else if(e.key==='Escape') pClose();
 });
 
