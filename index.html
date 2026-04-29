@@ -633,37 +633,9 @@ tr:hover td{background:rgba(255,255,255,.018);}
                   <textarea id="i-desc" rows="3" placeholder="Describe brevemente la incidencia..."></textarea></div>
                 <div class="fg"><label>Acción inmediata tomada</label>
                   <input type="text" id="i-accion" placeholder="Qué hiciste en el momento (opcional)"></div>
-                <div class="fg"><label>Tipo de incidencia</label>
+                <div class="fg"><label>Tipo de incidencia / gestión pendiente</label>
                   <select id="i-tipo-incidencia">
                     <option value="">— Seleccionar (opcional) —</option>
-                    <!-- Recepción -->
-                    <option value="Petición de cliente" class="opt-rec">Petición de cliente</option>
-                    <option value="Queja" class="opt-rec">Queja</option>
-                    <option value="Mala reseña" class="opt-rec">Mala reseña</option>
-                    <option value="Error check-in" class="opt-rec">Error check-in</option>
-                    <option value="Error check-out" class="opt-rec">Error check-out</option>
-                    <option value="Error de cobro" class="opt-rec">Error de cobro</option>
-                    <option value="Error de reserva" class="opt-rec">Error de reserva</option>
-                    <option value="Error en MEWS" class="opt-rec">Error en MEWS</option>
-                    <option value="Problema con habitación" class="opt-rec">Problema con habitación</option>
-                    <option value="Problema con housekeeping" class="opt-rec">Problema con housekeeping</option>
-                    <option value="Problema con restaurante" class="opt-rec">Problema con restaurante</option>
-                    <option value="Problema con SYNCROLAB" class="opt-rec">Problema con SYNCROLAB</option>
-                    <option value="Problema con clínica" class="opt-rec">Problema con clínica</option>
-                    <option value="Cliente insatisfecho" class="opt-rec">Cliente insatisfecho</option>
-                    <option value="Lead pendiente" class="opt-rec">Lead pendiente</option>
-                    <option value="Comunicación pendiente" class="opt-rec">Comunicación pendiente</option>
-                    <!-- Sala / Cocina / General -->
-                    <option value="Cobro / TPV">Cobro / TPV</option>
-                    <option value="Descuento no justificado">Descuento no justificado</option>
-                    <option value="Anulación no justificada">Anulación no justificada</option>
-                    <option value="Falta de comunicación interna">Falta de comunicación interna</option>
-                    <option value="Incumplimiento de procedimiento">Incumplimiento de procedimiento</option>
-                    <option value="Retraso">Retraso</option>
-                    <option value="Calidad del producto">Calidad del producto</option>
-                    <option value="Actitud / disciplina">Actitud / disciplina</option>
-                    <option value="Accidente o seguridad">Accidente o seguridad</option>
-                    <option value="Otro">Otro</option>
                   </select>
                 </div>
                 <div class="fg"><label>¿Informado al responsable de turno?</label>
@@ -1655,7 +1627,8 @@ tr:hover td{background:rgba(255,255,255,.018);}
 <script src="sala.js"></script>
 <script src="caja.js"></script>
 <script src="recepcion.js"></script>
-<script src="dashboard.js"></script>
+<script src="incidencia_tipos.js"></script>
+    <script src="dashboard.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════
 // CHECKLIST PRE-TURNO
@@ -3608,6 +3581,24 @@ function collectSyncroVentas() {
 
 // ── Update initTurnoForm to call renderFollowupList ──
 var _origInitTurnoForm = typeof initTurnoForm === 'function' ? initTurnoForm : null;
+
+// ── Patch: populate incidencia tipo selector on turno screen ──
+(function() {
+  // Populate inci tipos when turno screen opens — safe non-recursive patch
+  var _origShow = typeof showScreen === 'function' ? showScreen : null;
+  if (_origShow && !showScreen._inciPatched) {
+    var _showScreenBase = _origShow;
+    showScreen = function(id) {
+      _showScreenBase(id);
+      if (id === 'turno' && typeof populateInciTipoSelector === 'function' && currentUser) {
+        setTimeout(function() {
+          populateInciTipoSelector('i-tipo-incidencia', currentUser.area || 'Cocina');
+        }, 150);
+      }
+    };
+    showScreen._inciPatched = true;
+  }
+})();
 
 // ── Update calcRecDifs to include caja fuerte logic ──
 function calcRecDifs() {
