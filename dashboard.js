@@ -48,8 +48,12 @@ async function renderDashboard() {
   if (!_dashCurrentDept) {
     _dashCurrentDept = depts.length ? depts[0].id : 'Cocina';
   }
-  if (deptSel) {
-    _dashCurrentDept = deptSel.value || _dashCurrentDept;
+  if (deptSel && deptSel.value) {
+    _dashCurrentDept = deptSel.value;
+  }
+  // Asegurar que _dashCurrentDept es válido
+  if (!_dashCurrentDept || _dashCurrentDept === '') {
+    _dashCurrentDept = 'Cocina';
   }
 
   var deptCfg = DASH_DEPTS.find(function(d) { return d.id === _dashCurrentDept; }) || DASH_DEPTS[0];
@@ -110,10 +114,25 @@ async function renderDashboard() {
     tareas = allTareas.filter(function(t) { return fnbDepts.indexOf(t.dept_destino) !== -1 || fnbDepts.indexOf(t.dept_origen) !== -1; });
   } else {
     var deptArea = _dashCurrentDept;
-    shifts = allShifts.filter(function(s) { return s.area === deptArea; });
-    mermas = allMermas.filter(function(m) { return mermaMatchDept(m, [deptArea]); });
-    incis  = allIncis.filter(function(i)  { return inciMatchDept(i, [deptArea]); });
-    tareas = allTareas.filter(function(t) { return t.dept_destino === deptArea || t.dept_origen === deptArea; });
+    // Mapear IDs de dashboard a valores reales del campo area en Supabase
+    var areaMap = {
+      'Cocina': ['Cocina'],
+      'Sala': ['Sala'],
+      'Recepcion': ['Recepción'],
+      'Recepción': ['Recepción'],
+      'RecepcionSyncrolab': ['Recepción SYNCROLAB', 'SYNCROLAB'],
+      'Entrenadores': ['Entrenadores'],
+      'Fisioterapeutas': ['Fisioterapeutas'],
+      'Housekeeping': ['Housekeeping'],
+      'Mantenimiento': ['Mantenimiento'],
+      'Economato': ['Economato'],
+      'RRHH': ['RRHH', 'Recursos Humanos']
+    };
+    var validAreas = areaMap[deptArea] || [deptArea];
+    shifts = allShifts.filter(function(s) { return validAreas.indexOf(s.area) !== -1; });
+    mermas = allMermas.filter(function(m) { return mermaMatchDept(m, validAreas); });
+    incis  = allIncis.filter(function(i)  { return inciMatchDept(i, validAreas); });
+    tareas = allTareas.filter(function(t) { return validAreas.indexOf(t.dept_destino) !== -1 || validAreas.indexOf(t.dept_origen) !== -1; });
   }
 
   // Filtrar por periodo
@@ -137,6 +156,9 @@ async function renderDashboard() {
   _renderFIO(shifts);
   renderCostTable();
 
+  // Sincronizar filtro de tipos de incidencia
+  _syncInciTiposFilter();
+
   // Bloque específico por departamento
   if (_dashCurrentDept === 'Cocina') _renderKpiCocina(shifts, mermas);
   else if (_dashCurrentDept === 'Sala') _renderKpiSala(shifts);
@@ -152,7 +174,7 @@ async function renderDashboard() {
 
 // ── SELECTOR DE DEPARTAMENTO ──────────────────────────────────
 function _buildDeptSelector(depts, el) {
-  if (el._built) return;
+  if (el._built && el.options.length > 1) return;
   el._built = true;
   el.innerHTML = '';
   depts.forEach(function(d) {
@@ -642,16 +664,23 @@ async function renderCostTable() {
   var filtShifts = shifts.filter(function(s) { return s.fecha >= fromD && s.fecha <= t; });
 
   // Filtrar por departamento activo en dashboard
-  var deptF = '';
-  if (_dashCurrentDept && _dashCurrentDept !== 'FnB') {
-    deptF = _dashCurrentDept;
-  } else if (_dashCurrentDept === 'FnB') {
-    filtShifts = filtShifts.filter(function(s) {
-      return s.area === 'Cocina' || s.area === 'Sala' || s.area === 'Friegue';
-    });
-  }
-  if (deptF) {
-    filtShifts = filtShifts.filter(function(s) { return s.area === deptF; });
+  var areaMapCost = {
+    'Cocina': ['Cocina'],
+    'Sala': ['Sala'],
+    'Recepcion': ['Recepción'],
+    'Recepción': ['Recepción'],
+    'FnB': ['Cocina', 'Sala', 'Friegue'],
+    'RecepcionSyncrolab': ['Recepción SYNCROLAB', 'SYNCROLAB'],
+    'Entrenadores': ['Entrenadores'],
+    'Fisioterapeutas': ['Fisioterapeutas'],
+    'Housekeeping': ['Housekeeping'],
+    'Mantenimiento': ['Mantenimiento'],
+    'Economato': ['Economato'],
+    'RRHH': ['RRHH', 'Recursos Humanos']
+  };
+  if (_dashCurrentDept) {
+    var validAreasCost = areaMapCost[_dashCurrentDept] || [_dashCurrentDept];
+    filtShifts = filtShifts.filter(function(s) { return validAreasCost.indexOf(s.area) !== -1; });
   }
 
   // También respetar el filtro manual del selector de coste si existe
@@ -731,4 +760,12 @@ async function renderCostTable() {
     + '</tr></table>'
     + (rows.some(function(e) { return e.ch === 0; }) ? '<div style="font-size:11px;color:var(--amber);margin-top:8px;font-family:var(--font-mono)">⚠ Empleados sin coste/hora — edítalos en Maestro.</div>' : '')
     + '</div>';
+}
+
+// ── INTEGRACIÓN CON INCIDENCIA_TIPOS ─────────────────────────
+// Se llama al final de renderDashboard para actualizar filtros
+function _syncInciTiposFilter() {
+  if (typeof populateDashInciFilter === 'function') {
+    populateDashInciFilter(_dashCurrentDept);
+  }
 }
