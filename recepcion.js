@@ -17,15 +17,6 @@ function updateRecTurnoStyle() {
     }
   });
 }
-var CHK_COCINA_ITEMS = [
-  'Camaras y cuarto frio revisados',
-  'Temperaturas de camaras y congeladores OK',
-  'Producto sin fecha / en mal estado retirado',
-  'Buffet gestionado correctamente',
-  'Vitrina gestionada correctamente (montaje + retirada)',
-  'No quedan comandas pendientes',
-  'Fuegos, horno, plancha, freidoras apagados',
-
 // ═══════════════════════════════════════════════════════════════════════════
 // RECEPCIÓN CAJA — Funciones completas
 // ═══════════════════════════════════════════════════════════════════════════
@@ -419,11 +410,11 @@ async function renderFollowupList() {
   try { allIncis = await getDB('incidencias'); } catch(e){ allIncis = []; }
   var dept = currentUser ? (currentUser.area || 'Cocina') : '';
   // Filter: open incidencias of this dept
-  var isAdmin = currentUser && currentUser.rol === 'admin';
+  var isAdminUser = isAdmin(currentUser);
   var open = allIncis.filter(function(i){
-    var isOpen = i.estado === 'Abierta' || i.estado === 'En proceso' || i.estado === 'abierta' || i.estado === 'en proceso';
-    if(isAdmin) return isOpen;
-    return isOpen && (i.area === dept || i.departamento === dept);
+    if(!isIncidentOpen(i)) return false;
+    if(isAdminUser) return true;
+    return canViewDepartment(currentUser, i.area || i.departamento || dept);
   });
   if(countEl) countEl.textContent = open.length ? '(' + open.length + ' activas)' : '(sin activas)';
   if(!open.length){
@@ -447,16 +438,17 @@ async function renderFollowupList() {
     } else {
       sla = '<span style="color:var(--text3);font-size:11px;">Sin objetivo</span>';
     }
-    var estadoBadge = i.estado === 'En proceso'
-      ? '<span class="badge b-orange">En proceso</span>'
-      : '<span class="badge b-red">Abierta</span>';
-    var canClose = currentUser && (currentUser.rol === 'admin' || currentUser.rol === 'jefe_recepcion' || currentUser.rol === 'chef' || currentUser.rol === 'fb' || currentUser.validador == 1);
-    var acciones = canClose ? '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>' : '—';
+    var estadoBadge = bIncidentEstado(i.estado);
+    var canClose = isAdminUser || (isSupervisor(currentUser) && canViewDepartment(currentUser, i.area || i.departamento));
+    var normI = normalizeIncidentState(i.estado);
+    var acciones = canClose
+      ? (normI===INCIDENT_STATES.ABIERTA?'<button class="btn btn-secondary btn-sm" onclick="advanceIncident(\''+i.id+'\',\'En proceso\')">En proceso</button> ':'') + '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>'
+      : '—';
     html += '<tr>'
-      + '<td style="font-size:12px;">' + (i.tipo_incidencia || i.categoria || '—') + '</td>'
-      + '<td style="font-size:12px;max-width:180px;">' + (i.descripcion||'').slice(0,60) + (i.descripcion && i.descripcion.length>60?'…':'') + '</td>'
+      + '<td style="font-size:12px;">' + formatDisplayValue(i.tipo_incidencia || i.categoria) + '</td>'
+      + '<td style="font-size:12px;max-width:180px;">' + formatDisplayValue(i.descripcion).slice(0,60) + (i.descripcion && i.descripcion.length>60?'...':'') + '</td>'
       + '<td style="font-size:11px;color:var(--text3);">' + (apertura ? apertura.toLocaleDateString('es-ES') + ' ' + apertura.toTimeString().slice(0,5) : '—') + '</td>'
-      + '<td style="font-size:12px;">' + (i.responsable_nombre || '—') + '</td>'
+      + '<td style="font-size:12px;">' + formatDisplayValue(i.responsable_nombre) + '</td>'
       + '<td>' + estadoBadge + '</td>'
       + '<td>' + sla + '</td>'
       + '<td>' + acciones + '</td>'
@@ -511,34 +503,29 @@ async function saveFollowup() {
     shift_id: window._lastSavedShiftId || null,
     employee_id: currentUser.id,
     nombre: currentUser.nombre,
-    area: currentUser.area || '',
-    departamento: currentUser.area || '',
     fecha: today(),
     servicio: getRecTurnoValue() || getServicioValue() || '—',
     categoria: 'Follow-up / Gestión',
     tipo_incidencia: tipo,
     descripcion: desc,
     accion_inmediata: '',
-    responsable_id: respId || null,
-    responsable_nombre: respNombre,
-    objetivo_cierre: document.getElementById('fu-objetivo').value || null,
-    reserva_mews: document.getElementById('fu-mews-id').value.trim() || null,
-    estado: 'Abierta',
+    requiere_formacion: 'No',
+    requiere_disciplina: 'No',
+    estado: INCIDENT_STATES.ABIERTA,
     severidad: 'Pendiente revision',
     staff_implicado_ids: '[]',
     staff_implicado_nombres: '[]',
-    informado_responsable: 'no',
-    created_at: ts,
-    updated_at: ts
+    created_at: ts
   };
   try {
-    await dbInsert('incidencias', record);
+    var saved = await dbInsert('incidencias', record);
+    if(!saved){ console.error('Follow-up incidencia insert failed',record); errEl.textContent = 'No se pudo guardar. Revisa los datos e inténtalo de nuevo.'; return; }
     invalidateCache('incidencias');
     toast('Incidencia registrada', 'ok');
     closeFollowupModal();
     renderFollowupList();
   } catch(e){
-    errEl.textContent = 'Error al guardar: ' + e.message;
+    errEl.textContent = 'No se pudo guardar. Revisa los datos e inténtalo de nuevo.';
   }
 }
 
@@ -564,17 +551,31 @@ async function submitCloseFollowup() {
   try {
     var allIncis = await getDB('incidencias');
     var inci = allIncis.find(function(i){ return i.id === _fuCloseId; });
+    if(!inci){ errEl.textContent = 'No se encontró la incidencia.'; return; }
+    if(!(isAdmin(currentUser) || (isSupervisor(currentUser) && canViewDepartment(currentUser, inci.area || inci.departamento)))){
+      errEl.textContent = 'No tienes permiso para cerrar incidencias de este departamento.';
+      return;
+    }
+    var comentarioCierre = document.getElementById('fu-close-comentario').value.trim();
+    if((inci.severidad === 'Alta' || inci.severidad === 'Crítica') && !comentarioCierre){
+      errEl.textContent = 'El comentario de cierre es obligatorio para incidencias de alta severidad.';
+      return;
+    }
     var tiempoMs = inci && inci.created_at ? (new Date(ts) - new Date(inci.created_at)) : 0;
     var tiempoH = Math.floor(tiempoMs/3600000);
     var tiempoM = Math.floor((tiempoMs%3600000)/60000);
+    var tiempoMin = Math.max(0, Math.round(tiempoMs/60000));
     var slaCumplido = inci && inci.objetivo_cierre ? (new Date(ts) <= new Date(inci.objetivo_cierre)) : null;
     await dbUpdate('incidencias', _fuCloseId, {
-      estado: 'Cerrada',
+      estado: INCIDENT_STATES.CERRADA,
       accion_cierre: accion,
       resultado_cierre: resultado,
-      comentario_cierre: document.getElementById('fu-close-comentario').value.trim(),
+      comentario_cierre: comentarioCierre,
+      cerrado_por_id: currentUser.id,
+      cerrado_por_nombre: currentUser.nombre,
       cerrado_por: currentUser.nombre,
       fecha_cierre: ts,
+      tiempo_solucion_minutos: tiempoMin,
       tiempo_solucion_h: tiempoH,
       tiempo_solucion_m: tiempoM,
       sla_cumplido: slaCumplido,
@@ -585,7 +586,7 @@ async function submitCloseFollowup() {
     document.getElementById('modal-followup-close').style.display = 'none';
     renderFollowupList();
   } catch(e){
-    errEl.textContent = 'Error: ' + e.message;
+    errEl.textContent = 'No se pudo cerrar la incidencia. Inténtalo de nuevo.';
   }
 }
 

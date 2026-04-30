@@ -31,6 +31,13 @@ function getDashDeptsForUser() {
   if (rol === 'jefe_recepcion') return DASH_DEPTS.filter(function(d) {
     return d.id === 'Recepción';
   });
+  if (typeof isSupervisor === 'function' && isSupervisor(currentUser)) {
+    return DASH_DEPTS.filter(function(d) {
+      return getSupervisorDepartments(currentUser).some(function(dep) {
+        return normalizeDeptName(dep) === normalizeDeptName(d.id) || normalizeDeptName(dep) === normalizeDeptName(d.label);
+      });
+    });
+  }
   // Responsable departamento — solo su área
   return DASH_DEPTS.filter(function(d) { return d.id === area; });
 }
@@ -40,7 +47,61 @@ function _isFio(s) {
   return s.fio === true || s.fio === 1 || s.fio === 'true' || s.fio === '1';
 }
 function _tareaActiva(t) {
-  return t.estado === 'Pendiente' || t.estado === 'En proceso';
+  return typeof isTaskOpen === 'function' ? isTaskOpen(t) : (t.estado === 'Abierta' || t.estado === 'En proceso');
+}
+function _resolutionMinutes(i) {
+  var direct = parseInt(i && i.tiempo_solucion_minutos, 10);
+  if (!isNaN(direct) && direct >= 0) return direct;
+  if (!i || !i.created_at || !i.fecha_cierre) return null;
+  var start = new Date(i.created_at);
+  var end = new Date(i.fecha_cierre);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return null;
+  return Math.round((end - start) / 60000);
+}
+function _dashCanonicalDept(dept) {
+  var d = normalizeDeptName(typeof formatDisplayValue === 'function' ? formatDisplayValue(dept) : dept);
+  if (!d || d === '—' || d === '[no data]') return '[NO DATA]';
+  if (d === 'recepcion') return 'Recepción';
+  if (d === 'recepción sfera') return 'Recepción SFERA';
+  if (d === 'recepcion syncrolab' || d === 'recepción syncrolab') return 'Recepción SYNCROLAB';
+  if (d === 'fnb' || d === 'f&b' || d === 'food & beverage' || d === 'restaurante / f&b') return 'FnB';
+  if (d === 'syncrolab') return 'SYNCROLAB';
+  if (d === 'syn crolab') return 'SYNCROLAB';
+  if (d === 'limpieza') return 'Limpieza';
+  if (d === 'housekeeping') return 'Housekeeping';
+  return String(dept || '').trim();
+}
+function _dashDeptSet(deptId) {
+  var map = {
+    'Cocina': ['Cocina'],
+    'Sala': ['Sala'],
+    'FnB': ['Cocina','Sala','FnB','Food & Beverage','Friegue'],
+    'Recepción': ['Recepción','Recepción SFERA'],
+    'RecepcionSyncrolab': ['Recepción SYNCROLAB','SYNCROLAB','SyncroLab'],
+    'Entrenadores': ['Entrenadores','SYNCROLAB','SyncroLab'],
+    'Fisioterapeutas': ['Fisioterapeutas','Clínica','SYNCROLAB','SyncroLab'],
+    'Housekeeping': ['Housekeeping','Limpieza'],
+    'Mantenimiento': ['Mantenimiento'],
+    'Economato': ['Economato'],
+    'RRHH': ['RRHH','Recursos Humanos']
+  };
+  return (map[deptId] || [deptId]).map(_dashCanonicalDept);
+}
+function _dashRecordDept(record, shiftMap) {
+  return _dashCanonicalDept(getRecordDepartment(record, shiftMap));
+}
+function _dashMatchesDept(record, deptSet, shiftMap) {
+  return deptSet.indexOf(_dashRecordDept(record, shiftMap)) !== -1;
+}
+function _isOperationalIncident(i) {
+  var cat = normalizeDeptName(i && i.categoria);
+  return cat !== 'gestión pendiente' && cat !== 'gestion pendiente' && cat !== 'follow-up / gestión' && cat !== 'follow-up / gestion';
+}
+function _isGestionTask(t) {
+  if (!t) return false;
+  var text = normalizeDeptName([t.origen, t.titulo, t.descripcion].join(' '));
+  if (text.indexOf('gestion') !== -1 || text.indexOf('gestión') !== -1) return true;
+  return !!t.dept_destino && (normalizeTaskState(t.estado) === TASK_STATES.ABIERTA || normalizeTaskState(t.estado) === TASK_STATES.EN_PROCESO);
 }
 
 // ── ESTADO ACTUAL DEL DASHBOARD ──────────────────────────────
@@ -93,6 +154,9 @@ async function renderDashboard() {
   if (!_dashCurrentDept || _dashCurrentDept === '') {
     _dashCurrentDept = 'Cocina';
   }
+  if (depts.length && !depts.some(function(d) { return d.id === _dashCurrentDept; })) {
+    _dashCurrentDept = depts[0].id;
+  }
 
   var deptCfg = DASH_DEPTS.find(function(d) { return d.id === _dashCurrentDept; }) || DASH_DEPTS[0];
 
@@ -138,75 +202,49 @@ async function renderDashboard() {
   var allIncis = await getDB('incidencias');
   var allTareas = await getDB('tareas');
 
-  // Mapa rápido shift_id → area para fallback de incidencias sin area guardada
-  var _shiftAreaMap = {};
-  allShifts.forEach(function(s) { if(s.id) _shiftAreaMap[s.id] = (s.area || '').trim(); });
+  var shiftMap = {};
+  allShifts.forEach(function(s) { if (s.id) shiftMap[s.id] = s; });
 
-  // Filtrar por departamento
-  function _inArea(val, depts) { return depts.indexOf((val||'').trim()) !== -1; }
-
-  function inciMatchDept(i, depts) {
-    // Datos nuevos: campo area/departamento correcto
-    var d = (i.area || i.departamento || '').trim();
-    if (d) return depts.indexOf(d) !== -1;
-    // Fallback histórico: buscar por shift_id
-    if (i.shift_id) return depts.indexOf(_shiftAreaMap[i.shift_id] || '') !== -1;
-    return false;
-  }
-  function mermaMatchDept(m, depts) {
-    var d = (m.area || m.departamento || '').trim();
-    return !d || depts.indexOf(d) !== -1;
-  }
-  function tareaMatchDept(t, depts) {
-    return _inArea(t.dept_destino, depts) || _inArea(t.dept_origen, depts);
-  }
+  function _inArea(val, depts) { return depts.indexOf(_dashCanonicalDept(val)) !== -1; }
+  function mermaMatchDept(m, depts) { return _dashMatchesDept(m, depts, shiftMap); }
+  function inciMatchDept(i, depts) { return _dashMatchesDept(i, depts, shiftMap); }
+  function tareaMatchDept(t, depts) { return _dashMatchesDept(t, depts, shiftMap); }
 
   var shifts, mermas, incis, tareas;
-  if (_dashCurrentDept === 'FnB') {
-    var fnbDepts = ['Cocina', 'Sala', 'Friegue'];
-    shifts = allShifts.filter(function(s) { return _inArea(s.area, fnbDepts); });
-    mermas = allMermas.filter(function(m) { return mermaMatchDept(m, ['Cocina', 'Friegue']); });
-    incis  = allIncis.filter(function(i)  { return inciMatchDept(i, fnbDepts); });
-    tareas = allTareas.filter(function(t) { return tareaMatchDept(t, fnbDepts); });
-  } else {
-    var deptArea = _dashCurrentDept;
-    var areaMap = {
-      'Cocina': ['Cocina'],
-      'Sala': ['Sala'],
-      'Recepcion': ['Recepción'],
-      'Recepción': ['Recepción'],
-      'RecepcionSyncrolab': ['Recepción SYNCROLAB', 'SYNCROLAB'],
-      'Entrenadores': ['Entrenadores'],
-      'Fisioterapeutas': ['Fisioterapeutas'],
-      'Housekeeping': ['Housekeeping'],
-      'Mantenimiento': ['Mantenimiento'],
-      'Economato': ['Economato'],
-      'RRHH': ['RRHH', 'Recursos Humanos']
-    };
-    var validAreas = areaMap[deptArea] || [deptArea];
-    shifts = allShifts.filter(function(s) { return _inArea(s.area, validAreas); });
-    mermas = allMermas.filter(function(m) { return mermaMatchDept(m, validAreas); });
-    incis  = allIncis.filter(function(i)  { return inciMatchDept(i, validAreas); });
-    tareas = allTareas.filter(function(t) { return tareaMatchDept(t, validAreas); });
-  }
+  var validAreas = _dashDeptSet(_dashCurrentDept);
+  shifts = allShifts.filter(function(s) { return _inArea(s.area, validAreas); });
+  mermas = allMermas.filter(function(m) { return mermaMatchDept(m, validAreas); });
+  incis  = allIncis.filter(function(i)  { return _isOperationalIncident(i) && inciMatchDept(i, validAreas); });
+  tareas = allTareas.filter(function(t) { return tareaMatchDept(t, validAreas); });
+  var gestiones = tareas.filter(_isGestionTask);
 
   // Filtrar por periodo
   if (desde) {
     shifts = shifts.filter(function(s) { return s.fecha >= desde; });
     mermas = mermas.filter(function(m) { return m.fecha >= desde; });
     incis = incis.filter(function(i) { return i.fecha >= desde; });
+    tareas = tareas.filter(function(t) { return (t.created_at || t.deadline || '') >= desde; });
+    gestiones = gestiones.filter(function(t) { return (t.created_at || t.deadline || '') >= desde; });
   }
   if (empFilt) shifts = shifts.filter(function(s) { return s.nombre === empFilt; });
   if (sevFilt) shifts = shifts.filter(function(s) { return s.gravedad_error === sevFilt; });
+
+  console.log('[DASH QA] departamento seleccionado', _dashCurrentDept, validAreas);
+  console.log('[DASH QA] total incidencias cargadas', allIncis.length);
+  console.log('[DASH QA] total incidencias filtradas', incis.length);
+  console.log('[DASH QA] total tareas cargadas', allTareas.length);
+  console.log('[DASH QA] total gestiones filtradas', gestiones.length);
+  console.log('[DASH QA] ejemplo departamento resuelto', allIncis[0] ? _dashRecordDept(allIncis[0], shiftMap) : '[NO DATA]');
 
   // Poblar selector de empleados
   _populateDashEmpDropdown(allShifts, _dashCurrentDept);
 
   // Renderizar secciones
-  _renderKpiCards(shifts, mermas, incis, tareas, deptCfg);
+  _renderKpiCards(shifts, mermas, incis, tareas, gestiones, deptCfg);
   _renderActividadEmpleado(shifts, allShifts);
   _renderAlertas(shifts, mermas, incis, tareas);
   _renderIncidencias(incis);
+  _renderGestiones(gestiones);
   _renderMerma(mermas);
   _renderTareas(tareas);
   _renderFIO(shifts);
@@ -245,7 +283,7 @@ function _buildDeptSelector(depts, el) {
 }
 
 // ── KPI CARDS PRINCIPALES ─────────────────────────────────────
-function _renderKpiCards(shifts, mermas, incis, tareas, deptCfg) {
+function _renderKpiCards(shifts, mermas, incis, tareas, gestiones, deptCfg) {
   var el = document.getElementById('kpi-grid');
   if (!el) return;
 
@@ -257,24 +295,31 @@ function _renderKpiCards(shifts, mermas, incis, tareas, deptCfg) {
   var costePersonal = 0; // calculado en renderCostTable
 
   var inciTotal = incis.length;
-  var inciAbiertas = incis.filter(function(i) { return i.estado === 'Abierta'; }).length;
-  var inciCriticas = incis.filter(function(i) { return i.severidad === 'Crítica' && i.estado === 'Abierta'; }).length;
+  var inciAbiertas = incis.filter(function(i) { return isIncidentOpen(i); }).length;
+  var inciCerradas = incis.filter(function(i) { return normalizeIncidentState(i.estado) === INCIDENT_STATES.CERRADA; }).length;
+  var inciCriticas = incis.filter(function(i) { return i.severidad === 'Crítica' && isIncidentOpen(i); }).length;
+  var resRows = incis.filter(function(i) { return _resolutionMinutes(i) !== null; });
+  var avgRes = resRows.length ? Math.round(resRows.reduce(function(a, i) { return a + _resolutionMinutes(i); }, 0) / resRows.length) : null;
 
   var fioTotal = shifts.filter(function(s) { return _isFio(s); }).length;
   var fioCrit  = shifts.filter(function(s) { return _isFio(s) && (s.gravedad_error === 'Alta' || s.gravedad_error === 'Crítica'); }).length;
   var fioPend  = shifts.filter(function(s) { return _isFio(s) && !s.validado_por; }).length;
 
   var tareasPend = tareas.filter(_tareaActiva).length;
-  var tareasVenc = tareas.filter(function(t) { return isOverdue(t.deadline) && t.estado !== 'Verificada' && t.estado !== 'Completada'; }).length;
+  var tareasVenc = tareas.filter(function(t) { return isOverdue(t.deadline) && isTaskOpen(t); }).length;
+  var gestPend = gestiones.filter(_tareaActiva).length;
+  var gestVenc = gestiones.filter(function(t) { return isOverdue(t.deadline) && isTaskOpen(t); }).length;
 
   var costeMerma = mermas.reduce(function(a, m) { return a + (m.coste_total || 0); }, 0);
 
   var html = '';
   html += '<div class="kpi k-amber"><div class="kpi-lbl">Turnos</div><div class="kpi-val">' + totalTurnos + '</div><div class="kpi-sub">' + valTurnos + ' validados · ' + pendTurnos + ' pendientes</div></div>';
   html += '<div class="kpi k-green"><div class="kpi-lbl">Horas</div><div class="kpi-val">' + totalHoras.toFixed(1) + 'h</div><div class="kpi-sub">Prom. ' + (totalTurnos ? (totalHoras / totalTurnos).toFixed(1) : 0) + 'h/turno</div></div>';
-  html += '<div class="kpi k-red"><div class="kpi-lbl">Incidencias</div><div class="kpi-val">' + inciAbiertas + '</div><div class="kpi-sub">' + inciTotal + ' total · ' + inciCriticas + ' críticas</div></div>';
+  html += '<div class="kpi k-red"><div class="kpi-lbl">Incidencias abiertas</div><div class="kpi-val">' + inciAbiertas + '</div><div class="kpi-sub">' + inciCerradas + ' cerradas · ' + inciCriticas + ' críticas</div></div>';
+  html += '<div class="kpi k-amber"><div class="kpi-lbl">Gestiones pendientes</div><div class="kpi-val">' + gestPend + '</div><div class="kpi-sub">' + (gestVenc > 0 ? '<span style="color:var(--red)">' + gestVenc + ' vencidas</span>' : 'Sin vencer') + '</div></div>';
+  html += '<div class="kpi k-blue"><div class="kpi-lbl">T. medio resolución</div><div class="kpi-val">' + (avgRes === null ? '—' : Math.round(avgRes / 60) + 'h') + '</div><div class="kpi-sub">' + (avgRes === null ? 'Sin cierres' : avgRes + ' min') + '</div></div>';
   html += '<div class="kpi k-red"><div class="kpi-lbl">FIO total</div><div class="kpi-val">' + fioTotal + '</div><div class="kpi-sub">' + fioCrit + ' alta/crítica · ' + fioPend + ' pendientes</div></div>';
-  html += '<div class="kpi k-purple"><div class="kpi-lbl">Tareas pend.</div><div class="kpi-val">' + tareasPend + '</div><div class="kpi-sub">' + (tareasVenc > 0 ? '<span style="color:var(--red)">' + tareasVenc + ' vencidas</span>' : 'Sin vencer') + '</div></div>';
+  html += '<div class="kpi k-purple"><div class="kpi-lbl">Tareas abiertas</div><div class="kpi-val">' + tareasPend + '</div><div class="kpi-sub">' + (tareasVenc > 0 ? '<span style="color:var(--red)">' + tareasVenc + ' vencidas</span>' : 'Sin vencer') + '</div></div>';
 
   // Card específica por departamento
   if (deptCfg.id === 'Cocina' || deptCfg.id === 'FnB') {
@@ -330,13 +375,13 @@ function _renderAlertas(shifts, mermas, incis, tareas) {
   var pendH = shifts.filter(function(s) { return s.estado === 'Pendiente'; }).length;
   if (pendH > 0) msgs.push({ t: 'warn', m: pendH + ' turno(s) pendiente(s) de validación' });
 
-  var inciCrit = incis.filter(function(i) { return i.severidad === 'Crítica' && i.estado === 'Abierta'; });
+  var inciCrit = incis.filter(function(i) { return i.severidad === 'Crítica' && isIncidentOpen(i); });
   if (inciCrit.length) msgs.push({ t: 'err', m: '⛔ ' + inciCrit.length + ' incidencia(s) CRÍTICA(s) sin cerrar' });
 
   var fioPend = shifts.filter(function(s) { return _isFio(s) && !s.validado_por; }).length;
   if (fioPend > 0) msgs.push({ t: 'err', m: fioPend + ' FIO pendiente(s) de validación' });
 
-  var tareasVenc = tareas.filter(function(t) { return isOverdue(t.deadline) && t.estado !== 'Verificada'; }).length;
+  var tareasVenc = tareas.filter(function(t) { return isOverdue(t.deadline) && isTaskOpen(t); }).length;
   if (tareasVenc > 0) msgs.push({ t: 'err', m: tareasVenc + ' tarea(s) vencida(s) sin cerrar' });
 
   var sinCoste = mermas.filter(function(m) { return !m.coste_unitario || m.coste_unitario === 0; }).length;
@@ -370,16 +415,22 @@ function _renderIncidencias(incis) {
   var filtered = incis.slice();
   if (diCat) filtered = filtered.filter(function(i) { return i.categoria === diCat; });
   if (diSev) filtered = filtered.filter(function(i) { return i.severidad === diSev; });
-  if (diEstado) filtered = filtered.filter(function(i) { return i.estado === diEstado; });
+  if (diEstado) filtered = filtered.filter(function(i) { return normalizeIncidentState(i.estado) === diEstado; });
 
   // KPI incidencias
   var kpiEl = document.getElementById('kpi-incis');
   if (kpiEl) {
-    var iAb = filtered.filter(function(i) { return i.estado === 'Abierta'; }).length;
-    var iCrit = filtered.filter(function(i) { return i.severidad === 'Crítica'; }).length;
+    var iAb = filtered.filter(function(i) { return isIncidentOpen(i); }).length;
+    var iCerr = filtered.filter(function(i) { return normalizeIncidentState(i.estado) === INCIDENT_STATES.CERRADA; }).length;
+    var iVal = filtered.filter(function(i) { return normalizeIncidentState(i.estado) === INCIDENT_STATES.VALIDADA; }).length;
+    var iCrit = filtered.filter(function(i) { return i.severidad === 'Crítica' || i.severidad === 'Alta'; }).length;
+    var resRows = filtered.filter(function(i) { return _resolutionMinutes(i) !== null; });
+    var avgRes = resRows.length ? Math.round(resRows.reduce(function(a, i) { return a + _resolutionMinutes(i); }, 0) / resRows.length) : null;
     kpiEl.innerHTML = '<div class="kpi k-red"><div class="kpi-lbl">Total</div><div class="kpi-val">' + filtered.length + '</div></div>'
       + '<div class="kpi k-red"><div class="kpi-lbl">Abiertas</div><div class="kpi-val">' + iAb + '</div></div>'
-      + '<div class="kpi k-red"><div class="kpi-lbl">Críticas</div><div class="kpi-val">' + iCrit + '</div></div>';
+      + '<div class="kpi k-green"><div class="kpi-lbl">Cerradas</div><div class="kpi-val">' + iCerr + '</div><div class="kpi-sub">' + iVal + ' validadas</div></div>'
+      + '<div class="kpi k-red"><div class="kpi-lbl">Alta / crítica</div><div class="kpi-val">' + iCrit + '</div></div>'
+      + '<div class="kpi k-blue"><div class="kpi-lbl">T. medio</div><div class="kpi-val">' + (avgRes === null ? '—' : avgRes + 'm') + '</div></div>';
   }
 
   if (!filtered.length) {
@@ -390,17 +441,66 @@ function _renderIncidencias(incis) {
   filtered.sort(function(a, b) { return b.fecha.localeCompare(a.fecha); });
 
   el.innerHTML = '<table>'
-    + '<tr><th>Fecha</th><th>Categoría</th><th>Severidad</th><th>Descripción</th><th>Estado</th><th>Empleado</th></tr>'
+    + '<tr><th>Fecha</th><th>Categoría</th><th>Severidad</th><th>Descripción</th><th>Estado</th><th>Empleado</th><th>Acción</th></tr>'
     + filtered.map(function(i) {
       var sevColor = i.severidad === 'Crítica' ? 'b-red' : i.severidad === 'Alta' ? 'b-orange' : i.severidad === 'Media' ? 'b-yellow' : 'b-gray';
-      var estColor = i.estado === 'Abierta' ? 'b-red' : i.estado === 'Gestionada' ? 'b-blue' : 'b-green';
+      var normI = normalizeIncidentState(i.estado);
+      var estColor = normI === INCIDENT_STATES.ABIERTA ? 'b-red' : normI === INCIDENT_STATES.EN_PROCESO ? 'b-blue' : 'b-green';
       return '<tr>'
         + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(i.fecha) + '</td>'
-        + '<td>' + (i.categoria || '—') + '</td>'
-        + '<td><span class="badge ' + sevColor + '">' + (i.severidad || '—') + '</span></td>'
-        + '<td style="max-width:200px;font-size:12px">' + (i.descripcion || '—') + '</td>'
-        + '<td><span class="badge ' + estColor + '">' + (i.estado || '—') + '</span></td>'
-        + '<td style="font-size:12px">' + (i.nombre || i.empleado || '—') + '</td>'
+        + '<td>' + formatDisplayValue(i.categoria) + '</td>'
+        + '<td><span class="badge ' + sevColor + '">' + formatDisplayValue(i.severidad) + '</span></td>'
+        + '<td style="max-width:200px;font-size:12px">' + formatDisplayValue(i.descripcion) + '</td>'
+        + '<td><span class="badge ' + estColor + '">' + normI + '</span></td>'
+        + '<td style="font-size:12px">' + formatDisplayValue(i.nombre || i.empleado) + '</td>'
+        + '<td>' + (canValidateIncident(currentUser,i) ? '<button class="btn btn-primary btn-sm" onclick="advanceIncident(\'' + i.id + '\',\'Validada\')">Validar</button>' : '—') + '</td>'
+        + '</tr>';
+    }).join('')
+    + '</table>';
+}
+
+// ── GESTIONES PENDIENTES ─────────────────────────────────────
+function _renderGestiones(gestiones) {
+  var gridEl = document.getElementById('dash-gestiones-kpi');
+  var tableEl = document.getElementById('dash-gestiones-table');
+  if (!gridEl && !tableEl) return;
+
+  var abiertas = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.ABIERTA; });
+  var enProc = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.EN_PROCESO; });
+  var cerradas = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.CERRADA; });
+  var validadas = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.VALIDADA; });
+  var vencidas = gestiones.filter(function(t) { return isOverdue(t.deadline) && isTaskOpen(t); });
+  var pendientes = gestiones.filter(_tareaActiva);
+
+  if (gridEl) {
+    gridEl.innerHTML = '<div class="kpi k-amber"><div class="kpi-lbl">Abiertas</div><div class="kpi-val">' + abiertas.length + '</div></div>'
+      + '<div class="kpi k-blue"><div class="kpi-lbl">En proceso</div><div class="kpi-val">' + enProc.length + '</div></div>'
+      + '<div class="kpi k-green"><div class="kpi-lbl">Cerradas</div><div class="kpi-val">' + cerradas.length + '</div></div>'
+      + '<div class="kpi k-green"><div class="kpi-lbl">Validadas</div><div class="kpi-val">' + validadas.length + '</div></div>'
+      + '<div class="kpi k-red"><div class="kpi-lbl">Vencidas</div><div class="kpi-val">' + vencidas.length + '</div></div>';
+  }
+
+  if (!tableEl) return;
+  if (!pendientes.length) {
+    tableEl.innerHTML = '<div class="empty"><div class="empty-text">Sin gestiones pendientes</div></div>';
+    return;
+  }
+  pendientes.sort(function(a, b) {
+    if (isOverdue(a.deadline) && !isOverdue(b.deadline)) return -1;
+    if (!isOverdue(a.deadline) && isOverdue(b.deadline)) return 1;
+    return (a.deadline || '').localeCompare(b.deadline || '');
+  });
+  tableEl.innerHTML = '<table>'
+    + '<tr><th>Deadline</th><th>Estado</th><th>Origen</th><th>Descripción</th><th>Destino</th><th>Creado por</th></tr>'
+    + pendientes.map(function(t) {
+      var vencida = isOverdue(t.deadline);
+      return '<tr style="' + (vencida ? 'background:rgba(239,68,68,.05)' : '') + '">'
+        + '<td style="font-family:var(--font-mono);font-size:11px;color:' + (vencida ? 'var(--red)' : 'var(--text)') + '">' + fmtDate(t.deadline) + (vencida ? ' ⚠' : '') + '</td>'
+        + '<td>' + bTaskEstado(t.estado) + '</td>'
+        + '<td><span class="task-origin">' + formatDisplayValue(t.origen) + '</span></td>'
+        + '<td style="font-size:12px;max-width:260px">' + formatDisplayValue(t.descripcion || t.titulo) + '</td>'
+        + '<td>' + deptBadge(t.dept_destino) + '</td>'
+        + '<td style="font-size:12px">' + formatDisplayValue(t.creado_por) + '</td>'
         + '</tr>';
     }).join('')
     + '</table>';
@@ -411,21 +511,23 @@ function _renderTareas(tareas) {
   var el = document.getElementById('dash-tasks-table');
   if (!el) return;
 
-  var pend = tareas.filter(function(t) { return t.estado === 'Pendiente'; });
-  var enProc = tareas.filter(function(t) { return t.estado === 'En proceso'; });
-  var comp = tareas.filter(function(t) { return t.estado === 'Completada'; });
-  var venc = tareas.filter(function(t) { return isOverdue(t.deadline) && t.estado !== 'Verificada'; });
+  var pend = tareas.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.ABIERTA; });
+  var enProc = tareas.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.EN_PROCESO; });
+  var comp = tareas.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.CERRADA; });
+  var val = tareas.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.VALIDADA; });
+  var venc = tareas.filter(function(t) { return isOverdue(t.deadline) && isTaskOpen(t); });
 
   // Grid resumen
   var gridEl = document.getElementById('dept-task-grid');
   if (gridEl) {
-    gridEl.innerHTML = '<div class="kpi k-amber"><div class="kpi-lbl">Pendientes</div><div class="kpi-val">' + pend.length + '</div></div>'
+    gridEl.innerHTML = '<div class="kpi k-amber"><div class="kpi-lbl">Abiertas</div><div class="kpi-val">' + pend.length + '</div></div>'
       + '<div class="kpi k-blue"><div class="kpi-lbl">En proceso</div><div class="kpi-val">' + enProc.length + '</div></div>'
-      + '<div class="kpi k-green"><div class="kpi-lbl">Completadas</div><div class="kpi-val">' + comp.length + '</div></div>'
+      + '<div class="kpi k-green"><div class="kpi-lbl">Cerradas</div><div class="kpi-val">' + comp.length + '</div></div>'
+      + '<div class="kpi k-green"><div class="kpi-lbl">Validadas</div><div class="kpi-val">' + val.length + '</div></div>'
       + '<div class="kpi k-red"><div class="kpi-lbl">Vencidas</div><div class="kpi-val">' + venc.length + '</div></div>';
   }
 
-  var abiertas = tareas.filter(function(t) { return t.estado !== 'Verificada' && t.estado !== 'Completada'; });
+  var abiertas = tareas.filter(function(t) { return isTaskOpen(t); });
   abiertas.sort(function(a, b) {
     if (isOverdue(a.deadline) && !isOverdue(b.deadline)) return -1;
     if (!isOverdue(a.deadline) && isOverdue(b.deadline)) return 1;
@@ -444,9 +546,9 @@ function _renderTareas(tareas) {
       var prioColor = t.prioridad === 'Alta' ? 'b-red' : t.prioridad === 'Media' ? 'b-yellow' : 'b-gray';
       return '<tr style="' + (vencida ? 'background:rgba(239,68,68,.05)' : '') + '">'
         + '<td><span class="badge ' + prioColor + '">' + (t.prioridad || '—') + '</span></td>'
-        + '<td style="font-size:12px;max-width:200px">' + (t.descripcion || '—') + '</td>'
+        + '<td style="font-size:12px;max-width:200px">' + formatDisplayValue(t.descripcion) + '</td>'
         + '<td>' + deptBadge(t.dept_destino) + '</td>'
-        + '<td style="font-size:12px">' + (t.responsable_nombre || '—') + '</td>'
+        + '<td style="font-size:12px">' + formatDisplayValue(t.responsable_nombre) + '</td>'
         + '<td style="font-family:var(--font-mono);font-size:11px;color:' + (vencida ? 'var(--red)' : 'var(--text)') + '">' + fmtDate(t.deadline) + (vencida ? ' ⚠' : '') + '</td>'
         + '<td>' + bTaskEstado(t.estado) + '</td>'
         + '</tr>';
@@ -615,7 +717,10 @@ async function _renderKpiRecepcion(shifts) {
   // Cierres caja recepción
   var cierresRec = [];
   try {
-    var allRec = await getDB('rec_shift_data');
+    var allRec = await dbGetAll('recepcion_cash');
+    if (!allRec.length) allRec = await dbGetAll('recepcion_cash_closures');
+    if (!allRec.length) allRec = await getDB('rec_shift_data');
+    if (!allRec.length) allRec = await getDB('cash_closings');
     var periodo = (document.getElementById('dash-periodo') || {}).value || 'semana';
     var desde = null;
     if (periodo === 'hoy') desde = today();
@@ -638,8 +743,8 @@ async function _renderKpiRecepcion(shifts) {
       + cierresRec.sort(function(a, b) { return b.fecha.localeCompare(a.fecha); }).slice(0, 10).map(function(r) {
         return '<tr>'
           + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(r.fecha) + '</td>'
-          + '<td>' + (r.turno || '—') + '</td>'
-          + '<td>' + (r.responsable_nombre || '—') + '</td>'
+          + '<td>' + formatDisplayValue(r.turno) + '</td>'
+          + '<td>' + formatDisplayValue(r.responsable_nombre || r.usuario_nombre) + '</td>'
           + '<td><span class="badge ' + (r.validado_ts ? 'b-green' : 'b-gray') + '">' + (r.validado_ts ? '✓ Validado' : 'Pendiente') + '</span></td>'
           + '</tr>';
       }).join('') + '</table>'
@@ -718,6 +823,10 @@ function _renderPlaceholder(deptCfg) {
   if (tasksEl) tasksEl.innerHTML = '';
   var gridEl = document.getElementById('dept-task-grid');
   if (gridEl) gridEl.innerHTML = '';
+  var gestKpiEl = document.getElementById('dash-gestiones-kpi');
+  if (gestKpiEl) gestKpiEl.innerHTML = '';
+  var gestTableEl = document.getElementById('dash-gestiones-table');
+  if (gestTableEl) gestTableEl.innerHTML = '';
   var fioEl = document.getElementById('dash-fio-table');
   if (fioEl) fioEl.innerHTML = '';
   var costEl = document.getElementById('dash-cost-table');

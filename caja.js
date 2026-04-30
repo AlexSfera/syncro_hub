@@ -198,9 +198,7 @@ function getServicioValue() {
 }
 
 function displayServicio(val) {
-  if(!val) return '—';
-  try{ var arr=JSON.parse(val); if(Array.isArray(arr)) return arr.join(', '); }catch(e){}
-  return val;
+  return typeof formatServiceOrTurn === 'function' ? formatServiceOrTurn(val) : (val||'—');
 }
 
 function switchValTab(tab) {
@@ -282,9 +280,8 @@ async function validarCierre(cajaId) {
 }
 
 function setDeadlineLimits() {
-  var t=today();
-  var d=new Date(); d.setMonth(d.getMonth()+1);
-  var maxD=d.toISOString().slice(0,10);
+  var t=typeof getMinTaskDeadline==='function'?getMinTaskDeadline():today();
+  var maxD=typeof getMaxTaskDeadline==='function'?getMaxTaskDeadline():today();
   ['it-deadline','mt-deadline','task-deadline'].forEach(function(id){
     var el=document.getElementById(id);
     if(el){el.min=t;el.max=maxD;}

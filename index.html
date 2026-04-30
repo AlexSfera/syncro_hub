@@ -577,10 +577,10 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="card">
         <div class="card-title">ESTADOS DE TAREA</div>
         <table><tr><th>Estado</th><th>Quién actúa</th><th>Siguiente</th></tr>
-          <tr><td><span class="badge b-red">Pendiente</span></td><td>Dpto. destinatario</td><td>Iniciar → En proceso</td></tr>
-          <tr><td><span class="badge b-blue">En proceso</span></td><td>Dpto. destinatario</td><td>Completar</td></tr>
-          <tr><td><span class="badge b-orange">Completada</span></td><td>Chef / F&B / Admin</td><td>Verificar</td></tr>
-          <tr><td><span class="badge b-green">Verificada</span></td><td>—</td><td>Cerrado</td></tr>
+          <tr><td><span class="badge b-red">Abierta</span></td><td>Dpto. destinatario</td><td>Iniciar → En proceso</td></tr>
+          <tr><td><span class="badge b-blue">En proceso</span></td><td>Dpto. destinatario</td><td>Cerrar</td></tr>
+          <tr><td><span class="badge b-orange">Cerrada</span></td><td>Supervisor / Admin</td><td>Admin puede validar</td></tr>
+          <tr><td><span class="badge b-green">Validada</span></td><td>Admin</td><td>Cerrado</td></tr>
         </table>
       </div>
     </div>
@@ -779,7 +779,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
       <div class="filter-bar">
         <div class="fg"><label>Estado</label>
-          <select id="tk-estado" onchange="renderTareas()"><option value="">Todos</option><option>Pendiente</option><option>En proceso</option><option>Completada</option><option>Verificada</option></select></div>
+          <select id="tk-estado" onchange="renderTareas()"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Validada</option></select></div>
         <div class="fg"><label>Departamento</label>
           <select id="tk-dept" onchange="renderTareas()"><option value="">Todos</option><option>Cocina</option><option>Sala</option><option>Mantenimiento</option><option>Recepción</option><option>Administración</option><option>Economato</option><option>Limpieza</option></select></div>
         <div class="fg"><label>Prioridad</label>
@@ -862,6 +862,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="dash-tabs" role="tablist" aria-label="Secciones del dashboard">
         <button class="dash-tab active" role="tab" data-tab="turnos" onclick="_activateDashTab('turnos')">Turnos</button>
         <button class="dash-tab" role="tab" data-tab="incidencias" onclick="_activateDashTab('incidencias')">Incidencias</button>
+        <button class="dash-tab" role="tab" data-tab="gestiones" onclick="_activateDashTab('gestiones')">Gestiones pendientes</button>
         <button class="dash-tab" role="tab" data-tab="fio" onclick="_activateDashTab('fio')">FIO</button>
         <button class="dash-tab" role="tab" data-tab="tareas" onclick="_activateDashTab('tareas')">Tareas</button>
         <button class="dash-tab" role="tab" data-tab="costes" onclick="_activateDashTab('costes')">Costes</button>
@@ -879,11 +880,11 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="dash-panel" id="tab-panel-incidencias" role="tabpanel">
         <div class="filter-bar" style="margin-bottom:10px;">
           <div class="fg"><label>Categoría</label>
-            <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Incidencia operativa</option><option>Gestión pendiente</option><option>Follow-up / Gestión</option><option>Reportada por empleado</option></select></div>
+            <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Incidencia operativa</option><option>Reportada por empleado</option></select></div>
           <div class="fg"><label>Severidad</label>
             <select id="di-sev" onchange="renderDashboard()"><option value="">Todas</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
           <div class="fg"><label>Estado incidencia</label>
-            <select id="di-estado" onchange="renderDashboard()"><option value="">Todas</option><option>Abierta</option><option>Gestionada</option></select></div>
+            <select id="di-estado" onchange="renderDashboard()"><option value="">Todas</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Validada</option></select></div>
         </div>
         <div class="kpi-grid" id="kpi-incis"></div>
         <div class="card"><div class="card-title">INCIDENCIAS — DETALLE</div><div class="tbl-wrap" id="dash-inci-table"></div></div>
@@ -898,6 +899,12 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div class="kpi-grid" id="kpi-merma"></div>
           <div class="card"><div class="card-title">MERMA — DETALLE</div><div class="tbl-wrap" id="dash-merma-table"></div></div>
         </div>
+      </div>
+
+      <!-- Panel: Gestiones pendientes -->
+      <div class="dash-panel" id="tab-panel-gestiones" role="tabpanel">
+        <div class="kpi-grid" id="dash-gestiones-kpi"></div>
+        <div class="card"><div class="card-title">GESTIONES PENDIENTES</div><div class="tbl-wrap" id="dash-gestiones-table"></div></div>
       </div>
 
       <!-- Panel: FIO -->
@@ -1957,8 +1964,8 @@ async function openShiftDetail(shiftId){
   const s = shifts.find(x=>x.id===shiftId);
   if(!s) return;
   const mermas = (await getDB('merma')).filter(m=>m.shift_id===shiftId);
-  const incis  = (await getDB('incidencias')).filter(i=>i.shift_id===shiftId);
-  const allTareas = (await getDB('tareas')).filter(t=>t.shift_id===shiftId);
+  const incis  = (await getDB('incidencias')).filter(function(i){return recordMatchesShift(i,s);});
+  const allTareas = (await getDB('tareas')).filter(function(t){return recordMatchesShift(t,s);});
 
   var html = '';
 
@@ -1966,12 +1973,12 @@ async function openShiftDetail(shiftId){
   html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">';
   html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#2ec4b6;letter-spacing:.15em;margin-bottom:10px;">1 · DATOS DEL TURNO</div>';
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">';
-  html += '<div><span style="color:var(--text3)">Empleado: </span><strong>'+s.nombre+'</strong></div>';
-  html += '<div><span style="color:var(--text3)">Puesto: </span>'+s.puesto+'</div>';
+  html += '<div><span style="color:var(--text3)">Empleado: </span><strong>'+formatDisplayValue(s.nombre)+'</strong></div>';
+  html += '<div><span style="color:var(--text3)">Puesto: </span>'+formatDisplayValue(s.puesto)+'</div>';
   html += '<div><span style="color:var(--text3)">Fecha: </span><strong>'+fmtDate(s.fecha)+'</strong></div>';
-  html += '<div><span style="color:var(--text3)">Servicio: </span><strong>'+displayServicio(s.servicio)+'</strong></div>';
+  html += '<div><span style="color:var(--text3)">'+(s.area==='Recepción'?'Turno':'Servicio')+': </span><strong>'+formatServiceOrTurn(s.servicio)+'</strong></div>';
   html += '<div><span style="color:var(--text3)">Horas: </span><strong>'+s.horas+'h</strong></div>';
-  html += '<div><span style="color:var(--text3)">Responsable turno: </span>'+(s.responsable_nombre||'—')+'</div>';
+  if(s.area!=='Recepción') html += '<div><span style="color:var(--text3)">Responsable turno: </span>'+formatDisplayValue(s.responsable_nombre)+'</div>';
   html += '<div><span style="color:var(--text3)">Estado: </span>'+bEstado(s.estado)+'</div>';
   html += '<div><span style="color:var(--text3)">Validado por: </span>'+(s.validado_por||'—')+'</div>';
   if(s.observacion) html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Observación: </span>'+s.observacion+'</div>';
@@ -2000,18 +2007,23 @@ async function openShiftDetail(shiftId){
   }
 
   // ── BLOQUE 3: Gestión pendiente ──
-  var gestions3 = incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; });
+  var gestions3 = allTareas.concat(incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; }));
   var incisOp3  = incis.filter(function(i){ return i.categoria !== 'Gestión pendiente'; });
   if(gestions3.length>0){
     html += '<div style="background:var(--bg2);border:1px solid var(--amber);border-radius:8px;padding:14px;margin-bottom:12px;">';
-    html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:10px;">3 · GESTIÓN PENDIENTE</div>';
+    html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:10px;">3 · GESTIONES PENDIENTES DECLARADAS</div>';
     gestions3.forEach(function(g){
       html += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
-      if(g.tipo_incidencia) html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Tipo: </span><span class="badge b-yellow">'+g.tipo_incidencia+'</span></div>';
-      html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+g.descripcion+'</strong></div>';
+      if(g.tipo_incidencia || g.origen) html += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-yellow">'+formatDisplayValue(g.tipo_incidencia || g.origen)+'</span></div>';
+      if(g.estado) html += '<div><span style="color:var(--text3)">Estado: </span>'+(g.dept_destino ? bTaskEstado(g.estado) : bIncidentEstado(g.estado))+'</div>';
+      if(g.dept_destino) html += '<div><span style="color:var(--text3)">Departamento destino: </span>'+deptBadge(g.dept_destino)+'</div>';
+      if(g.deadline) html += '<div><span style="color:var(--text3)">Deadline: </span>'+fmtDate(g.deadline)+'</div>';
+      html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+formatDisplayValue(g.descripcion || g.titulo)+'</strong></div>';
       html += '</div>';
     });
     html += '</div>';
+  } else {
+    html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text3);">Sin gestiones pendientes declaradas</div>';
   }
   // ── BLOQUE 4: Incidencia operativa ──
   if(incisOp3.length>0){
@@ -2019,16 +2031,17 @@ async function openShiftDetail(shiftId){
     html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.15em;margin-bottom:10px;">4 · INCIDENCIA OPERATIVA</div>';
     incisOp3.forEach(function(i){
       html += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
-      if(i.tipo_incidencia) html += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-red">'+i.tipo_incidencia+'</span></div>';
+      if(i.tipo_incidencia) html += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-red">'+formatDisplayValue(i.tipo_incidencia)+'</span></div>';
       html += '<div><span style="color:var(--text3)">Informado resp.: </span>'+(i.informado_responsable==='si'?'✓ Sí':'✗ No')+'</div>';
-      html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+i.descripcion+'</strong></div>';
-      if(i.accion_inmediata) html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Acción inmediata: </span>'+i.accion_inmediata+'</div>';
+      html += '<div><span style="color:var(--text3)">Estado: </span>'+bIncidentEstado(i.estado)+'</div>';
+      html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+formatDisplayValue(i.descripcion)+'</strong></div>';
+      if(i.accion_inmediata) html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Acción inmediata: </span>'+formatDisplayValue(i.accion_inmediata)+'</div>';
       if(i.staff_implicado_nombres){
         try{
-          var staff = JSON.parse(i.staff_implicado_nombres);
-          if(staff.length>0){
+          var staffTxt = formatStaffList(i.staff_implicado_nombres);
+          if(staffTxt !== '—'){
             html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Personas involucradas: </span>';
-            html += staff.map(function(n){return '<span class="badge b-yellow" style="margin-right:4px;">'+n+'</span>';}).join('');
+            html += staffTxt.split(',').map(function(n){return '<span class="badge b-yellow" style="margin-right:4px;">'+formatDisplayValue(n)+'</span>';}).join('');
             html += '</div>';
           }
         }catch(e){}
@@ -2533,12 +2546,7 @@ function getServicioValue() {
 }
 
 function displayServicio(val) {
-  if(!val) return '—';
-  try {
-    var arr = JSON.parse(val);
-    if(Array.isArray(arr)) return arr.join(', ');
-  } catch(e) {}
-  return val;
+  return typeof formatServiceOrTurn === 'function' ? formatServiceOrTurn(val) : (val || '—');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2901,9 +2909,8 @@ async function validarCierre(cajaId) {
 }
 
 function setDeadlineLimits() {
-  var t = today();
-  var d = new Date(); d.setMonth(d.getMonth()+1);
-  var maxD = d.toISOString().slice(0,10);
+  var t = typeof getMinTaskDeadline === 'function' ? getMinTaskDeadline() : today();
+  var maxD = typeof getMaxTaskDeadline === 'function' ? getMaxTaskDeadline() : today();
   ['it-deadline','mt-deadline','task-deadline'].forEach(function(id){
     var el = document.getElementById(id);
     if(el){ el.min = t; el.max = maxD; }
@@ -3528,14 +3535,13 @@ async function renderFollowupList() {
   var subtitleEl = document.getElementById('followup-subtitle');
   if(!el) return;
 
-  var isOpen = function(i){ return i.estado === 'Abierta' || i.estado === 'En proceso' || i.estado === 'abierta' || i.estado === 'en proceso'; };
-  var isSupervisor = currentUser && (currentUser.rol === 'admin' || currentUser.rol === 'chef' || currentUser.rol === 'fb' || currentUser.rol === 'jefe_recepcion' || currentUser.validador == 1 || currentUser.validador === true);
-  var isAdmin = currentUser && currentUser.rol === 'admin';
+  var isSupervisorUser = isAdmin(currentUser) || isSupervisor(currentUser);
+  var isAdminUser = isAdmin(currentUser);
   var dept = currentUser ? (currentUser.area || '') : '';
 
   // Show/hide "Nueva incidencia" button — supervisors only
-  if(btnNew) btnNew.style.display = isSupervisor ? '' : 'none';
-  if(subtitleEl) subtitleEl.textContent = isSupervisor
+  if(btnNew) btnNew.style.display = isSupervisorUser ? '' : 'none';
+  if(subtitleEl) subtitleEl.textContent = isSupervisorUser
     ? 'Gestiones pendientes e incidencias operativas del departamento.'
     : 'Gestiones pendientes operativas visibles a todos los turnos. Las incidencias son solo para supervisores.';
 
@@ -3543,17 +3549,17 @@ async function renderFollowupList() {
   try { allIncis = await getDB('incidencias'); } catch(e){ allIncis = []; }
 
   // Dept match helper (no _shiftAreaMap here — use area/departamento only)
-  function inDept(i){ return !dept || i.area === dept || i.departamento === dept || !i.area; }
+  function inDept(i){ return isAdminUser || canViewDepartment(currentUser, i.area || i.departamento || dept); }
 
   // Split by visibility rule
   var gestiones, incidencias;
-  if(isSupervisor){
+  if(isSupervisorUser){
     // Supervisors: gestiones + incidencias operativas, filtered by dept (admin: all)
-    gestiones  = allIncis.filter(function(i){ return isOpen(i) && i.categoria === 'Gestión pendiente'  && (isAdmin || inDept(i)); });
-    incidencias = allIncis.filter(function(i){ return isOpen(i) && i.categoria !== 'Gestión pendiente' && (isAdmin || inDept(i)); });
+    gestiones  = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria === 'Gestión pendiente'  && (isAdminUser || inDept(i)); });
+    incidencias = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria !== 'Gestión pendiente' && (isAdminUser || inDept(i)); });
   } else {
     // Employees: ONLY gestiones pendientes, ALL departments (operational handover)
-    gestiones  = allIncis.filter(function(i){ return isOpen(i) && i.categoria === 'Gestión pendiente'; });
+    gestiones  = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria === 'Gestión pendiente'; });
     incidencias = [];
   }
 
@@ -3569,21 +3575,23 @@ async function renderFollowupList() {
   function buildRows(list, borderColor, badgeClass){
     if(!list.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0;">Ninguna</div>';
     var t = '<table><tr><th>Tipo</th><th>Descripción</th><th>Empleado</th><th>Fecha</th><th>Estado</th>';
-    if(isSupervisor) t += '<th>Acciones</th>';
+    if(isSupervisorUser) t += '<th>Acciones</th>';
     t += '</tr>';
     list.forEach(function(i){
       var apertura = i.created_at ? new Date(i.created_at) : null;
-      var estadoBadge = i.estado === 'En proceso'
-        ? '<span class="badge b-orange">En proceso</span>'
-        : '<span class="badge '+badgeClass+'">Abierta</span>';
-      var acciones = isSupervisor ? '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>' : '';
+      var estadoBadge = bIncidentEstado(i.estado);
+      var canClose = isAdminUser || (isSupervisorUser && canViewDepartment(currentUser, i.area || i.departamento));
+      var normI = normalizeIncidentState(i.estado);
+      var acciones = canClose
+        ? (normI===INCIDENT_STATES.ABIERTA?'<button class="btn btn-secondary btn-sm" onclick="advanceIncident(\''+i.id+'\',\'En proceso\')">En proceso</button> ':'') + '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>'
+        : '';
       t += '<tr>'
-        + '<td style="font-size:12px;">' + (i.tipo_incidencia || '—') + '</td>'
-        + '<td style="font-size:12px;max-width:200px;">' + (i.descripcion||'').slice(0,70) + (i.descripcion && i.descripcion.length>70?'…':'') + '</td>'
-        + '<td style="font-size:12px;">' + (i.nombre || '—') + '</td>'
+        + '<td style="font-size:12px;">' + formatDisplayValue(i.tipo_incidencia) + '</td>'
+        + '<td style="font-size:12px;max-width:200px;">' + formatDisplayValue(i.descripcion).slice(0,70) + (i.descripcion && i.descripcion.length>70?'...':'') + '</td>'
+        + '<td style="font-size:12px;">' + formatDisplayValue(i.nombre) + '</td>'
         + '<td style="font-size:11px;color:var(--text3);">' + (apertura ? apertura.toLocaleDateString('es-ES') : '—') + '</td>'
         + '<td>' + estadoBadge + '</td>'
-        + (isSupervisor ? '<td>' + acciones + '</td>' : '')
+        + (isSupervisorUser ? '<td>' + acciones + '</td>' : '')
         + '</tr>';
     });
     t += '</table>';
@@ -3599,7 +3607,7 @@ async function renderFollowupList() {
   html += '</div>';
 
   // Incidencias operativas — supervisors only
-  if(isSupervisor){
+  if(isSupervisorUser){
     html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">';
     html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.12em;margin-bottom:6px;">INCIDENCIAS OPERATIVAS (' + incidencias.length + ') — Solo supervisores</div>';
     html += buildRows(incidencias, 'var(--red)', 'b-red');
@@ -3661,34 +3669,29 @@ async function saveFollowup() {
     shift_id: window._lastSavedShiftId || null,
     employee_id: currentUser.id,
     nombre: currentUser.nombre,
-    area: currentUser.area || '',
-    departamento: currentUser.area || '',
     fecha: today(),
     servicio: getRecTurnoValue() || getServicioValue() || '—',
     categoria: 'Follow-up / Gestión',
     tipo_incidencia: tipo,
     descripcion: desc,
     accion_inmediata: '',
-    responsable_id: respId || null,
-    responsable_nombre: respNombre,
-    objetivo_cierre: document.getElementById('fu-objetivo').value || null,
-    reserva_mews: document.getElementById('fu-mews-id').value.trim() || null,
-    estado: 'Abierta',
+    requiere_formacion: 'No',
+    requiere_disciplina: 'No',
+    estado: INCIDENT_STATES.ABIERTA,
     severidad: 'Pendiente revision',
     staff_implicado_ids: '[]',
     staff_implicado_nombres: '[]',
-    informado_responsable: 'no',
-    created_at: ts,
-    updated_at: ts
+    created_at: ts
   };
   try {
-    await dbInsert('incidencias', record);
+    var saved = await dbInsert('incidencias', record);
+    if(!saved){ console.error('Follow-up incidencia insert failed',record); errEl.textContent = 'No se pudo guardar. Revisa los datos e inténtalo de nuevo.'; return; }
     invalidateCache('incidencias');
     toast('Incidencia registrada', 'ok');
     closeFollowupModal();
     renderFollowupList();
   } catch(e){
-    errEl.textContent = 'Error al guardar: ' + e.message;
+    errEl.textContent = 'No se pudo guardar. Revisa los datos e inténtalo de nuevo.';
   }
 }
 
@@ -3714,17 +3717,31 @@ async function submitCloseFollowup() {
   try {
     var allIncis = await getDB('incidencias');
     var inci = allIncis.find(function(i){ return i.id === _fuCloseId; });
+    if(!inci){ errEl.textContent = 'No se encontró la incidencia.'; return; }
+    if(!(isAdmin(currentUser) || (isSupervisor(currentUser) && canViewDepartment(currentUser, inci.area || inci.departamento)))){
+      errEl.textContent = 'No tienes permiso para cerrar incidencias de este departamento.';
+      return;
+    }
+    var comentarioCierre = document.getElementById('fu-close-comentario').value.trim();
+    if((inci.severidad === 'Alta' || inci.severidad === 'Crítica') && !comentarioCierre){
+      errEl.textContent = 'El comentario de cierre es obligatorio para incidencias de alta severidad.';
+      return;
+    }
     var tiempoMs = inci && inci.created_at ? (new Date(ts) - new Date(inci.created_at)) : 0;
     var tiempoH = Math.floor(tiempoMs/3600000);
     var tiempoM = Math.floor((tiempoMs%3600000)/60000);
+    var tiempoMin = Math.max(0, Math.round(tiempoMs/60000));
     var slaCumplido = inci && inci.objetivo_cierre ? (new Date(ts) <= new Date(inci.objetivo_cierre)) : null;
     await dbUpdate('incidencias', _fuCloseId, {
-      estado: 'Cerrada',
+      estado: INCIDENT_STATES.CERRADA,
       accion_cierre: accion,
       resultado_cierre: resultado,
-      comentario_cierre: document.getElementById('fu-close-comentario').value.trim(),
+      comentario_cierre: comentarioCierre,
+      cerrado_por_id: currentUser.id,
+      cerrado_por_nombre: currentUser.nombre,
       cerrado_por: currentUser.nombre,
       fecha_cierre: ts,
+      tiempo_solucion_minutos: tiempoMin,
       tiempo_solucion_h: tiempoH,
       tiempo_solucion_m: tiempoM,
       sla_cumplido: slaCumplido,
@@ -3735,7 +3752,7 @@ async function submitCloseFollowup() {
     document.getElementById('modal-followup-close').style.display = 'none';
     renderFollowupList();
   } catch(e){
-    errEl.textContent = 'Error: ' + e.message;
+    errEl.textContent = 'No se pudo cerrar la incidencia. Inténtalo de nuevo.';
   }
 }
 

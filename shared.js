@@ -124,6 +124,28 @@ const DEPT_ICONS = {
 // Pins for role-level access
 const ROLE_PINS = {'300415':'admin','0101':'chef','1010':'fb'};
 
+const TASK_STATES = {
+  ABIERTA: 'Abierta',
+  EN_PROCESO: 'En proceso',
+  CERRADA: 'Cerrada',
+  VALIDADA: 'Validada'
+};
+const INCIDENT_STATES = {
+  ABIERTA: 'Abierta',
+  EN_PROCESO: 'En proceso',
+  CERRADA: 'Cerrada',
+  VALIDADA: 'Validada'
+};
+const SUPERVISOR_DEPT_MAP = {
+  chef: ['Cocina', 'Friegue'],
+  fb: ['Sala', 'Cocina', 'Friegue', 'FnB', 'Food & Beverage'],
+  jefe_recepcion: ['Recepción', 'Recepción SFERA'],
+  gobernante: ['Housekeeping', 'Limpieza'],
+  coord_recepcion_syncrolab: ['Recepción SYNCROLAB', 'SyncroLab', 'SYNCROLAB'],
+  coord_entrenadores: ['Entrenadores', 'SYNCROLAB', 'SyncroLab'],
+  coord_fisioterapeutas: ['Fisioterapeutas', 'Clínica', 'SYNCROLAB', 'SyncroLab']
+};
+
 // ═══════════════════════════════════════════════════════════════════════
 // GLOBAL STATE
 let currentUser = null;
@@ -163,11 +185,130 @@ function fmtTs(ts){ if(!ts) return '—'; var d=new Date(ts); return d.toLocaleD
 function startOfWeek(){ var d=new Date(); d.setHours(0,0,0,0); var day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1); d.setDate(diff); return d.toISOString().split('T')[0]; }
 function startOfMonth(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01'; }
 function isOverdue(dl){ return dl && dl < today(); }
+function getDateOnly(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function toYMD(date){
+  return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+}
+function getMinTaskDeadline(){ var d=getDateOnly(new Date()); d.setDate(d.getDate()+1); return toYMD(d); }
+function getMaxTaskDeadline(){ var d=getDateOnly(new Date()); d.setDate(d.getDate()+7); return toYMD(d); }
+function validateTaskDeadline(deadline){
+  if(!deadline) return {ok:false,msg:'El deadline es obligatorio.'};
+  if(deadline<getMinTaskDeadline() || deadline>getMaxTaskDeadline()){
+    return {ok:false,msg:'El deadline debe estar entre mañana y los próximos 7 días.'};
+  }
+  return {ok:true};
+}
+function normalizeTaskState(state){
+  if(state==='Pendiente') return TASK_STATES.ABIERTA;
+  if(state==='Completada') return TASK_STATES.CERRADA;
+  if(state==='Verificada') return TASK_STATES.VALIDADA;
+  if(state===TASK_STATES.EN_PROCESO) return TASK_STATES.EN_PROCESO;
+  if(state===TASK_STATES.CERRADA) return TASK_STATES.CERRADA;
+  if(state===TASK_STATES.VALIDADA) return TASK_STATES.VALIDADA;
+  return TASK_STATES.ABIERTA;
+}
+function normalizeIncidentState(state){
+  if(state==='Pendiente' || state==='Gestionada') return state==='Gestionada'?INCIDENT_STATES.CERRADA:INCIDENT_STATES.ABIERTA;
+  if(state===INCIDENT_STATES.ABIERTA || state==='abierta') return INCIDENT_STATES.ABIERTA;
+  if(state===INCIDENT_STATES.EN_PROCESO || state==='en proceso') return INCIDENT_STATES.EN_PROCESO;
+  if(state===INCIDENT_STATES.CERRADA) return INCIDENT_STATES.CERRADA;
+  if(state===INCIDENT_STATES.VALIDADA) return INCIDENT_STATES.VALIDADA;
+  return INCIDENT_STATES.ABIERTA;
+}
+function isTaskOpen(t){ var s=normalizeTaskState(t&&t.estado); return s===TASK_STATES.ABIERTA||s===TASK_STATES.EN_PROCESO; }
+function isIncidentOpen(i){ var s=normalizeIncidentState(i&&i.estado); return s===INCIDENT_STATES.ABIERTA||s===INCIDENT_STATES.EN_PROCESO; }
+function normalizeDeptName(dept){ return String(dept||'').trim().toLowerCase(); }
+function isAdmin(user){ return !!user && user.rol==='admin'; }
+function isSupervisor(user){ return !!user && Object.prototype.hasOwnProperty.call(SUPERVISOR_DEPT_MAP,user.rol); }
+function getSupervisorDepartments(user){
+  if(!user) return [];
+  if(isAdmin(user)) return ['*'];
+  return SUPERVISOR_DEPT_MAP[user.rol] || (user.area?[user.area]:[]);
+}
+function canViewDepartment(user,dept){
+  if(isAdmin(user)) return true;
+  var d=normalizeDeptName(dept);
+  if(!d) return false;
+  return getSupervisorDepartments(user).map(normalizeDeptName).indexOf(d)!==-1;
+}
+function canValidateDepartment(user,dept){ return isAdmin(user) || (isSupervisor(user)&&canViewDepartment(user,dept)); }
+function getRecordDepartment(record,shiftMap){
+  if(!record) return '[NO DATA]';
+  var direct = record.area || record.departamento || record.dept_destino || record.dept_origen;
+  if(direct) return direct;
+  if(shiftMap && record.shift_id){
+    var shift = shiftMap[record.shift_id];
+    if(typeof shift === 'string') return shift || '[NO DATA]';
+    if(shift && shift.area) return shift.area;
+  }
+  var cat = record.categoria || '';
+  if(['Cocina','Sala','Recepción','Housekeeping','Limpieza','Mantenimiento','Economato','FnB','Food & Beverage','SYNCROLAB','SyncroLab'].indexOf(cat) !== -1) return cat;
+  return '[NO DATA]';
+}
+function canEditRecord(user,record){
+  if(isAdmin(user)) return true;
+  var dept=getRecordDepartment(record);
+  if(isSupervisor(user)) return canViewDepartment(user,dept);
+  return !!user && (record.employee_id===user.id || record.responsable_id===user.id || record.usuario_id===user.id);
+}
+function canValidateTask(user,task){ return isAdmin(user) && normalizeTaskState(task&&task.estado)===TASK_STATES.CERRADA; }
+function canCloseTask(user,task){
+  if(isAdmin(user)) return true;
+  if(isSupervisor(user)) return canViewDepartment(user,task&&task.dept_destino);
+  return false;
+}
+function canValidateShift(user,shift){ return canValidateDepartment(user,getRecordDepartment(shift)); }
+function canEditCashClosing(user,closing){ return isAdmin(user) || (isSupervisor(user)&&canViewDepartment(user,getRecordDepartment(closing))) || (!!user&&(closing.responsable_id===user.id||closing.usuario_id===user.id)); }
+function canCloseIncident(user,incident){ return isAdmin(user) || (isSupervisor(user)&&canViewDepartment(user,getRecordDepartment(incident))); }
+function canValidateIncident(user,incident){ return isAdmin(user) && normalizeIncidentState(incident&&incident.estado)===INCIDENT_STATES.CERRADA; }
+function formatDisplayValue(value){
+  if(value===null || value===undefined || value==='') return '—';
+  if(Array.isArray(value)) return value.length?value.map(formatDisplayValue).join(', '):'—';
+  if(typeof value==='string'){
+    var v=value.trim();
+    if(!v || v==='null' || v==='undefined') return '—';
+    try{ var parsed=JSON.parse(v); if(Array.isArray(parsed)) return formatDisplayValue(parsed); }catch(e){}
+    return v;
+  }
+  return String(value);
+}
+function formatServiceOrTurn(value){ return formatDisplayValue(value); }
+function formatStaffList(value){ return formatDisplayValue(value); }
+function recordMatchesShift(record, shift){
+  if(!record || !shift) return false;
+  if(record.shift_id) return String(record.shift_id) === String(shift.id);
+  if(record.fecha && shift.fecha && record.fecha !== shift.fecha) return false;
+  var sameEmployee = record.employee_id && shift.employee_id && record.employee_id === shift.employee_id;
+  var sameName = record.nombre && shift.nombre && record.nombre === shift.nombre;
+  if(!sameEmployee && !sameName) return false;
+  if(record.servicio && shift.servicio && formatServiceOrTurn(record.servicio) !== formatServiceOrTurn(shift.servicio)) return false;
+  return true;
+}
+async function advanceIncident(incidentId,newEstado){
+  var rows=await getDB('incidencias');
+  var inci=rows.find(function(i){return i.id===incidentId;});
+  if(!inci){ toast('No se encontró la incidencia.','err'); return; }
+  var target=normalizeIncidentState(newEstado);
+  if(target===INCIDENT_STATES.EN_PROCESO && !canCloseIncident(currentUser,inci)){ toast('No tienes permiso para gestionar incidencias de este departamento.','err'); return; }
+  if(target===INCIDENT_STATES.VALIDADA && !canValidateIncident(currentUser,inci)){ toast('Solo Admin puede validar incidencias.','err'); return; }
+  const saved=await dbUpdate('incidencias',incidentId,{estado: target});
+  if(!saved){ toast('No se pudo actualizar la incidencia. Inténtalo de nuevo.','err'); return; }
+  invalidateCache('incidencias');
+  toast('Incidencia: '+target,'ok');
+  if(typeof renderFollowupList==='function') renderFollowupList();
+  if(typeof renderDashboard==='function' && document.getElementById('screen-dashboard')?.classList.contains('active')) renderDashboard();
+}
 async function auditLog(action,detail){
-  const logs=await getDB('audit');
-  logs.unshift({id:genId(),ts:new Date().toISOString(),user:currentUser?.nombre||'?',rol:currentUser?.rol||'?',action,detail});
-  if(logs.length>1000) logs.splice(1000);
-  await setDB('audit',logs);
+  const row={
+    id:genId(),
+    ts:new Date().toISOString(),
+    usuario:(currentUser&&currentUser.nombre)||'?',
+    rol:(currentUser&&currentUser.rol)||'?',
+    action:action,
+    detail:detail
+  };
+  const saved=await dbInsert('audit_log',row);
+  if(!saved) console.error('audit_log insert failed',row);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -267,6 +408,7 @@ function getScreens(rol){
   if(rol==='chef')  return [base[0],base[1],base[3],base[4],base[5],base[7]];
   if(rol==='fb')    return [base[0],base[1],base[2],base[3],base[4],base[5],base[7]];
   if(rol==='jefe_recepcion') return [base[0],base[1],base[3],base[4],base[5],base[8]];
+  if(isSupervisor(currentUser)) return [base[0],base[1],base[3],base[4],base[5],base[7]];
   if(isSala)        return [base[0],base[1],base[2],base[3]];
   if(isRecepcion)   return [base[0],base[1],base[3],base[8]];
   return [base[0],base[1],base[3]];
@@ -339,7 +481,7 @@ async function updateDots(){
   const shifts=await getDB('shifts');
   const tareas=await getDB('tareas');
   const hasCor=shifts.some(s=>s.employee_id===currentUser.id&&s.estado==='En corrección');
-  const pendT=tareas.filter(t=>t.dept_destino===currentUser.area&&(t.estado==='Pendiente'||t.estado==='En proceso')).length;
+  const pendT=tareas.filter(t=>t.dept_destino===currentUser.area&&isTaskOpen(t)).length;
   // Desktop dots
   const valDot=document.getElementById('dot-turno'); if(valDot) valDot.classList.toggle('show',hasCor);
   const tDot=document.getElementById('dot-tareas'); if(tDot) tDot.classList.toggle('show',pendT>0);
@@ -384,7 +526,7 @@ function setT(name,val){
   }
   if(name==='incidencia'){
     const blk=document.getElementById('block-incidencia');
-    val==='si'?blk.classList.add('visible'):blk.classList.remove('visible');
+    if(blk) val==='si'?blk.classList.add('visible'):blk.classList.remove('visible');
     if(val==='si') loadStaffImplicado();
   }
 }
@@ -392,11 +534,11 @@ function resetToggles(){
   toggleState={};
   ['fu-si','fu-no','fu-na','g-si','g-no','i-si','i-no','rf-si','rf-no','rd-si','rd-no','it-si','it-no','mt-si','mt-no'].forEach(id=>{ const el=document.getElementById(id); if(el) el.className='tbtn'; });
   const blkG=document.getElementById('block-gestion'); if(blkG) blkG.classList.remove('visible');
-  document.getElementById('block-incidencia').classList.remove('visible');
+  const blkI=document.getElementById('block-incidencia'); if(blkI) blkI.classList.remove('visible');
   hideTaskGen('inci'); hideTaskGen('merma');
 }
-function showTaskGen(type){ document.getElementById('task-gen-'+type).classList.add('visible'); setDeadlineLimits(); }
-function hideTaskGen(type){ document.getElementById('task-gen-'+type).classList.remove('visible'); }
+function showTaskGen(type){ const el=document.getElementById('task-gen-'+type); if(!el) return; el.classList.add('visible'); setDeadlineLimits(); }
+function hideTaskGen(type){ const el=document.getElementById('task-gen-'+type); if(!el) return; el.classList.remove('visible'); }
 
 // ═══════════════════════════════════════════════════════════════════════
 // MERMA ROWS
@@ -583,20 +725,20 @@ async function initTurnoForm(){
 function clearTurnoForm(){
   clearSalaFields();
   editingShiftId=null;
-  document.getElementById('turno-form-mode').textContent='NUEVO';
-  document.getElementById('btn-save-turno').textContent='💾 Guardar Turno';
+  const modeEl=document.getElementById('turno-form-mode'); if(modeEl) modeEl.textContent='NUEVO';
+  const saveBtn=document.getElementById('btn-save-turno'); if(saveBtn) saveBtn.textContent='💾 Guardar Turno';
   ['t-fecha','t-servicio','t-horas','t-obs','i-desc','i-accion','g-desc','g-tipo','i-tipo-incidencia','it-dept','it-prio','it-titulo','it-deadline','it-desc','mt-dept','mt-prio','mt-titulo','mt-deadline','mt-desc'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     if(el.tagName==='SELECT') el.value=''; else el.value=el.type==='date'?today():'';
   });
   const fechaInput = document.getElementById('t-fecha');
-  fechaInput.value=today();
+  if(fechaInput) fechaInput.value=today();
   // Employees can only register today (unless shift is being corrected)
-  if(currentUser.rol==='empleado' && !editingShiftId){
+  if(fechaInput && currentUser.rol==='empleado' && !editingShiftId){
     fechaInput.min = today();
     fechaInput.max = today();
     fechaInput.setAttribute('readonly','readonly');
-  } else {
+  } else if(fechaInput) {
     fechaInput.removeAttribute('min');
     fechaInput.removeAttribute('max');
     fechaInput.removeAttribute('readonly');
@@ -623,7 +765,7 @@ async function renderCorrectionsPend(){
 async function loadForCorrection(shiftId){
   const s=(await getDB('shifts')).find(x=>x.id===shiftId); if(!s) return;
   editingShiftId=shiftId;
-  document.getElementById('turno-form-mode').textContent='CORRECCIÓN · '+fmtDate(s.fecha)+' · '+s.servicio;
+  document.getElementById('turno-form-mode').textContent='CORRECCIÓN · '+fmtDate(s.fecha)+' · '+formatServiceOrTurn(s.servicio);
   document.getElementById('btn-save-turno').textContent='📤 Reenviar';
   document.getElementById('t-fecha').value=s.fecha;
   document.getElementById('t-servicio').value=s.servicio;
@@ -701,6 +843,8 @@ async function _doSaveTurno(){
     correcciones: [],
     created_at: ts, updated_at: ts
   };
+  var tareasCreadas = 0;
+  var incidenciasCreadas = 0;
 
   // ── CORRECTION MODE: update existing shift ──
   if(editingShiftId){
@@ -729,11 +873,18 @@ async function _doSaveTurno(){
 
   // ── NEW SHIFT ──
   } else {
-    await dbInsert('shifts', shift);
+    const savedShift=await dbInsert('shifts', shift);
+    if(!savedShift){
+      console.error('Shift insert failed',shift);
+      const alertArea=document.getElementById('turno-alert-area');
+      if(alertArea) alertArea.innerHTML='<div class="alert a-err">No se pudo guardar el turno. Inténtalo de nuevo.</div>';
+      return;
+    }
     invalidateCache('shifts');
     auditLog('SAVE_SHIFT', currentUser.nombre+' — '+fecha+' — '+servicio);
     toast('Turno guardado','ok');
     window._lastSavedShiftId = shiftId; // for cierre caja link
+    console.log('SYNCROSFERA QA shift guardado id',shiftId);
   }
 
   // ── Save merma lines (Cocina only, not Sala) ──
@@ -742,6 +893,8 @@ async function _doSaveTurno(){
     await dbInsert('merma', {
       id:genId(), shift_id:shiftId,
       employee_id:currentUser.id, nombre:currentUser.nombre,
+      area: currentUser.area||'',
+      departamento: currentUser.area||'',
       fecha, servicio,
       producto:m.producto, cantidad:m.cantidad, unidad:m.unidad,
       causa:m.causa, obs:m.obs||'',
@@ -751,65 +904,41 @@ async function _doSaveTurno(){
   }
   if(!skipMerma && mermaData.length) invalidateCache('merma');
 
-  // ── Save incidencia ──
-  if(toggleState.incidencia==='si'){
-    const descEl   = document.getElementById('i-desc');
-    const accionEl = document.getElementById('i-accion');
-    const staff    = getStaffImplicado();
-    const tipoInciEl = document.getElementById('i-tipo-incidencia');
-    const inciResult = await dbInsert('incidencias', {
-      id:genId(), shift_id:shiftId,
-      employee_id:currentUser.id, nombre:currentUser.nombre,
-      fecha, servicio,
-      categoria:'Incidencia operativa',
-      tipo_incidencia: tipoInciEl ? tipoInciEl.value : '',
-      severidad:'Pendiente revision',
-      descripcion: descEl ? descEl.value.trim() : '',
-      accion_inmediata: accionEl ? accionEl.value.trim() : '',
-      informado_responsable: toggleState.informresp || 'no',
-      staff_implicado_ids: JSON.stringify(staff.ids),
-      staff_implicado_nombres: JSON.stringify(staff.nombres),
-      estado:'Abierta',
-      created_at:ts
-    });
-    if(inciResult) invalidateCache('incidencias');
-    else console.warn('Incidencia insert failed — check Supabase schema');
-  }
-
   // ── Save gestión pendiente ──
   if(toggleState.gestion==='si'){
     const gTipoEl = document.getElementById('g-tipo');
     const gDescEl = document.getElementById('g-desc');
-    const gestResult = await dbInsert('incidencias', {
-      id:genId(), shift_id:shiftId,
-      employee_id:currentUser.id, nombre:currentUser.nombre,
-      fecha, servicio,
-      categoria:'Gestión pendiente',
-      tipo_incidencia: gTipoEl ? gTipoEl.value : '',
-      severidad:'Pendiente revision',
+    var createdGestionTask = await createTask({
+      titulo: (gTipoEl&&gTipoEl.value) ? gTipoEl.value : 'Gestión pendiente',
+      dept_destino: currentUser.area||'Administración',
+      dept_origen: currentUser.area||'',
+      prioridad: 'Media',
+      deadline: getMinTaskDeadline(),
       descripcion: gDescEl ? gDescEl.value.trim() : '',
-      accion_inmediata: '',
-      informado_responsable: 'si',
-      staff_implicado_ids: '[]',
-      staff_implicado_nombres: '[]',
-      estado:'Abierta',
-      created_at:ts
+      origen: 'gestion_pendiente',
+      shift_id: shiftId,
+      creado_por: currentUser.nombre
     });
-    if(gestResult) invalidateCache('incidencias');
-    else console.warn('Gestión pendiente insert failed — check Supabase schema');
+    if(!createdGestionTask){
+      console.error('Gestión pendiente task insert failed',{shift_id:shiftId});
+      const alertArea=document.getElementById('turno-alert-area');
+      if(alertArea) alertArea.innerHTML='<div class="alert a-err">No se pudo guardar la gestión pendiente. Inténtalo de nuevo.</div>';
+      return;
+    }
+    tareasCreadas++;
   }
 
   // ── Generate tasks ──
-  var tareasCreadas = 0;
   // Task from incidencia
   if(toggleState.incidencia==='si' && toggleState.inci_task==='si'){
     const dept = (document.getElementById('it-dept')||{}).value||'';
     const prio = (document.getElementById('it-prio')||{}).value||'Media';
-    const dead = (document.getElementById('it-deadline')||{}).value||fecha;
+    const dead = (document.getElementById('it-deadline')||{}).value||'';
     const desc = (document.getElementById('it-desc-task')||document.getElementById('it-desc')||{}).value||'';
     if(dept){
-      if(dead < today()) dead = today(); // never allow past deadlines
-      await createTask({
+      var dlCheck=validateTaskDeadline(dead);
+      if(!dlCheck.ok){ toast(dlCheck.msg,'err'); return; }
+      var createdInciTask = await createTask({
         titulo: 'Tarea operativa — '+servicio+' — '+fecha,
         dept_destino: dept,
         dept_origen: currentUser.area||'Cocina',
@@ -819,6 +948,12 @@ async function _doSaveTurno(){
         shift_id: shiftId,
         creado_por: currentUser.nombre
       });
+      if(!createdInciTask){
+        console.error('Tarea de incidencia insert failed',{shift_id:shiftId});
+        const alertArea=document.getElementById('turno-alert-area');
+        if(alertArea) alertArea.innerHTML='<div class="alert a-err">No se pudo guardar la tarea de la incidencia. Inténtalo de nuevo.</div>';
+        return;
+      }
       tareasCreadas++;
     }
   }
@@ -826,11 +961,12 @@ async function _doSaveTurno(){
   if(!sinMermaFlag && mermaData.length>0 && toggleState.merma_task==='si'){
     const dept = (document.getElementById('mt-dept')||{}).value||'';
     const prio = (document.getElementById('mt-prio')||{}).value||'Media';
-    const dead = (document.getElementById('mt-deadline')||{}).value||fecha;
+    const dead = (document.getElementById('mt-deadline')||{}).value||'';
     const desc = (document.getElementById('mt-desc')||{}).value||'';
     if(dept){
-      if(dead < today()) dead = today(); // never allow past deadlines
-      await createTask({
+      var dlCheck2=validateTaskDeadline(dead);
+      if(!dlCheck2.ok){ toast(dlCheck2.msg,'err'); return; }
+      var createdMermaTask = await createTask({
         titulo: 'Merma — '+servicio+' — '+fecha,
         dept_destino: dept,
         dept_origen: currentUser.area||'Cocina',
@@ -840,8 +976,47 @@ async function _doSaveTurno(){
         shift_id: shiftId,
         creado_por: currentUser.nombre
       });
+      if(!createdMermaTask){
+        console.error('Tarea de merma insert failed',{shift_id:shiftId});
+        const alertArea=document.getElementById('turno-alert-area');
+        if(alertArea) alertArea.innerHTML='<div class="alert a-err">No se pudo guardar la tarea de merma. Inténtalo de nuevo.</div>';
+        return;
+      }
       tareasCreadas++;
     }
+  }
+
+  // ── Save incidencia ──
+  if(toggleState.incidencia==='si'){
+    const descEl   = document.getElementById('i-desc');
+    const accionEl = document.getElementById('i-accion');
+    const staff    = getStaffImplicado();
+    const tipoInciEl = document.getElementById('i-tipo-incidencia');
+    const inciRecord = {
+      id:genId(), shift_id:shiftId,
+      employee_id:currentUser.id, nombre:currentUser.nombre,
+      fecha, servicio,
+      categoria:'Incidencia operativa',
+      severidad:'Pendiente revision',
+      descripcion: descEl ? descEl.value.trim() : '',
+      accion_inmediata: accionEl ? accionEl.value.trim() : '',
+      requiere_formacion: 'No',
+      requiere_disciplina: 'No',
+      estado:INCIDENT_STATES.ABIERTA,
+      created_at:ts,
+      staff_implicado_ids: JSON.stringify(staff.ids),
+      staff_implicado_nombres: JSON.stringify(staff.nombres),
+      tipo_incidencia: tipoInciEl ? tipoInciEl.value : ''
+    };
+    const inciResult = await dbInsert('incidencias', inciRecord);
+    if(!inciResult){
+      console.error('Incidencia insert failed',inciRecord);
+      const alertArea=document.getElementById('turno-alert-area');
+      if(alertArea) alertArea.innerHTML='<div class="alert a-err">No se pudo guardar la incidencia operativa. Inténtalo de nuevo.</div>';
+      return;
+    }
+    incidenciasCreadas++;
+    invalidateCache('incidencias');
   }
 
   // ── Clean up and show result ──
@@ -864,6 +1039,11 @@ async function _doSaveTurno(){
   if(tareasCreadas>0){
     await renderTareas();
   }
+  invalidateCache('shifts');
+  invalidateCache('tareas');
+  invalidateCache('incidencias');
+  console.log('SYNCROSFERA QA tareas guardadas',tareasCreadas);
+  console.log('SYNCROSFERA QA incidencias guardadas',incidenciasCreadas);
 }
 
 
@@ -908,6 +1088,14 @@ function saveTurno(){
   }
   if(toggleState.incidencia==='si'){
     if(!document.getElementById('i-desc').value.trim()) errs.push('Incidencia: describe qué ocurrió');
+    if(toggleState.inci_task==='si'){
+      var itDl=validateTaskDeadline((document.getElementById('it-deadline')||{}).value||'');
+      if(!itDl.ok) errs.push(itDl.msg);
+    }
+  }
+  if(toggleState.merma_task==='si'){
+    var mtDl=validateTaskDeadline((document.getElementById('mt-deadline')||{}).value||'');
+    if(!mtDl.ok) errs.push(mtDl.msg);
   }
   if(errs.length>0){
     alertArea.innerHTML='<div class="alert a-err">⚠ '+errs.join(' · ')+'</div>';
@@ -933,9 +1121,10 @@ function buildInciObj(shiftId,fecha,servicio,ts){
     accion_inmediata:accionEl?accionEl.value.trim():'',
     staff_implicado_ids:JSON.stringify(staff.ids),
     staff_implicado_nombres:JSON.stringify(staff.nombres),
-    informado_responsable: toggleState.informresp||'no',
     tipo_incidencia: (document.getElementById('i-tipo-incidencia')||{}).value||'',
-    estado:'Abierta',
+    requiere_formacion:'No',
+    requiere_disciplina:'No',
+    estado:INCIDENT_STATES.ABIERTA,
     created_at:ts
   };
 }
@@ -974,14 +1163,20 @@ function bFU(v){if(v==='si')return'<span class="badge b-green">SÍ</span>';if(v=
 function bEstado(e){const m={'Validado':'b-green ✓ Validado','Pendiente':'b-red ● Pendiente','En corrección':'b-orange ↩ Corrección','Rechazado':'b-gray ✗ Rechazado'};const[cls,...r]=(m[e]||'b-gray '+e).split(' ');return`<span class="badge ${cls}">${r.join(' ')}</span>`;}
 function bSev(s){if(s==='Crítica')return'<span class="badge b-red">⛔ CRÍTICA</span>';if(s==='Alta')return'<span class="badge b-red">🔴 Alta</span>';if(s==='Media')return'<span class="badge b-orange">🟠 Media</span>';return'<span class="badge b-blue">🟡 Baja</span>';}
 function bPrio(p){if(p==='Alta')return'<span class="badge b-red">Alta</span>';if(p==='Media')return'<span class="badge b-orange">Media</span>';return'<span class="badge b-blue">Baja</span>';}
-function bTaskEstado(e){if(e==='Verificada')return'<span class="badge b-green">✓ Verificada</span>';if(e==='Completada')return'<span class="badge b-orange">Completada</span>';if(e==='En proceso')return'<span class="badge b-blue">En proceso</span>';return'<span class="badge b-red">Pendiente</span>';}
+function bTaskEstado(e){var s=normalizeTaskState(e);if(s===TASK_STATES.VALIDADA)return'<span class="badge b-green">✓ Validada</span>';if(s===TASK_STATES.CERRADA)return'<span class="badge b-orange">Cerrada</span>';if(s===TASK_STATES.EN_PROCESO)return'<span class="badge b-blue">En proceso</span>';return'<span class="badge b-red">Abierta</span>';}
+function bIncidentEstado(e){var s=normalizeIncidentState(e);if(s===INCIDENT_STATES.VALIDADA)return'<span class="badge b-green">✓ Validada</span>';if(s===INCIDENT_STATES.CERRADA)return'<span class="badge b-orange">Cerrada</span>';if(s===INCIDENT_STATES.EN_PROCESO)return'<span class="badge b-blue">En proceso</span>';return'<span class="badge b-red">Abierta</span>';}
 
 // ═══════════════════════════════════════════════════════════════════════
 // TASKS — CREATE
 async function createTask(data){
   const ts=new Date().toISOString();
-  const task={id:genId(),titulo:data.titulo,dept_destino:data.dept_destino,dept_origen:data.dept_origen||currentUser.area||'Cocina',prioridad:data.prioridad,deadline:data.deadline,descripcion:data.descripcion||'',origen:data.origen||'manual',shift_id:data.shift_id||null,creado_por:data.creado_por||currentUser.nombre,estado:'Pendiente',completada_por:null,completada_ts:null,verificada_por:null,verificada_ts:null,notas_cierre:'',created_at:ts,updated_at:ts};
-  await dbInsert('tareas', task); invalidateCache('tareas');
+  if(data.origen && data.origen!=='manual' && !data.shift_id){ toast('No se pudo crear la tarea asociada al turno. Inténtalo de nuevo.','err'); return null; }
+  var dlCheck=validateTaskDeadline(data.deadline);
+  if(!dlCheck.ok){ toast(dlCheck.msg,'err'); return null; }
+  const task={id:genId(),titulo:data.titulo,dept_destino:data.dept_destino,dept_origen:data.dept_origen||currentUser.area||'Cocina',prioridad:data.prioridad,deadline:data.deadline,descripcion:data.descripcion||'',origen:data.origen||'manual',shift_id:data.shift_id||null,creado_por:data.creado_por||currentUser.nombre,estado:TASK_STATES.ABIERTA,completada_por:null,completada_ts:null,verificada_por:null,verificada_ts:null,notas_cierre:'',created_at:ts,updated_at:ts};
+  const saved=await dbInsert('tareas', task);
+  if(!saved){ console.error('Tarea insert failed',task); toast('No se pudo guardar la tarea. Inténtalo de nuevo.','err'); return null; }
+  invalidateCache('tareas');
   auditLog('CREATE_TASK',`→ ${task.dept_destino}: ${task.titulo}`);
   toast(`Tarea creada → ${task.dept_destino}`,'ok');
   return task;
@@ -1002,11 +1197,12 @@ async function saveTask(){
   const prio=document.getElementById('task-prio').value;
   const dead=document.getElementById('task-deadline').value;
   const desc=(document.getElementById('task-desc')||{}).value||'';
-  if(!dept||!prio||!dead){toast('Departamento, prioridad y deadline son obligatorios','err');return;}
-  var maxD=(function(){var d=new Date();d.setMonth(d.getMonth()+1);return d.toISOString().slice(0,10);})();
-  if(dead < today()||dead > maxD){toast('La fecha de tarea debe ser desde hoy hasta máximo 1 mes en adelante','err');return;}
+  if(!dept||!prio){toast('Departamento y prioridad son obligatorios','err');return;}
+  var dlCheck=validateTaskDeadline(dead);
+  if(!dlCheck.ok){toast(dlCheck.msg,'err');return;}
   const titulo='Tarea Manual — '+new Date().toLocaleDateString('es-ES')+' — '+dept;
-  await createTask({titulo,dept_destino:dept,dept_origen:(document.getElementById('task-dept-origen')||{}).value||currentUser.area||'Cocina',prioridad:prio,deadline:dead,descripcion:desc,origen:'manual',creado_por:currentUser.nombre});
+  var created=await createTask({titulo,dept_destino:dept,dept_origen:(document.getElementById('task-dept-origen')||{}).value||currentUser.area||'Cocina',prioridad:prio,deadline:dead,descripcion:desc,origen:'manual',creado_por:currentUser.nombre});
+  if(!created) return;
   await renderTareas();
   closeModal('modal-tarea'); renderTareas(); updateDots();
 }
@@ -1021,38 +1217,40 @@ async function renderTareas(){
   const origen=document.getElementById('tk-origen').value;
   const desde=document.getElementById('tk-desde').value;
   const hasta=document.getElementById('tk-hasta').value;
-  if(estado) tareas=tareas.filter(t=>t.estado===estado);
+  if(estado) tareas=tareas.filter(t=>normalizeTaskState(t.estado)===estado);
   if(dept) tareas=tareas.filter(t=>t.dept_destino===dept);
   if(prio) tareas=tareas.filter(t=>t.prioridad===prio);
   if(origen) tareas=tareas.filter(t=>t.origen===origen);
   if(desde) tareas=tareas.filter(t=>t.created_at.slice(0,10)>=desde);
   if(hasta) tareas=tareas.filter(t=>t.created_at.slice(0,10)<=hasta);
-  tareas.sort((a,b)=>{ const ps={Alta:3,Media:2,Baja:1}; if(a.estado==='Pendiente'&&b.estado!=='Pendiente') return -1; if(b.estado==='Pendiente'&&a.estado!=='Pendiente') return 1; return (ps[b.prioridad]||0)-(ps[a.prioridad]||0); });
+  tareas.sort((a,b)=>{ const ps={Alta:3,Media:2,Baja:1}; if(isTaskOpen(a)&&!isTaskOpen(b)) return -1; if(isTaskOpen(b)&&!isTaskOpen(a)) return 1; return (ps[b.prioridad]||0)-(ps[a.prioridad]||0); });
 
   // KPIs tareas
   const all=await getDB('tareas');
   const kpiEl=document.getElementById('tareas-kpi');
-  const pend=all.filter(t=>t.estado==='Pendiente').length;
-  const enProc=all.filter(t=>t.estado==='En proceso').length;
-  const comp=all.filter(t=>t.estado==='Completada').length;
-  const verif=all.filter(t=>t.estado==='Verificada').length;
-  const overdue=all.filter(t=>isOverdue(t.deadline)&&t.estado!=='Verificada').length;
+  const pend=all.filter(t=>normalizeTaskState(t.estado)===TASK_STATES.ABIERTA).length;
+  const enProc=all.filter(t=>normalizeTaskState(t.estado)===TASK_STATES.EN_PROCESO).length;
+  const comp=all.filter(t=>normalizeTaskState(t.estado)===TASK_STATES.CERRADA).length;
+  const verif=all.filter(t=>normalizeTaskState(t.estado)===TASK_STATES.VALIDADA).length;
+  const overdue=all.filter(t=>isOverdue(t.deadline)&&normalizeTaskState(t.estado)!==TASK_STATES.VALIDADA).length;
   kpiEl.innerHTML=`<div class="kpi-grid">
-    <div class="kpi k-red"><div class="kpi-lbl">Pendientes</div><div class="kpi-val">${pend}</div></div>
+    <div class="kpi k-red"><div class="kpi-lbl">Abiertas</div><div class="kpi-val">${pend}</div></div>
     <div class="kpi k-blue"><div class="kpi-lbl">En proceso</div><div class="kpi-val">${enProc}</div></div>
-    <div class="kpi k-orange"><div class="kpi-lbl">Completadas</div><div class="kpi-val">${comp}</div><div class="kpi-sub">Pendientes de verificar</div></div>
-    <div class="kpi k-green"><div class="kpi-lbl">Verificadas</div><div class="kpi-val">${verif}</div></div>
+    <div class="kpi k-orange"><div class="kpi-lbl">Cerradas</div><div class="kpi-val">${comp}</div><div class="kpi-sub">Pendientes de validar</div></div>
+    <div class="kpi k-green"><div class="kpi-lbl">Validadas</div><div class="kpi-val">${verif}</div></div>
     <div class="kpi k-red"><div class="kpi-lbl">Vencidas</div><div class="kpi-val">${overdue}</div><div class="kpi-sub">Sin cerrar y deadline pasado</div></div>
   </div>`;
 
   const listEl=document.getElementById('tareas-list');
   if(!tareas.length){listEl.innerHTML='<div class="empty"><div class="empty-icon">🔗</div><div class="empty-text">Sin tareas con este filtro</div></div>';return;}
   listEl.innerHTML=tareas.map(t=>{
-    const overdue=isOverdue(t.deadline)&&t.estado!=='Verificada';
+    const normState=normalizeTaskState(t.estado);
+    const overdue=isOverdue(t.deadline)&&normState!==TASK_STATES.VALIDADA;
     const prioClass=t.prioridad==='Alta'?'t-alta':t.prioridad==='Media'?'t-media':'t-baja';
-    const stateClass=t.estado==='Verificada'?'t-verificada':t.estado==='Completada'?'t-completada':'';
+    const stateClass=normState===TASK_STATES.VALIDADA?'t-verificada':normState===TASK_STATES.CERRADA?'t-completada':'';
     const canProgress=canProgressTask(t);
-    const canVerify=(currentUser.rol==='chef'||currentUser.rol==='fb'||currentUser.rol==='admin')&&t.estado==='Completada';
+    const canVerify=canValidateTask(currentUser,t);
+    const canClose=canCloseTask(currentUser,t);
     return `<div class="task-card ${prioClass} ${stateClass}">
       <div class="task-meta">
         ${bPrio(t.prioridad)} ${deptBadge(t.dept_destino)}
@@ -1066,13 +1264,13 @@ async function renderTareas(){
       <div class="task-footer">
         <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);">
           📅 ${fmtDate(t.deadline)} &nbsp;·&nbsp; creada por ${t.creado_por} &nbsp;·&nbsp; ${fmtDate(t.created_at.slice(0,10))}
-          ${t.completada_por?`<br>✓ Completada por ${t.completada_por} · ${fmtTs(t.completada_ts)}`:''}
-          ${t.verificada_por?`<br>✅ Verificada por ${t.verificada_por} · ${fmtTs(t.verificada_ts)}`:''}
+          ${t.completada_por?`<br>✓ Cerrada por ${t.completada_por} · ${fmtTs(t.completada_ts)}`:''}
+          ${t.verificada_por?`<br>✅ Validada por ${t.verificada_por} · ${fmtTs(t.verificada_ts)}`:''}
         </div>
         <div class="task-actions">
-          ${canProgress&&t.estado==='Pendiente'?`<button class="btn btn-blue-outline btn-sm" style="background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue);" onclick="advanceTask('${t.id}','En proceso')">▶ Iniciar</button>`:''}
-          ${canProgress&&t.estado==='En proceso'?`<button class="btn btn-success btn-sm" onclick="advanceTask('${t.id}','Completada')">✓ Completar</button>`:''}
-          ${canVerify?`<button class="btn btn-primary btn-sm" onclick="advanceTask('${t.id}','Verificada')">✅ Verificar</button>`:''}
+          ${canProgress&&normState===TASK_STATES.ABIERTA?`<button class="btn btn-blue-outline btn-sm" style="background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue);" onclick="advanceTask('${t.id}','En proceso')">▶ Iniciar</button>`:''}
+          ${canClose&&normState===TASK_STATES.EN_PROCESO?`<button class="btn btn-success btn-sm" onclick="advanceTask('${t.id}','Cerrada')">✓ Cerrar</button>`:''}
+          ${canVerify?`<button class="btn btn-primary btn-sm" onclick="advanceTask('${t.id}','Validada')">✅ Validar</button>`:''}
           ${currentUser.rol==='admin'?`<button class="btn btn-danger btn-sm" style="margin-left:8px;" onclick="deleteTask('${t.id}')" title="Solo Admin">🗑 Eliminar</button>`:''}
         </div>
       </div>
@@ -1103,20 +1301,24 @@ async function deleteTask(taskId){
 }
 
 function canProgressTask(t){
-  // Solo el departamento destinatario puede avanzar Pendiente→En proceso y En proceso→Completada
-  if(t.estado==='Verificada') return false;
-  if(currentUser.rol==='admin'||currentUser.rol==='chef'||currentUser.rol==='fb') return true;
+  var state=normalizeTaskState(t&&t.estado);
+  if(state===TASK_STATES.VALIDADA || state===TASK_STATES.CERRADA) return false;
+  if(isAdmin(currentUser)) return true;
+  if(isSupervisor(currentUser)) return canViewDepartment(currentUser,t&&t.dept_destino);
   return currentUser.area===t.dept_destino;
 }
 
 async function advanceTask(taskId,newEstado){
   const tareas=await getDB('tareas');
   const idx=tareas.findIndex(t=>t.id===taskId); if(idx===-1) return;
-  if(!canProgressTask(tareas[idx])&&newEstado!=='Verificada'){toast('Solo el departamento destinatario puede avanzar esta tarea','err');return;}
+  var targetState=normalizeTaskState(newEstado);
+  if(targetState===TASK_STATES.VALIDADA && !canValidateTask(currentUser,tareas[idx])){toast('Solo Admin puede validar esta tarea.','err');return;}
+  if(targetState===TASK_STATES.CERRADA && !canCloseTask(currentUser,tareas[idx])){toast('No tienes permiso para cerrar esta tarea.','err');return;}
+  if(targetState===TASK_STATES.EN_PROCESO && !canProgressTask(tareas[idx])){toast('Solo el departamento destinatario puede avanzar esta tarea','err');return;}
   const ts=new Date().toISOString();
-  const tUpdate = {estado:newEstado, updated_at:ts};
-  if(newEstado==='Completada'){tUpdate.completada_por=currentUser.nombre;tUpdate.completada_ts=ts;}
-  if(newEstado==='Verificada'){tUpdate.verificada_por=currentUser.nombre;tUpdate.verificada_ts=ts;}
+  const tUpdate = {estado:targetState, updated_at:ts};
+  if(targetState===TASK_STATES.CERRADA){tUpdate.completada_por=currentUser.nombre;tUpdate.completada_ts=ts;}
+  if(targetState===TASK_STATES.VALIDADA){tUpdate.verificada_por=currentUser.nombre;tUpdate.verificada_ts=ts;}
   await dbUpdate('tareas', taskId, tUpdate);
   invalidateCache('tareas');
   auditLog('TASK_ADVANCE',`${currentUser.nombre} → ${newEstado}: ${tareas[idx].titulo}`);
@@ -1150,7 +1352,7 @@ async function renderValidacion(){
   var valRows="";
   shifts.forEach(function(s){
     var sm=mermas.filter(function(m){return m.shift_id===s.id;});
-    var si=incis.filter(function(i){return i.shift_id===s.id;});
+    var si=incis.filter(function(i){return recordMatchesShift(i,s);});
     var mCP=sm.some(function(m){return !m.coste_unitario||m.coste_unitario===0;});
     // For Sala: show ajustes count. For Cocina: show merma count
     var isSalaShift = s.area === 'Sala';
@@ -1165,18 +1367,18 @@ async function renderValidacion(){
     var sid=s.id;
     // All action buttons in one nowrap flex row
     var isReadOnly = s.estado==='Validado'||s.estado==='Validado con FIO'||s.estado==='Rechazado';
-    var canSupervise = currentUser.rol==='admin'||currentUser.rol==='chef'||currentUser.rol==='fb'||currentUser.rol==='jefe_recepcion';
+    var canSupervise = canValidateShift(currentUser,s);
     var btnRevisar = (!isReadOnly && canSupervise)
       ? '<button class="vbtn vbtn-primary" onclick="openValidarModal(\''+sid+'\')">Revisar</button>' : '';
     var btnVer = (isReadOnly && canSupervise)
       ? '<button class="vbtn vbtn-sec" onclick="openShiftDetail(\''+sid+'\')">📋 Ver</button>' : '';
-    var btnArevisar = ((currentUser.rol==='admin'||currentUser.rol==='fb')&&s.estado==='Validado')
+    var btnArevisar = ((isAdmin(currentUser)||currentUser.rol==='fb')&&s.estado==='Validado')
       ? '<button class="vbtn vbtn-warn" onclick="openPostErrorModal(\''+sid+'\')">🔍</button>' : '';
-    var canReopen = currentUser.rol==='admin'
+    var canReopen = isAdmin(currentUser)
       && (s.estado==='Validado'||s.estado==='Validado con FIO');
     var btnReabrir = canReopen
       ? '<button class="vbtn vbtn-sec" onclick="openReopenModal(\''+sid+'\')" title="Reabrir informe">↩</button>' : '';
-    var btnDel = currentUser.rol==='admin'
+    var btnDel = isAdmin(currentUser)
       ? '<button class="vbtn vbtn-del" onclick="deleteShift(\''+sid+'\')">🗑</button>' : '';
     aCell = '<div style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap;">'+btnRevisar+btnVer+btnArevisar+btnReabrir+btnDel+'</div>';
     valRows+='<tr><td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(s.fecha)+'</td>'
@@ -1191,11 +1393,15 @@ async function renderValidacion(){
 async function openValidarModal(shiftId){
   validatingShiftId=shiftId;
   // Force fresh data — never use stale cache for validation review
-  invalidateCache('incidencias'); invalidateCache('merma');
+  invalidateCache('incidencias'); invalidateCache('tareas'); invalidateCache('merma');
   const s=(await getDB('shifts')).find(x=>x.id===shiftId); if(!s) return;
+  if(!canValidateShift(currentUser,s)){ toast('No tienes permiso para validar registros de este departamento.','err'); return; }
   const mermas=(await getDB('merma')).filter(m=>m.shift_id===shiftId);
-  const incis=(await getDB('incidencias')).filter(i=>i.shift_id===shiftId);
-  document.getElementById('mv-title').textContent=`${s.nombre} — ${fmtDate(s.fecha)} — ${s.servicio}`;
+  const allIncis=await getDB('incidencias');
+  const incis=allIncis.filter(function(i){return recordMatchesShift(i,s);});
+  const allTareas=await getDB('tareas');
+  const shiftTareas=allTareas.filter(function(t){return recordMatchesShift(t,s);});
+  document.getElementById('mv-title').textContent=`${formatDisplayValue(s.nombre)} — ${fmtDate(s.fecha)} — ${formatServiceOrTurn(s.servicio)}`;
   // ── BUILD FULL SHIFT DETAIL FOR SUPERVISOR ──
   var info = '';
 
@@ -1203,13 +1409,13 @@ async function openValidarModal(shiftId){
   info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;">';
   info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#2ec4b6;letter-spacing:.15em;margin-bottom:8px;">DATOS DEL TURNO</div>';
   info += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">';
-  info += '<div><span style="color:var(--text3)">Empleado: </span><strong>'+s.nombre+'</strong></div>';
-  info += '<div><span style="color:var(--text3)">Puesto: </span>'+s.puesto+'</div>';
+  info += '<div><span style="color:var(--text3)">Empleado: </span><strong>'+formatDisplayValue(s.nombre)+'</strong></div>';
+  info += '<div><span style="color:var(--text3)">Puesto: </span>'+formatDisplayValue(s.puesto)+'</div>';
   info += '<div><span style="color:var(--text3)">Fecha: </span><strong>'+fmtDate(s.fecha)+'</strong></div>';
-  info += '<div><span style="color:var(--text3)">Servicio: </span><strong>'+displayServicio(s.servicio)+'</strong></div>';
+  info += '<div><span style="color:var(--text3)">'+(s.area==='Recepción'?'Turno':'Servicio')+': </span><strong>'+formatServiceOrTurn(s.servicio)+'</strong></div>';
   info += '<div><span style="color:var(--text3)">Horas: </span><strong>'+s.horas+'h</strong></div>';
-  info += '<div><span style="color:var(--text3)">Responsable: </span>'+(s.responsable_nombre||'—')+'</div>';
-  if(s.observacion) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Observación: </span>'+s.observacion+'</div>';
+  if(s.area!=='Recepción') info += '<div><span style="color:var(--text3)">Responsable: </span>'+formatDisplayValue(s.responsable_nombre)+'</div>';
+  if(s.observacion) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Observación: </span>'+formatDisplayValue(s.observacion)+'</div>';
   info += '</div></div>';
 
   // Block 2: Checklist
@@ -1233,15 +1439,19 @@ async function openValidarModal(shiftId){
     }catch(e){}
   }
 
-  // Block 3: Gestión pendiente
-  var gestionesList = incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; });
+  // Block 3: Gestiones pendientes declaradas
+  var gestionesIncis = incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; });
+  var gestionesList = shiftTareas.concat(gestionesIncis);
   if(gestionesList.length>0){
     gestionesList.forEach(function(g){
       info += '<div style="background:var(--bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:10px;">';
-      info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:8px;">GESTIÓN PENDIENTE</div>';
+      info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:8px;">GESTIONES PENDIENTES DECLARADAS</div>';
       info += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-      if(g.tipo_incidencia) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Tipo: </span><span class="badge b-yellow">'+g.tipo_incidencia+'</span></div>';
-      info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+g.descripcion+'</strong></div>';
+      if(g.tipo_incidencia || g.origen) info += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-yellow">'+formatDisplayValue(g.tipo_incidencia || g.origen)+'</span></div>';
+      if(g.estado) info += '<div><span style="color:var(--text3)">Estado: </span>'+ (g.dept_destino ? bTaskEstado(g.estado) : bIncidentEstado(g.estado)) +'</div>';
+      if(g.dept_destino) info += '<div><span style="color:var(--text3)">Departamento destino: </span>'+deptBadge(g.dept_destino)+'</div>';
+      if(g.deadline) info += '<div><span style="color:var(--text3)">Deadline: </span>'+fmtDate(g.deadline)+'</div>';
+      info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+formatDisplayValue(g.descripcion || g.titulo)+'</strong></div>';
       info += '</div></div>';
     });
   } else {
@@ -1255,17 +1465,18 @@ async function openValidarModal(shiftId){
       info += '<div style="background:var(--bg);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:10px;">';
       info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.15em;margin-bottom:8px;">INCIDENCIA OPERATIVA</div>';
       info += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-      if(inci.tipo_incidencia) info += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-red">'+inci.tipo_incidencia+'</span></div>';
+      if(inci.tipo_incidencia) info += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-red">'+formatDisplayValue(inci.tipo_incidencia)+'</span></div>';
       var informadoTxt = inci.informado_responsable === 'si' ? '✓ Sí' : '✗ No';
       info += '<div><span style="color:var(--text3)">Informado responsable: </span>'+informadoTxt+'</div>';
-      info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+inci.descripcion+'</strong></div>';
-      if(inci.accion_inmediata) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Acción tomada: </span>'+inci.accion_inmediata+'</div>';
+      info += '<div><span style="color:var(--text3)">Estado: </span>'+bIncidentEstado(inci.estado)+'</div>';
+      info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+formatDisplayValue(inci.descripcion)+'</strong></div>';
+      if(inci.accion_inmediata) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Acción tomada: </span>'+formatDisplayValue(inci.accion_inmediata)+'</div>';
       if(inci.staff_implicado_nombres){
         try{
-          var staff=JSON.parse(inci.staff_implicado_nombres);
-          if(staff.length>0){
+          var staffTxt=formatStaffList(inci.staff_implicado_nombres);
+          if(staffTxt!=='—'){
             info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Personas involucradas: </span>';
-            info += staff.map(function(n){return '<span class="badge b-yellow" style="margin-right:4px;">'+n+'</span>';}).join('');
+            info += staffTxt.split(',').map(function(n){return '<span class="badge b-yellow" style="margin-right:4px;">'+formatDisplayValue(n)+'</span>';}).join('');
             info += '</div>';
           }
         }catch(e){}
@@ -1291,23 +1502,6 @@ async function openValidarModal(shiftId){
     info += '</div>';
   } else {
     info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin merma declarada</div>';
-  }
-
-  // Block 5: Tareas generadas
-  var shiftTareas = (await getDB('tareas')).filter(function(t){return t.shift_id===s.id;});
-  if(shiftTareas.length>0){
-    info += '<div style="background:var(--bg);border:1px solid var(--purple);border-radius:8px;padding:12px;margin-bottom:10px;">';
-    info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--purple);letter-spacing:.15em;margin-bottom:8px;">TAREAS GENERADAS</div>';
-    shiftTareas.forEach(function(t){
-      info += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
-      info += '<div><span style="color:var(--text3)">Dpto. destino: </span>'+t.dept_destino+'</div>';
-      info += '<div><span style="color:var(--text3)">Prioridad: </span>'+bPrio(t.prioridad)+'</div>';
-      info += '<div><span style="color:var(--text3)">Deadline: </span>'+fmtDate(t.deadline)+'</div>';
-      info += '<div><span style="color:var(--text3)">Origen: </span>'+t.origen+'</div>';
-      if(t.descripcion) info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span>'+t.descripcion+'</div>';
-      info += '</div>';
-    });
-    info += '</div>';
   }
 
   document.getElementById('mv-info').innerHTML=info;
@@ -1412,7 +1606,7 @@ async function doValidacion(newEstado){
   invalidateCache('shifts');
   if(newEstado==='Validado'){
     const incis=await getDB('incidencias');
-    for(const i of incis){ if(i.shift_id===validatingShiftId) await dbUpdate('incidencias',i.id,{estado:'Gestionada'}); }
+    for(const i of incis){ if(i.shift_id===validatingShiftId) await dbUpdate('incidencias',i.id,{estado:INCIDENT_STATES.CERRADA}); }
     invalidateCache('incidencias');
   }
   auditLog('VALIDACION',`${currentUser.nombre} → ${newEstado}`);
@@ -1738,7 +1932,7 @@ async function exportCSV(type){
   if(type==='shifts') { dl(toCSV(await getDB('shifts'),['id','fecha','servicio','nombre','area','puesto','horas','responsable_nombre','follow_up','merma_declarada','incidencia_declarada','observacion','estado','validado_por','validado_ts','comentario_validador','created_at']),'BDS_Input.csv'); }
   if(type==='incidencias') { dl(toCSV(await getDB('incidencias'),['id','fecha','servicio','nombre','categoria','severidad','descripcion','accion_inmediata','requiere_formacion','requiere_disciplina','estado','created_at']),'BDS_Incidencias.csv'); }
   if(type==='merma') { dl(toCSV(await getDB('merma'),['id','fecha','servicio','nombre','producto','cantidad','unidad','causa','obs','coste_unitario','coste_total','created_at']),'BDS_Merma.csv'); }
-  if(type==='tareas') { dl(toCSV(await getDB('tareas'),['id','titulo','dept_destino','dept_origen','prioridad','deadline','descripcion','origen','estado','creado_por','completada_por','completada_ts','verificada_por','verificada_ts','created_at']),'BDS_Tareas.csv'); }
+  if(type==='tareas') { const tareas=(await getDB('tareas')).map(function(t){return {...t,estado:normalizeTaskState(t.estado),descripcion:formatDisplayValue(t.descripcion)};}); dl(toCSV(tareas,['id','titulo','dept_destino','dept_origen','prioridad','deadline','descripcion','origen','estado','creado_por','completada_por','completada_ts','verificada_por','verificada_ts','created_at']),'BDS_Tareas.csv'); }
   if(type==='horas') { const shifts=await getDB('shifts'); const employees=await getDB('employees'); const map={}; shifts.forEach(s=>{ if(!map[s.employee_id]){ const e=employees.find(x=>x.id===s.employee_id)||{}; map[s.employee_id]={nombre:s.nombre,puesto:s.puesto,horas:0,turnos:0,coste_hora:e.coste||0}; } map[s.employee_id].horas+=parseFloat(s.horas)||0; map[s.employee_id].turnos++; }); const rows=Object.values(map).map(r=>({...r,coste_total:(r.horas*r.coste_hora).toFixed(2)})); dl(toCSV(rows,['nombre','puesto','turnos','horas','coste_hora','coste_total']),'BDS_Horas.csv'); }
   toast('CSV descargado','ok');
 }
