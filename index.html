@@ -131,7 +131,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 @media(max-width:640px){.grid2,.grid3,.grid4{grid-template-columns:1fr;}.sp2,.sp3,.sp4{grid-column:span 1;}}
 label{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);}
 label .req{color:var(--amber);margin-left:2px;}
-input[type=text],input[type=number],input[type=date],select,textarea{
+input[type=text],input[type=number],input[type=date],input[type=search],select,textarea{
   background:#132540;
   border:1px solid #2e5a8a;
   border-radius:var(--radius);
@@ -638,11 +638,44 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
         
 
-        <!-- INCIDENCIA BLOCK -->
+        <!-- GESTIÓN PENDIENTE BLOCK -->
         <div style="margin-top:14px;">
-          <div class="sec-div">Incidencia</div>
-          <div class="fg" style="max-width:200px;">
-            <label id="i-main-label">¿Hubo incidencia operativa? <span class="req">*</span></label>
+          <div class="sec-div">Gestión pendiente</div>
+          <div class="fg" style="max-width:240px;">
+            <label>¿Queda alguna gestión pendiente? <span class="req">*</span></label>
+            <div class="toggle-group">
+              <button class="tbtn" id="g-si" onclick="setT('gestion','si')">SÍ</button>
+              <button class="tbtn" id="g-no" onclick="setT('gestion','no')">NO</button>
+            </div>
+          </div>
+          <div class="dyn-block" id="block-gestion">
+            <div class="dyn-hdr">Describe la gestión pendiente</div>
+            <div class="grid1">
+              <div class="fg"><label>Tipo de gestión</label>
+                <select id="g-tipo">
+                  <option value="">— Seleccionar (opcional) —</option>
+                  <option>Seguimiento para siguiente turno</option>
+                  <option>Comunicación pendiente (mantenimiento / otro dept.)</option>
+                  <option>Información a confirmar</option>
+                  <option>Revisión pendiente</option>
+                  <option>Traspaso de tarea operativa</option>
+                  <option>Material / stock pendiente</option>
+                  <option>Gestión con cliente pendiente</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+              <div class="fg"><label>Descripción <span class="req">*</span></label>
+                <textarea id="g-desc" rows="3" placeholder="Qué queda pendiente, para quién y qué hay que hacer..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- INCIDENCIA OPERATIVA BLOCK -->
+        <div style="margin-top:14px;">
+          <div class="sec-div">Incidencia operativa</div>
+          <div class="fg" style="max-width:240px;">
+            <label>¿Hubo alguna incidencia durante el turno? <span class="req">*</span></label>
             <div class="toggle-group">
               <button class="tbtn" id="i-si" onclick="setT('incidencia','si')">SÍ</button>
               <button class="tbtn" id="i-no" onclick="setT('incidencia','no')">NO</button>
@@ -655,7 +688,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
                   <textarea id="i-desc" rows="3" placeholder="Describe brevemente la incidencia..."></textarea></div>
                 <div class="fg"><label>Acción inmediata tomada</label>
                   <input type="text" id="i-accion" placeholder="Qué hiciste en el momento (opcional)"></div>
-                <div class="fg"><label>Tipo de incidencia / gestión pendiente</label>
+                <div class="fg"><label>Tipo de incidencia</label>
                   <select id="i-tipo-incidencia">
                     <option value="">— Seleccionar (opcional) —</option>
                   </select>
@@ -667,17 +700,15 @@ tr:hover td{background:rgba(255,255,255,.018);}
                   </div>
                 </div>
                 <div class="fg">
-                  <label>Staff implicado <span class="req">*</span></label>
-                  <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Selecciona todas las personas implicadas</div>
-                  <div id="staff-implicado-list" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;max-height:180px;overflow-y:auto;">
+                  <label>Personas involucradas <span style="color:var(--text3);font-weight:400;">(opcional)</span></label>
+                  <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">Personas que participaron o estuvieron presentes</div>
+                  <input type="search" id="staff-search" placeholder="Buscar por nombre, puesto, área..." autocomplete="off" oninput="filterStaffList(this.value)" style="margin-bottom:6px;border-radius:6px 6px 0 0;">
+                  <div id="staff-implicado-list" style="background:var(--bg);border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:10px;max-height:180px;overflow-y:auto;">
                     <div style="font-size:12px;color:var(--text3);">Cargando...</div>
                   </div>
                 </div>
               </div>
-              <div class="fg"><label>Concepto FIO</label>
-                <select id="i-tipo-error"><option value="">— Sin FIO —</option><option>Operativo</option><option>Caja</option><option>Cliente</option><option>Comunicación</option><option>Procedimiento</option></select></div>
             </div>
-            >
         </div>
 
         <!-- MERMA BLOCK -->
@@ -723,11 +754,11 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
       <!-- INCIDENCIAS / GESTIONES PENDIENTES -->
       <div class="card" style="margin-top:16px;border-top:3px solid var(--amber);">
-        <div class="card-title">⚠ <span class="accent">INCIDENCIAS / GESTIONES PENDIENTES</span> <span id="followup-count" style="font-size:11px;color:var(--text3);font-weight:400;"></span></div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Incidencias abiertas del departamento. Visibles hasta cierre.</div>
+        <div class="card-title">⚠ <span class="accent">GESTIONES E INCIDENCIAS ACTIVAS</span> <span id="followup-count" style="font-size:11px;color:var(--text3);font-weight:400;"></span></div>
+        <div id="followup-subtitle" style="font-size:12px;color:var(--text2);margin-bottom:10px;">Gestiones pendientes operativas. Las incidencias son visibles solo para supervisores.</div>
         <div class="tbl-wrap" id="followup-incidencias-list"><div class="empty"><div class="empty-text">Cargando...</div></div></div>
         <div style="margin-top:10px;">
-          <button onclick="openNewFollowup()" class="btn btn-secondary" style="font-size:12px;">+ Nueva incidencia / gestión</button>
+          <button id="btn-new-followup" onclick="openNewFollowup()" class="btn btn-secondary" style="font-size:12px;">+ Nueva incidencia / gestión</button>
         </div>
       </div>
 
@@ -831,6 +862,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="dash-tabs" role="tablist" aria-label="Secciones del dashboard">
         <button class="dash-tab active" role="tab" data-tab="turnos" onclick="_activateDashTab('turnos')">Turnos</button>
         <button class="dash-tab" role="tab" data-tab="incidencias" onclick="_activateDashTab('incidencias')">Incidencias</button>
+        <button class="dash-tab" role="tab" data-tab="fio" onclick="_activateDashTab('fio')">FIO</button>
         <button class="dash-tab" role="tab" data-tab="tareas" onclick="_activateDashTab('tareas')">Tareas</button>
         <button class="dash-tab" role="tab" data-tab="costes" onclick="_activateDashTab('costes')">Costes</button>
       </div>
@@ -841,14 +873,13 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div class="card"><div class="card-title">TURNOS POR EMPLEADO</div><div id="dash-emp-table"></div></div>
           <div class="card"><div class="card-title">ALERTAS ACTIVAS</div><div id="dash-alertas"></div></div>
         </div>
-        <div class="card" style="margin-top:14px;border-top:2px solid var(--red);"><div class="card-title" style="color:var(--red);">⚠ FIO — FALLOS INDIVIDUALES OPERATIVOS <span id="dash-fio-count" style="font-size:12px;color:var(--text3);font-weight:400;margin-left:8px;"></span></div><div class="tbl-wrap" id="dash-fio-table"></div></div>
       </div>
 
       <!-- Panel: Incidencias -->
       <div class="dash-panel" id="tab-panel-incidencias" role="tabpanel">
         <div class="filter-bar" style="margin-bottom:10px;">
           <div class="fg"><label>Categoría</label>
-            <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Higiene</option><option>Temperatura</option><option>Calidad del plato</option><option>Disciplina</option><option>Accidente</option><option>Comunicación</option><option>Equipamiento</option><option>Suministro</option><option>Otro</option></select></div>
+            <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Incidencia operativa</option><option>Gestión pendiente</option><option>Follow-up / Gestión</option><option>Reportada por empleado</option></select></div>
           <div class="fg"><label>Severidad</label>
             <select id="di-sev" onchange="renderDashboard()"><option value="">Todas</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
           <div class="fg"><label>Estado incidencia</label>
@@ -866,6 +897,17 @@ tr:hover td{background:rgba(255,255,255,.018);}
           </div>
           <div class="kpi-grid" id="kpi-merma"></div>
           <div class="card"><div class="card-title">MERMA — DETALLE</div><div class="tbl-wrap" id="dash-merma-table"></div></div>
+        </div>
+      </div>
+
+      <!-- Panel: FIO -->
+      <div class="dash-panel" id="tab-panel-fio" role="tabpanel">
+        <div class="card" style="border-top:2px solid var(--red);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <div class="card-title" style="color:var(--red);margin-bottom:0;">⚠ FIO — FALLOS INDIVIDUALES OPERATIVOS</div>
+            <span id="dash-fio-count" style="font-size:12px;color:var(--text3);font-weight:400;"></span>
+          </div>
+          <div class="tbl-wrap" id="dash-fio-table"></div>
         </div>
       </div>
 
@@ -1505,6 +1547,22 @@ tr:hover td{background:rgba(255,255,255,.018);}
   </div>
 </div>
 
+<!-- ══ MODAL REABRIR ══ -->
+<div class="modal-overlay" id="modal-reabrir">
+  <div class="modal">
+    <div class="modal-title">↩ Reabrir Informe</div>
+    <div id="reabrir-info" style="font-size:13px;color:var(--text3);margin-bottom:14px;"></div>
+    <div class="fg">
+      <label>Motivo <span style="color:var(--orange)">*</span></label>
+      <textarea id="reabrir-motivo" rows="3" placeholder="Explica por qué se reabre este informe ya validado..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-reabrir')">Cancelar</button>
+      <button class="btn btn-warn" onclick="saveReopenShift()">↩ Reabrir Informe</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MODAL VALIDAR ══ -->
 <div class="modal-overlay" id="modal-validar">
   <div class="modal">
@@ -1941,23 +1999,35 @@ async function openShiftDetail(shiftId){
     }catch(e){}
   }
 
-  // ── BLOQUE 3: Incidencia ──
-  if(s.incidencia_declarada==='si'&&incis.length>0){
+  // ── BLOQUE 3: Gestión pendiente ──
+  var gestions3 = incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; });
+  var incisOp3  = incis.filter(function(i){ return i.categoria !== 'Gestión pendiente'; });
+  if(gestions3.length>0){
+    html += '<div style="background:var(--bg2);border:1px solid var(--amber);border-radius:8px;padding:14px;margin-bottom:12px;">';
+    html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:10px;">3 · GESTIÓN PENDIENTE</div>';
+    gestions3.forEach(function(g){
+      html += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
+      if(g.tipo_incidencia) html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Tipo: </span><span class="badge b-yellow">'+g.tipo_incidencia+'</span></div>';
+      html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+g.descripcion+'</strong></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  // ── BLOQUE 4: Incidencia operativa ──
+  if(incisOp3.length>0){
     html += '<div style="background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:14px;margin-bottom:12px;">';
-    html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.15em;margin-bottom:10px;">3 · INCIDENCIA</div>';
-    incis.forEach(function(i){
-      html += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-      html += '<div><span style="color:var(--text3)">Categoría: </span>'+i.categoria+'</div>';
-      html += '<div><span style="color:var(--text3)">Severidad: </span>'+bSev(i.severidad)+'</div>';
+    html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.15em;margin-bottom:10px;">4 · INCIDENCIA OPERATIVA</div>';
+    incisOp3.forEach(function(i){
+      html += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
+      if(i.tipo_incidencia) html += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-red">'+i.tipo_incidencia+'</span></div>';
+      html += '<div><span style="color:var(--text3)">Informado resp.: </span>'+(i.informado_responsable==='si'?'✓ Sí':'✗ No')+'</div>';
       html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+i.descripcion+'</strong></div>';
       if(i.accion_inmediata) html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Acción inmediata: </span>'+i.accion_inmediata+'</div>';
-
-      // ── BLOQUE 4: Staff implicado ──
       if(i.staff_implicado_nombres){
         try{
           var staff = JSON.parse(i.staff_implicado_nombres);
           if(staff.length>0){
-            html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Staff implicado: </span>';
+            html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Personas involucradas: </span>';
             html += staff.map(function(n){return '<span class="badge b-yellow" style="margin-right:4px;">'+n+'</span>';}).join('');
             html += '</div>';
           }
@@ -1966,8 +2036,9 @@ async function openShiftDetail(shiftId){
       html += '</div>';
     });
     html += '</div>';
-  } else if(s.incidencia_declarada==='no'||!s.incidencia_declarada){
-    html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text3);">3 · Sin incidencias declaradas</div>';
+  }
+  if(incisOp3.length===0){
+    html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--text3);">Sin incidencias operativas declaradas</div>';
   }
 
   // ── BLOQUE 5: Merma ──
@@ -2035,18 +2106,26 @@ async function openShiftDetail(shiftId){
 async function loadStaffImplicado(){
   var container = document.getElementById('staff-implicado-list');
   if(!container) return;
+  // Reset search input
+  var srch = document.getElementById('staff-search');
+  if(srch) srch.value = '';
   var employees = await getDB('employees');
-  // Only cocina and sala active employees
-  var staff = employees.filter(function(e){
-    return e.estado==='Activo' && (e.area==='Cocina'||e.area==='Sala'||e.area==='Friegue');
-  });
-  if(!staff.length){ container.innerHTML='<div style="font-size:12px;color:var(--text3);">Sin empleados activos en Cocina/Sala</div>'; return; }
+  var staff = employees.filter(function(e){ return e.estado==='Activo'; });
+  if(!staff.length){ container.innerHTML='<div style="font-size:12px;color:var(--text3);">Sin empleados activos</div>'; return; }
   container.innerHTML = staff.map(function(e){
-    return '<label style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;">'
+    var searchKey = ((e.nombre||'')+(e.puesto||'')+(e.area||'')).toLowerCase();
+    return '<label data-search="'+searchKey+'" style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;">'
       +'<input type="checkbox" value="'+e.id+'" data-nombre="'+e.nombre+'" style="width:16px;height:16px;accent-color:#2ec4b6;flex-shrink:0;">'
-      +'<span><strong>'+e.nombre+'</strong> <span style="font-size:11px;color:var(--text3);">'+e.puesto+'</span></span>'
+      +'<span><strong>'+e.nombre+'</strong> <span style="font-size:11px;color:var(--text3);">'+e.puesto+(e.area?' · '+e.area:'')+'</span></span>'
       +'</label>';
   }).join('');
+}
+
+function filterStaffList(q) {
+  q = (q||'').toLowerCase().trim();
+  document.querySelectorAll('#staff-implicado-list label').forEach(function(lbl) {
+    lbl.style.display = (!q || (lbl.dataset.search||'').indexOf(q) !== -1) ? '' : 'none';
+  });
 }
 
 function getStaffImplicado(){
@@ -2575,6 +2654,51 @@ function closeAjustesModal() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ── SEARCHABLE EMPLOYEE SELECT WIDGET ────────────────────────
+// Replaces a native <select> with a filterable list.
+// Native <select> is kept hidden + in sync so all existing save functions work unchanged.
+function _initEmpSearchSelect(selectId, placeholder) {
+  var sel = document.getElementById(selectId);
+  if(!sel) return;
+  var wrapId = selectId + '-sw';
+  var old = document.getElementById(wrapId);
+  if(old) old.remove();
+  sel.style.display = 'none';
+  var opts = Array.from(sel.options);
+  var wrap = document.createElement('div');
+  wrap.id = wrapId;
+  wrap.innerHTML =
+    '<input type="search" id="'+wrapId+'-q" placeholder="'+(placeholder||'Buscar empleado...')+'" autocomplete="off" '
+    +'style="width:100%;border-radius:6px 6px 0 0;margin-bottom:0;">'
+    +'<div id="'+wrapId+'-res" style="background:var(--bg);border:1px solid var(--border);border-top:none;'
+    +'border-radius:0 0 6px 6px;max-height:160px;overflow-y:auto;"></div>';
+  sel.parentNode.insertBefore(wrap, sel.nextSibling);
+  var inp = document.getElementById(wrapId+'-q');
+  var res = document.getElementById(wrapId+'-res');
+  function render(q) {
+    q = (q||'').toLowerCase().trim();
+    var list = opts.filter(function(o) { return !q || o.textContent.toLowerCase().indexOf(q) !== -1; });
+    if(!list.length) { res.innerHTML='<div style="padding:10px;font-size:12px;color:var(--text3);">Sin resultados</div>'; return; }
+    res.innerHTML = list.map(function(o) {
+      var active = o.value && o.value === sel.value;
+      return '<div data-v="'+o.value+'" style="padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);'
+        +(active?'background:rgba(46,196,182,.12);color:#2ec4b6;font-weight:600;':'color:var(--text);')
+        +'">'+o.textContent+'</div>';
+    }).join('');
+    res.querySelectorAll('[data-v]').forEach(function(div) {
+      div.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        sel.value = div.getAttribute('data-v');
+        inp.value = sel.value ? div.textContent : '';
+        render('');
+      });
+    });
+  }
+  inp.addEventListener('input', function() { render(inp.value); });
+  if(sel.value && sel.selectedOptions[0]) inp.value = sel.selectedOptions[0].textContent;
+  render('');
+}
+
 // ADD POSTERIOR ERROR (FIO post-validation)
 // ═══════════════════════════════════════════════════════════
 async function openPostErrorModal(shiftId) {
@@ -2586,9 +2710,10 @@ async function openPostErrorModal(shiftId) {
     empSel.innerHTML = '<option value="">— Sin responsable específico —</option>';
     var emps = await getDB('employees');
     emps.filter(function(e){return e.estado==='Activo';}).forEach(function(e){
-      var o=document.createElement('option'); o.value=e.id; o.textContent=e.nombre+' ('+e.puesto+')'; o.style.background='#ffffff'; o.style.color='#111827';
+      var o=document.createElement('option'); o.value=e.id; o.textContent=e.nombre+' ('+e.puesto+(e.area?' · '+e.area:'')+')'; o.style.background='#ffffff'; o.style.color='#111827';
       empSel.appendChild(o);
     });
+    _initEmpSearchSelect('posterr-emp', 'Buscar empleado responsable...');
   }
   // Reset fields
   ['posterr-tipo','posterr-sev','posterr-comentario'].forEach(function(id){
@@ -2636,6 +2761,48 @@ async function savePostError() {
   toast('Error posterior registrado y guardado en trazabilidad','ok');
   await renderValidacion();
   // Refresh dashboard if open
+  if(document.getElementById('screen-dashboard')&&document.getElementById('screen-dashboard').classList.contains('active')){
+    await renderDashboard();
+  }
+}
+
+async function openReopenModal(shiftId) {
+  window._reopenShiftId = shiftId;
+  var shifts = await getDB('shifts');
+  var s = shifts.find(function(x){return x.id===shiftId;});
+  if(!s){toast('Turno no encontrado','err');return;}
+  var infoEl = document.getElementById('reabrir-info');
+  if(infoEl) infoEl.textContent = s.nombre + ' — ' + fmtDate(s.fecha) + ' — ' + displayServicio(s.servicio) + ' (' + s.estado + ')';
+  var motivoEl = document.getElementById('reabrir-motivo');
+  if(motivoEl) motivoEl.value = '';
+  document.getElementById('modal-reabrir').classList.add('open');
+}
+
+async function saveReopenShift() {
+  var shiftId = window._reopenShiftId;
+  if(!shiftId){toast('Error: sin turno seleccionado','err');return;}
+  var motivo = (document.getElementById('reabrir-motivo')||{}).value||'';
+  if(!motivo.trim()){toast('Motivo obligatorio para reabrir','err');return;}
+
+  var shifts = await getDB('shifts');
+  var s = shifts.find(function(x){return x.id===shiftId;});
+  if(!s){toast('Turno no encontrado','err');return;}
+
+  var nota = '[REABIERTO por ' + currentUser.nombre + ' — ' + new Date().toLocaleString('es-ES') + '] ' + motivo.trim();
+  var nuevoComentario = s.comentario_validador ? s.comentario_validador + ' | ' + nota : nota;
+
+  await dbUpdate('shifts', shiftId, {
+    estado: 'En corrección',
+    comentario_validador: nuevoComentario,
+    updated_at: new Date().toISOString()
+  });
+  invalidateCache('shifts');
+
+  auditLog('REABRIR_INFORME', 'Turno '+shiftId+' ('+s.nombre+' '+fmtDate(s.fecha)+') — Motivo: '+motivo.trim());
+
+  closeModal('modal-reabrir');
+  toast('Informe reabierto — pendiente de corrección','ok');
+  await renderValidacion();
   if(document.getElementById('screen-dashboard')&&document.getElementById('screen-dashboard').classList.contains('active')){
     await renderDashboard();
   }
@@ -2951,7 +3118,12 @@ function logout(){
   if(ap) ap.style.display='none';
   var bn=document.getElementById('bottom-nav');
   if(bn) bn.style.display='none';
-  document.getElementById('portal-screen').style.display='flex';
+  var ps=document.getElementById('portal-screen');
+  if(ps){
+    ps.style.display='flex';
+    ps.style.visibility='';
+    ps.style.pointerEvents='';
+  }
 }
 
 document.addEventListener('keydown',function(e){
@@ -3352,55 +3524,88 @@ var _syncroVentaIdx = 0;
 async function renderFollowupList() {
   var el = document.getElementById('followup-incidencias-list');
   var countEl = document.getElementById('followup-count');
+  var btnNew = document.getElementById('btn-new-followup');
+  var subtitleEl = document.getElementById('followup-subtitle');
   if(!el) return;
+
+  var isOpen = function(i){ return i.estado === 'Abierta' || i.estado === 'En proceso' || i.estado === 'abierta' || i.estado === 'en proceso'; };
+  var isSupervisor = currentUser && (currentUser.rol === 'admin' || currentUser.rol === 'chef' || currentUser.rol === 'fb' || currentUser.rol === 'jefe_recepcion' || currentUser.validador == 1 || currentUser.validador === true);
+  var isAdmin = currentUser && currentUser.rol === 'admin';
+  var dept = currentUser ? (currentUser.area || '') : '';
+
+  // Show/hide "Nueva incidencia" button — supervisors only
+  if(btnNew) btnNew.style.display = isSupervisor ? '' : 'none';
+  if(subtitleEl) subtitleEl.textContent = isSupervisor
+    ? 'Gestiones pendientes e incidencias operativas del departamento.'
+    : 'Gestiones pendientes operativas visibles a todos los turnos. Las incidencias son solo para supervisores.';
+
   var allIncis = [];
   try { allIncis = await getDB('incidencias'); } catch(e){ allIncis = []; }
-  var dept = currentUser ? (currentUser.area || 'Cocina') : '';
-  // Filter: open incidencias of this dept
-  var isAdmin = currentUser && currentUser.rol === 'admin';
-  var open = allIncis.filter(function(i){
-    var isOpen = i.estado === 'Abierta' || i.estado === 'En proceso' || i.estado === 'abierta' || i.estado === 'en proceso';
-    if(isAdmin) return isOpen;
-    return isOpen && (i.area === dept || i.departamento === dept);
-  });
-  if(countEl) countEl.textContent = open.length ? '(' + open.length + ' activas)' : '(sin activas)';
-  if(!open.length){
-    el.innerHTML = '<div class="empty"><div class="empty-text">Sin incidencias activas</div></div>';
+
+  // Dept match helper (no _shiftAreaMap here — use area/departamento only)
+  function inDept(i){ return !dept || i.area === dept || i.departamento === dept || !i.area; }
+
+  // Split by visibility rule
+  var gestiones, incidencias;
+  if(isSupervisor){
+    // Supervisors: gestiones + incidencias operativas, filtered by dept (admin: all)
+    gestiones  = allIncis.filter(function(i){ return isOpen(i) && i.categoria === 'Gestión pendiente'  && (isAdmin || inDept(i)); });
+    incidencias = allIncis.filter(function(i){ return isOpen(i) && i.categoria !== 'Gestión pendiente' && (isAdmin || inDept(i)); });
+  } else {
+    // Employees: ONLY gestiones pendientes, ALL departments (operational handover)
+    gestiones  = allIncis.filter(function(i){ return isOpen(i) && i.categoria === 'Gestión pendiente'; });
+    incidencias = [];
+  }
+
+  var total = gestiones.length + incidencias.length;
+  if(countEl) countEl.textContent = total ? '(' + total + ' activas)' : '(sin activas)';
+
+  if(!total){
+    el.innerHTML = '<div class="empty"><div class="empty-text">Sin gestiones ni incidencias activas</div></div>';
     return;
   }
-  var html = '<table><tr><th>Tipo</th><th>Descripción</th><th>Apertura</th><th>Responsable</th><th>Estado</th><th>SLA</th><th>Acciones</th></tr>';
+
   var now = new Date();
-  open.forEach(function(i){
-    var apertura = i.created_at ? new Date(i.created_at) : null;
-    var objetivo = i.objetivo_cierre ? new Date(i.objetivo_cierre) : null;
-    var sla = '';
-    if(objetivo){
-      var vencida = now > objetivo;
-      var diffMs = Math.abs(now - objetivo);
-      var diffH = Math.floor(diffMs/3600000);
-      var diffM = Math.floor((diffMs%3600000)/60000);
-      sla = vencida
-        ? '<span style="color:var(--red);font-family:var(--font-mono);font-size:11px;">⚠ Vencida +'+(diffH)+'h'+diffM+'m</span>'
-        : '<span style="color:var(--green);font-family:var(--font-mono);font-size:11px;">⏱ '+diffH+'h'+diffM+'m restantes</span>';
-    } else {
-      sla = '<span style="color:var(--text3);font-size:11px;">Sin objetivo</span>';
-    }
-    var estadoBadge = i.estado === 'En proceso'
-      ? '<span class="badge b-orange">En proceso</span>'
-      : '<span class="badge b-red">Abierta</span>';
-    var canClose = currentUser && (currentUser.rol === 'admin' || currentUser.rol === 'jefe_recepcion' || currentUser.rol === 'chef' || currentUser.rol === 'fb' || currentUser.validador == 1);
-    var acciones = canClose ? '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>' : '—';
-    html += '<tr>'
-      + '<td style="font-size:12px;">' + (i.tipo_incidencia || i.categoria || '—') + '</td>'
-      + '<td style="font-size:12px;max-width:180px;">' + (i.descripcion||'').slice(0,60) + (i.descripcion && i.descripcion.length>60?'…':'') + '</td>'
-      + '<td style="font-size:11px;color:var(--text3);">' + (apertura ? apertura.toLocaleDateString('es-ES') + ' ' + apertura.toTimeString().slice(0,5) : '—') + '</td>'
-      + '<td style="font-size:12px;">' + (i.responsable_nombre || '—') + '</td>'
-      + '<td>' + estadoBadge + '</td>'
-      + '<td>' + sla + '</td>'
-      + '<td>' + acciones + '</td>'
-      + '</tr>';
-  });
-  html += '</table>';
+  function buildRows(list, borderColor, badgeClass){
+    if(!list.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0;">Ninguna</div>';
+    var t = '<table><tr><th>Tipo</th><th>Descripción</th><th>Empleado</th><th>Fecha</th><th>Estado</th>';
+    if(isSupervisor) t += '<th>Acciones</th>';
+    t += '</tr>';
+    list.forEach(function(i){
+      var apertura = i.created_at ? new Date(i.created_at) : null;
+      var estadoBadge = i.estado === 'En proceso'
+        ? '<span class="badge b-orange">En proceso</span>'
+        : '<span class="badge '+badgeClass+'">Abierta</span>';
+      var acciones = isSupervisor ? '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>' : '';
+      t += '<tr>'
+        + '<td style="font-size:12px;">' + (i.tipo_incidencia || '—') + '</td>'
+        + '<td style="font-size:12px;max-width:200px;">' + (i.descripcion||'').slice(0,70) + (i.descripcion && i.descripcion.length>70?'…':'') + '</td>'
+        + '<td style="font-size:12px;">' + (i.nombre || '—') + '</td>'
+        + '<td style="font-size:11px;color:var(--text3);">' + (apertura ? apertura.toLocaleDateString('es-ES') : '—') + '</td>'
+        + '<td>' + estadoBadge + '</td>'
+        + (isSupervisor ? '<td>' + acciones + '</td>' : '')
+        + '</tr>';
+    });
+    t += '</table>';
+    return t;
+  }
+
+  var html = '';
+
+  // Gestiones pendientes — visible to all
+  html += '<div style="margin-bottom:10px;">';
+  html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.12em;margin-bottom:6px;">GESTIONES PENDIENTES (' + gestiones.length + ')</div>';
+  html += buildRows(gestiones, 'var(--amber)', 'b-yellow');
+  html += '</div>';
+
+  // Incidencias operativas — supervisors only
+  if(isSupervisor){
+    html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">';
+    html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.12em;margin-bottom:6px;">INCIDENCIAS OPERATIVAS (' + incidencias.length + ') — Solo supervisores</div>';
+    html += buildRows(incidencias, 'var(--red)', 'b-red');
+    html += '</div>';
+  }
+
   el.innerHTML = html;
 }
 
@@ -3410,6 +3615,12 @@ async function openNewFollowup() {
     var el = document.getElementById(id);
     if(el) el.value = '';
   });
+  // Set min date on fu-objetivo (datetime-local) to prevent past dates
+  var fuObj = document.getElementById('fu-objetivo');
+  if(fuObj) {
+    var now = new Date(); now.setSeconds(0,0);
+    fuObj.min = now.toISOString().slice(0,16);
+  }
   document.getElementById('fu-err').textContent = '';
   // Populate responsable
   var empSel = document.getElementById('fu-responsable');
@@ -3419,11 +3630,12 @@ async function openNewFollowup() {
       var emps = await getDB('employees');
       emps.filter(function(e){ return e.estado === 'Activo'; }).forEach(function(e){
         var o = document.createElement('option');
-        o.value = e.id; o.textContent = e.nombre + ' — ' + e.puesto;
+        o.value = e.id; o.textContent = e.nombre + ' — ' + e.puesto + (e.area?' · '+e.area:'');
         o.style.background = '#ffffff'; o.style.color = '#111827';
         empSel.appendChild(o);
       });
     } catch(e){}
+    _initEmpSearchSelect('fu-responsable', 'Buscar responsable...');
   }
   document.getElementById('modal-followup').style.display = 'flex';
 }

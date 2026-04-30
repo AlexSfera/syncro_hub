@@ -35,6 +35,14 @@ function getDashDeptsForUser() {
   return DASH_DEPTS.filter(function(d) { return d.id === area; });
 }
 
+// ── HELPERS LOCALES ───────────────────────────────────────────
+function _isFio(s) {
+  return s.fio === true || s.fio === 1 || s.fio === 'true' || s.fio === '1';
+}
+function _tareaActiva(t) {
+  return t.estado === 'Pendiente' || t.estado === 'En proceso';
+}
+
 // ── ESTADO ACTUAL DEL DASHBOARD ──────────────────────────────
 var _dashCurrentDept = null;
 var _dashCurrentTab = 'turnos';
@@ -130,27 +138,38 @@ async function renderDashboard() {
   var allIncis = await getDB('incidencias');
   var allTareas = await getDB('tareas');
 
+  // Mapa rápido shift_id → area para fallback de incidencias sin area guardada
+  var _shiftAreaMap = {};
+  allShifts.forEach(function(s) { if(s.id) _shiftAreaMap[s.id] = (s.area || '').trim(); });
+
   // Filtrar por departamento
-  // incidencias puede tener campo 'area' o 'departamento' segun version
+  function _inArea(val, depts) { return depts.indexOf((val||'').trim()) !== -1; }
+
   function inciMatchDept(i, depts) {
-    var d = i.area || i.departamento || '';
-    return depts.indexOf(d) !== -1;
+    // Datos nuevos: campo area/departamento correcto
+    var d = (i.area || i.departamento || '').trim();
+    if (d) return depts.indexOf(d) !== -1;
+    // Fallback histórico: buscar por shift_id
+    if (i.shift_id) return depts.indexOf(_shiftAreaMap[i.shift_id] || '') !== -1;
+    return false;
   }
   function mermaMatchDept(m, depts) {
-    var d = m.area || m.departamento || '';
+    var d = (m.area || m.departamento || '').trim();
     return !d || depts.indexOf(d) !== -1;
+  }
+  function tareaMatchDept(t, depts) {
+    return _inArea(t.dept_destino, depts) || _inArea(t.dept_origen, depts);
   }
 
   var shifts, mermas, incis, tareas;
   if (_dashCurrentDept === 'FnB') {
     var fnbDepts = ['Cocina', 'Sala', 'Friegue'];
-    shifts = allShifts.filter(function(s) { return fnbDepts.indexOf(s.area) !== -1; });
+    shifts = allShifts.filter(function(s) { return _inArea(s.area, fnbDepts); });
     mermas = allMermas.filter(function(m) { return mermaMatchDept(m, ['Cocina', 'Friegue']); });
     incis  = allIncis.filter(function(i)  { return inciMatchDept(i, fnbDepts); });
-    tareas = allTareas.filter(function(t) { return fnbDepts.indexOf(t.dept_destino) !== -1 || fnbDepts.indexOf(t.dept_origen) !== -1; });
+    tareas = allTareas.filter(function(t) { return tareaMatchDept(t, fnbDepts); });
   } else {
     var deptArea = _dashCurrentDept;
-    // Mapear IDs de dashboard a valores reales del campo area en Supabase
     var areaMap = {
       'Cocina': ['Cocina'],
       'Sala': ['Sala'],
@@ -165,10 +184,10 @@ async function renderDashboard() {
       'RRHH': ['RRHH', 'Recursos Humanos']
     };
     var validAreas = areaMap[deptArea] || [deptArea];
-    shifts = allShifts.filter(function(s) { return validAreas.indexOf(s.area) !== -1; });
+    shifts = allShifts.filter(function(s) { return _inArea(s.area, validAreas); });
     mermas = allMermas.filter(function(m) { return mermaMatchDept(m, validAreas); });
     incis  = allIncis.filter(function(i)  { return inciMatchDept(i, validAreas); });
-    tareas = allTareas.filter(function(t) { return validAreas.indexOf(t.dept_destino) !== -1 || validAreas.indexOf(t.dept_origen) !== -1; });
+    tareas = allTareas.filter(function(t) { return tareaMatchDept(t, validAreas); });
   }
 
   // Filtrar por periodo
@@ -188,6 +207,7 @@ async function renderDashboard() {
   _renderActividadEmpleado(shifts, allShifts);
   _renderAlertas(shifts, mermas, incis, tareas);
   _renderIncidencias(incis);
+  _renderMerma(mermas);
   _renderTareas(tareas);
   _renderFIO(shifts);
   renderCostTable();
@@ -240,12 +260,12 @@ function _renderKpiCards(shifts, mermas, incis, tareas, deptCfg) {
   var inciAbiertas = incis.filter(function(i) { return i.estado === 'Abierta'; }).length;
   var inciCriticas = incis.filter(function(i) { return i.severidad === 'Crítica' && i.estado === 'Abierta'; }).length;
 
-  var fioTotal = shifts.filter(function(s) { return s.fio === true || s.fio === 1 || s.fio === 'true'; }).length;
-  var fioCrit = shifts.filter(function(s) { return (s.fio === true || s.fio === 1) && (s.gravedad_error === 'Alta' || s.gravedad_error === 'Crítica'); }).length;
-  var fioPend = shifts.filter(function(s) { return (s.fio === true || s.fio === 1) && !s.validado_por; }).length;
+  var fioTotal = shifts.filter(function(s) { return _isFio(s); }).length;
+  var fioCrit  = shifts.filter(function(s) { return _isFio(s) && (s.gravedad_error === 'Alta' || s.gravedad_error === 'Crítica'); }).length;
+  var fioPend  = shifts.filter(function(s) { return _isFio(s) && !s.validado_por; }).length;
 
-  var tareasPend = tareas.filter(function(t) { return t.estado === 'Pendiente' || t.estado === 'En proceso'; }).length;
-  var tareasVenc = tareas.filter(function(t) { return isOverdue(t.deadline) && t.estado !== 'Verificada'; }).length;
+  var tareasPend = tareas.filter(_tareaActiva).length;
+  var tareasVenc = tareas.filter(function(t) { return isOverdue(t.deadline) && t.estado !== 'Verificada' && t.estado !== 'Completada'; }).length;
 
   var costeMerma = mermas.reduce(function(a, m) { return a + (m.coste_total || 0); }, 0);
 
@@ -276,7 +296,7 @@ function _renderActividadEmpleado(shifts, allShifts) {
     eMap[key].turnos++;
     eMap[key].horas += parseFloat(s.horas) || 0;
     if (s.incidencia_declarada === 'si') eMap[key].incis++;
-    if (s.fio === true || s.fio === 1 || s.fio === 'true') eMap[key].fio++;
+    if (_isFio(s)) eMap[key].fio++;
   });
 
   var rows = Object.values(eMap).sort(function(a, b) { return b.horas - a.horas; });
@@ -313,7 +333,7 @@ function _renderAlertas(shifts, mermas, incis, tareas) {
   var inciCrit = incis.filter(function(i) { return i.severidad === 'Crítica' && i.estado === 'Abierta'; });
   if (inciCrit.length) msgs.push({ t: 'err', m: '⛔ ' + inciCrit.length + ' incidencia(s) CRÍTICA(s) sin cerrar' });
 
-  var fioPend = shifts.filter(function(s) { return (s.fio === true || s.fio === 1) && !s.validado_por; }).length;
+  var fioPend = shifts.filter(function(s) { return _isFio(s) && !s.validado_por; }).length;
   if (fioPend > 0) msgs.push({ t: 'err', m: fioPend + ' FIO pendiente(s) de validación' });
 
   var tareasVenc = tareas.filter(function(t) { return isOverdue(t.deadline) && t.estado !== 'Verificada'; }).length;
@@ -439,7 +459,7 @@ function _renderFIO(shifts) {
   var el = document.getElementById('dash-fio-table');
   if (!el) return;
 
-  var fioShifts = shifts.filter(function(s) { return s.fio === true || s.fio === 1 || s.fio === 'true'; });
+  var fioShifts = shifts.filter(_isFio);
 
   var countEl = document.getElementById('dash-fio-count');
   if (countEl) countEl.textContent = '(' + fioShifts.length + ' registros)';
@@ -456,9 +476,11 @@ function _renderFIO(shifts) {
     + fioShifts.map(function(s) {
       var sevColor = s.gravedad_error === 'Crítica' ? 'b-red' : s.gravedad_error === 'Alta' ? 'b-orange' : s.gravedad_error === 'Media' ? 'b-yellow' : 'b-gray';
       var estColor = s.validado_por ? 'b-green' : 'b-red';
+      var fioResp = s.error_employee_nombre;
+      if (!fioResp || fioResp.charAt(0) === '—' || fioResp.indexOf('Sin') !== -1) fioResp = s.nombre || '—';
       return '<tr>'
         + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(s.fecha) + '</td>'
-        + '<td style="font-weight:600">' + (s.error_employee_nombre || s.nombre || '—') + '</td>'
+        + '<td style="font-weight:600">' + fioResp + '</td>'
         + '<td style="font-size:12px">' + (s.tipo_error || '—') + '</td>'
         + '<td><span class="badge ' + sevColor + '">' + (s.gravedad_error || '—') + '</span></td>'
         + '<td><span class="badge ' + estColor + '">' + (s.validado_por ? '✓ Validado' : 'Pendiente') + '</span></td>'
@@ -624,6 +646,62 @@ async function _renderKpiRecepcion(shifts) {
       : '<div class="empty"><div class="empty-text">Sin cuadres en el periodo</div></div>');
 }
 
+// ── MERMA DETALLE ─────────────────────────────────────────────
+function _renderMerma(mermas) {
+  var kpiEl = document.getElementById('kpi-merma');
+  var el = document.getElementById('dash-merma-table');
+
+  var causa = (document.getElementById('dm-causa') || {}).value || '';
+  var empFilt = (document.getElementById('dm-emp') || {}).value || '';
+
+  // Populate employee filter
+  var dmEmpEl = document.getElementById('dm-emp');
+  if (dmEmpEl) {
+    var currentV = dmEmpEl.value;
+    var names = {};
+    mermas.forEach(function(m) { if (m.nombre) names[m.nombre] = true; });
+    dmEmpEl.innerHTML = '<option value="">Todos</option>'
+      + Object.keys(names).sort().map(function(n) { return '<option value="' + n + '">' + n + '</option>'; }).join('');
+    if (currentV) dmEmpEl.value = currentV;
+  }
+
+  var filtered = mermas.slice();
+  if (causa) filtered = filtered.filter(function(m) { return m.causa === causa; });
+  if (empFilt) filtered = filtered.filter(function(m) { return m.nombre === empFilt; });
+
+  if (kpiEl) {
+    var totalCoste = filtered.reduce(function(a, m) { return a + (m.coste_total || 0); }, 0);
+    var sinCoste = filtered.filter(function(m) { return !m.coste_unitario || m.coste_unitario === 0; }).length;
+    kpiEl.innerHTML = '<div class="kpi k-orange"><div class="kpi-lbl">Líneas</div><div class="kpi-val">' + filtered.length + '</div></div>'
+      + '<div class="kpi k-orange"><div class="kpi-lbl">Coste total</div><div class="kpi-val">' + totalCoste.toFixed(0) + '€</div></div>'
+      + '<div class="kpi k-red"><div class="kpi-lbl">Sin coste</div><div class="kpi-val">' + sinCoste + '</div><div class="kpi-sub">Pendiente valorar</div></div>';
+  }
+
+  if (!el) return;
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-text">Sin merma en el periodo</div></div>';
+    return;
+  }
+
+  filtered.sort(function(a, b) { return b.fecha.localeCompare(a.fecha); });
+
+  el.innerHTML = '<table>'
+    + '<tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Causa</th><th>Coste total</th><th>Declarante</th></tr>'
+    + filtered.map(function(m) {
+      var sinC = !m.coste_unitario || m.coste_unitario === 0;
+      return '<tr>'
+        + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(m.fecha) + '</td>'
+        + '<td style="font-weight:600">' + (m.producto || '—') + '</td>'
+        + '<td style="font-family:var(--font-mono)">' + (m.cantidad || '—') + ' ' + (m.unidad || '') + '</td>'
+        + '<td style="font-size:12px">' + (m.causa || '—') + '</td>'
+        + '<td style="font-family:var(--font-mono);' + (sinC ? 'color:var(--amber)' : 'color:var(--orange)') + '">'
+        + (sinC ? '⚠ Pendiente' : (m.coste_total || 0).toFixed(2) + '€') + '</td>'
+        + '<td style="font-size:12px">' + (m.nombre || '—') + '</td>'
+        + '</tr>';
+    }).join('')
+    + '</table>';
+}
+
 // ── PLACEHOLDER DEPARTAMENTOS FUTUROS ─────────────────────────
 function _renderPlaceholder(deptCfg) {
   var el = document.getElementById('kpi-grid');
@@ -729,9 +807,12 @@ async function renderCostTable() {
     filtShifts = filtShifts.filter(function(s) { return s.area === manualDeptF; });
   }
 
+  var costDeptAreas = _dashCurrentDept ? (areaMapCost[_dashCurrentDept] || [_dashCurrentDept]) : [];
   var costMap = {};
   employees.filter(function(e) {
-    return e.estado === 'Activo' && (!deptF || e.area === deptF) && (!manualDeptF || e.area === manualDeptF);
+    var inDept = !costDeptAreas.length || costDeptAreas.indexOf(e.area) !== -1;
+    var inManual = !manualDeptF || e.area === manualDeptF;
+    return e.estado === 'Activo' && inDept && inManual;
   }).forEach(function(e) {
     costMap[e.id] = { nombre: e.nombre, puesto: e.puesto, area: e.area, ch: parseFloat(e.coste) || 0, h: 0, n: 0 };
   });
