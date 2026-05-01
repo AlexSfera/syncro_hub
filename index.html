@@ -3542,37 +3542,65 @@ async function renderFollowupList() {
   // Show/hide "Nueva incidencia" button — supervisors only
   if(btnNew) btnNew.style.display = isSupervisorUser ? '' : 'none';
   if(subtitleEl) subtitleEl.textContent = isSupervisorUser
-    ? 'Gestiones pendientes e incidencias operativas del departamento.'
-    : 'Gestiones pendientes operativas visibles a todos los turnos. Las incidencias son solo para supervisores.';
+    ? 'Gestiones pendientes, tareas e incidencias operativas del departamento.'
+    : 'Gestiones pendientes y tareas visibles para tu departamento. Las incidencias son solo para supervisores.';
 
-  var allIncis = [];
+  var allIncis = [], allTareas = [], allShifts = [];
   try { allIncis = await getDB('incidencias'); } catch(e){ allIncis = []; }
+  try { allTareas = await getDB('tareas'); } catch(e){ allTareas = []; }
+  try { allShifts = await getDB('shifts'); } catch(e){ allShifts = []; }
+  var shiftMap = {};
+  allShifts.forEach(function(s){ if(s.id) shiftMap[s.id] = s; });
 
-  // Dept match helper (no _shiftAreaMap here — use area/departamento only)
-  function inDept(i){ return isAdminUser || canViewDepartment(currentUser, i.area || i.departamento || dept); }
-
-  // Split by visibility rule
-  var gestiones, incidencias;
-  if(isSupervisorUser){
-    // Supervisors: gestiones + incidencias operativas, filtered by dept (admin: all)
-    gestiones  = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria === 'Gestión pendiente'  && (isAdminUser || inDept(i)); });
-    incidencias = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria !== 'Gestión pendiente' && (isAdminUser || inDept(i)); });
-  } else {
-    // Employees: ONLY gestiones pendientes, ALL departments (operational handover)
-    gestiones  = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria === 'Gestión pendiente'; });
-    incidencias = [];
+  function sameDept(record){
+    if(isAdminUser) return true;
+    var rDept = getRecordDepartment(record, shiftMap);
+    if(isSupervisorUser) return canViewDepartment(currentUser, rDept);
+    return normalizeDeptName(rDept) === normalizeDeptName(dept)
+      || record.employee_id === currentUser.id
+      || record.creado_por === currentUser.nombre;
+  }
+  function isGestion(t){
+    var txt = normalizeDeptName([t.origen,t.titulo,t.descripcion].join(' '));
+    return txt.indexOf('gestion') !== -1 || txt.indexOf('gestión') !== -1;
   }
 
-  var total = gestiones.length + incidencias.length;
+  var gestiones = allTareas.filter(function(t){ return isTaskOpen(t) && isGestion(t) && sameDept(t); });
+  var tareas = allTareas.filter(function(t){ return isTaskOpen(t) && !isGestion(t) && sameDept(t); });
+  var gestionesHistoricas = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria === 'Gestión pendiente' && sameDept(i); });
+  var incidencias = isSupervisorUser
+    ? allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria !== 'Gestión pendiente' && sameDept(i); })
+    : [];
+
+  var total = gestiones.length + gestionesHistoricas.length + tareas.length + incidencias.length;
   if(countEl) countEl.textContent = total ? '(' + total + ' activas)' : '(sin activas)';
 
   if(!total){
-    el.innerHTML = '<div class="empty"><div class="empty-text">Sin gestiones ni incidencias activas</div></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-text">Sin gestiones, tareas ni incidencias activas</div></div>';
     return;
   }
 
-  var now = new Date();
-  function buildRows(list, borderColor, badgeClass){
+  function buildTaskRows(list, title){
+    if(!list.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0;">Ninguna</div>';
+    var t = '<table><tr><th>Deadline</th><th>Estado</th><th>Descripción</th><th>Destino</th><th>Creado por</th><th>Acciones</th></tr>';
+    list.forEach(function(row){
+      var acciones = '';
+      var st = normalizeTaskState(row.estado);
+      if(canProgressTask(row) && st === TASK_STATES.ABIERTA) acciones += '<button class="btn btn-secondary btn-sm" onclick="advanceTask(\''+row.id+'\',\'En proceso\')">En proceso</button> ';
+      if(canCloseTask(currentUser,row) && st === TASK_STATES.EN_PROCESO) acciones += '<button class="btn btn-secondary btn-sm" onclick="advanceTask(\''+row.id+'\',\'Cerrada\')">Cerrar</button>';
+      t += '<tr>'
+        + '<td style="font-family:var(--font-mono);font-size:11px;'+(isOverdue(row.deadline)?'color:var(--red);font-weight:700;':'')+'">' + fmtDate(row.deadline) + (isOverdue(row.deadline)?' ⚠':'') + '</td>'
+        + '<td>' + bTaskEstado(row.estado) + '</td>'
+        + '<td style="font-size:12px;max-width:220px;">' + formatDisplayValue(row.descripcion || row.titulo) + '</td>'
+        + '<td>' + deptBadge(row.dept_destino) + '</td>'
+        + '<td style="font-size:12px;">' + formatDisplayValue(row.creado_por) + '</td>'
+        + '<td>' + (acciones || '—') + '</td>'
+        + '</tr>';
+    });
+    t += '</table>';
+    return t;
+  }
+  function buildIncidentRows(list){
     if(!list.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0;">Ninguna</div>';
     var t = '<table><tr><th>Tipo</th><th>Descripción</th><th>Empleado</th><th>Fecha</th><th>Estado</th>';
     if(isSupervisorUser) t += '<th>Acciones</th>';
@@ -3580,7 +3608,7 @@ async function renderFollowupList() {
     list.forEach(function(i){
       var apertura = i.created_at ? new Date(i.created_at) : null;
       var estadoBadge = bIncidentEstado(i.estado);
-      var canClose = isAdminUser || (isSupervisorUser && canViewDepartment(currentUser, i.area || i.departamento));
+      var canClose = isAdminUser || (isSupervisorUser && canViewDepartment(currentUser, getRecordDepartment(i, shiftMap)));
       var normI = normalizeIncidentState(i.estado);
       var acciones = canClose
         ? (normI===INCIDENT_STATES.ABIERTA?'<button class="btn btn-secondary btn-sm" onclick="advanceIncident(\''+i.id+'\',\'En proceso\')">En proceso</button> ':'') + '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>'
@@ -3602,15 +3630,21 @@ async function renderFollowupList() {
 
   // Gestiones pendientes — visible to all
   html += '<div style="margin-bottom:10px;">';
-  html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.12em;margin-bottom:6px;">GESTIONES PENDIENTES (' + gestiones.length + ')</div>';
-  html += buildRows(gestiones, 'var(--amber)', 'b-yellow');
+  html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.12em;margin-bottom:6px;">GESTIONES PENDIENTES (' + (gestiones.length + gestionesHistoricas.length) + ')</div>';
+  html += buildTaskRows(gestiones, 'Gestiones pendientes');
+  if(gestionesHistoricas.length) html += buildIncidentRows(gestionesHistoricas);
+  html += '</div>';
+
+  html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">';
+  html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--purple);letter-spacing:.12em;margin-bottom:6px;">TAREAS (' + tareas.length + ')</div>';
+  html += buildTaskRows(tareas, 'Tareas');
   html += '</div>';
 
   // Incidencias operativas — supervisors only
   if(isSupervisorUser){
     html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">';
     html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.12em;margin-bottom:6px;">INCIDENCIAS OPERATIVAS (' + incidencias.length + ') — Solo supervisores</div>';
-    html += buildRows(incidencias, 'var(--red)', 'b-red');
+    html += buildIncidentRows(incidencias);
     html += '</div>';
   }
 
@@ -3718,7 +3752,10 @@ async function submitCloseFollowup() {
     var allIncis = await getDB('incidencias');
     var inci = allIncis.find(function(i){ return i.id === _fuCloseId; });
     if(!inci){ errEl.textContent = 'No se encontró la incidencia.'; return; }
-    if(!(isAdmin(currentUser) || (isSupervisor(currentUser) && canViewDepartment(currentUser, inci.area || inci.departamento)))){
+    var allShifts = await getDB('shifts');
+    var shiftMap = {};
+    allShifts.forEach(function(s){ if(s.id) shiftMap[s.id] = s; });
+    if(!(isAdmin(currentUser) || (isSupervisor(currentUser) && canViewDepartment(currentUser, getRecordDepartment(inci, shiftMap))))){
       errEl.textContent = 'No tienes permiso para cerrar incidencias de este departamento.';
       return;
     }
@@ -3730,23 +3767,12 @@ async function submitCloseFollowup() {
     var tiempoMs = inci && inci.created_at ? (new Date(ts) - new Date(inci.created_at)) : 0;
     var tiempoH = Math.floor(tiempoMs/3600000);
     var tiempoM = Math.floor((tiempoMs%3600000)/60000);
-    var tiempoMin = Math.max(0, Math.round(tiempoMs/60000));
-    var slaCumplido = inci && inci.objetivo_cierre ? (new Date(ts) <= new Date(inci.objetivo_cierre)) : null;
-    await dbUpdate('incidencias', _fuCloseId, {
+    var cierreTxt = 'Cierre: ' + accion + ' · Resultado: ' + resultado + (comentarioCierre ? ' · Comentario: ' + comentarioCierre : '');
+    var saved = await dbUpdate('incidencias', _fuCloseId, {
       estado: INCIDENT_STATES.CERRADA,
-      accion_cierre: accion,
-      resultado_cierre: resultado,
-      comentario_cierre: comentarioCierre,
-      cerrado_por_id: currentUser.id,
-      cerrado_por_nombre: currentUser.nombre,
-      cerrado_por: currentUser.nombre,
-      fecha_cierre: ts,
-      tiempo_solucion_minutos: tiempoMin,
-      tiempo_solucion_h: tiempoH,
-      tiempo_solucion_m: tiempoM,
-      sla_cumplido: slaCumplido,
-      updated_at: ts
+      accion_inmediata: [inci.accion_inmediata, cierreTxt].filter(Boolean).join(' | ')
     });
+    if(!saved){ errEl.textContent = 'No se pudo cerrar la incidencia. Inténtalo de nuevo.'; return; }
     invalidateCache('incidencias');
     toast('Incidencia cerrada — tiempo: ' + tiempoH + 'h ' + tiempoM + 'min', 'ok');
     document.getElementById('modal-followup-close').style.display = 'none';
