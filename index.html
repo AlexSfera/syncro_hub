@@ -1068,11 +1068,16 @@ tr:hover td{background:rgba(255,255,255,.018);}
           <div class="fg"><label>Stripe según POSMEWS (€)</label>
             <input type="number" id="caja-str-posmews" min="0" step="0.01" placeholder="0.00" oninput="fixLeadingZeros(this);calcCajaDifs()"></div>
           <div class="fg"><label>Stripe real — Stripe.com (€)</label>
-            <input type="number" id="caja-str-real" min="0" step="0.01" placeholder="0.00" oninput="fixLeadingZeros(this);calcCajaDifs()"></div>
+            <input type="number" id="caja-str-real" min="0" step="0.01" placeholder="0.00" oninput="fixLeadingZeros(this);calcCajaDifs();_setCajaStrFecha()"></div>
         </div>
         <div style="padding:10px;background:var(--bg3);border-radius:6px;margin-top:10px;">
           <div style="font-size:11px;color:var(--text3);">Diferencia Stripe</div>
           <div id="caja-dif-str" style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--green);">0.00 €</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg3);border-radius:6px;margin-top:8px;">
+          <div style="font-size:11px;color:var(--text3);">Última actualización Stripe real:</div>
+          <div id="caja-str-fecha-disp" style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text);">—</div>
+          <input type="hidden" id="caja-str-fecha">
         </div>
       </div>
 
@@ -1387,6 +1392,20 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <div id="rec-fondo-inicial-block" style="display:none;" class="fg">
       <label>Fondo inicial día siguiente (€) — Solo turno noche <span class="req">*</span></label>
       <input type="number" id="rec-fondo-inicial" min="0" step="0.01" placeholder="0.00" style="color:#111827;background:#ffffff;">
+    </div>
+
+    <!-- CONCILIACIÓN RESTAURANTE / FUTURA -->
+    <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#f59e0b;letter-spacing:.15em;margin:16px 0 6px;">CONFIRMACIÓN RESTAURANTE — PENDIENTE CONCILIACIÓN</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Recepción confirma lo recibido desde POSMEWS / Sala. Dashboard conciliará en futuro.</div>
+    <div class="grid2">
+      <div class="fg"><label>Room charge recibido de Restaurante (€)</label>
+        <input type="number" id="rec-room-recibido" min="0" step="0.01" placeholder="0.00" style="color:#111827;background:#ffffff;"></div>
+      <div class="fg"><label>Desayunos confirmados en MEWS (nº)</label>
+        <input type="number" id="rec-desayunos-mews" min="0" step="1" placeholder="0" style="color:#111827;background:#ffffff;"></div>
+      <div class="fg"><label>Pensiones comida &amp; cena confirmadas en MEWS (nº)</label>
+        <input type="number" id="rec-pensiones-mews" min="0" step="1" placeholder="0" style="color:#111827;background:#ffffff;"></div>
+      <div class="fg"><label>Servicios SYNCROLAB room charged (€)</label>
+        <input type="number" id="rec-syncrolab-room" min="0" step="0.01" placeholder="0.00" style="color:#111827;background:#ffffff;"></div>
     </div>
 
     <div id="rec-caja-err" style="color:var(--red);font-size:12px;min-height:18px;margin-bottom:8px;font-family:var(--font-mono);"></div>
@@ -2266,6 +2285,11 @@ async function openCajaForm(existingId) {
   });
   // Uncheck all servicios
   document.querySelectorAll('#caja-servicios-check input[type=checkbox]').forEach(function(cb){ cb.checked=false; });
+  // Clear stripe date
+  var _strFechaInp=document.getElementById('caja-str-fecha');
+  var _strFechaDisp=document.getElementById('caja-str-fecha-disp');
+  if(_strFechaInp) _strFechaInp.value='';
+  if(_strFechaDisp) _strFechaDisp.textContent='—';
   if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
     window.CAJAS_CONFIG.helpers.clearInitialFundAutomation('caja-fondo-ini');
   }
@@ -2305,6 +2329,12 @@ async function openCajaForm(existingId) {
         set('caja-propinas',existingRow.propinas);
         set('caja-str-posmews',existingRow.stripe_posmews);
         set('caja-str-real',existingRow.stripe_real);
+        if(existingRow.stripe_real_updated_date){
+          var _si=document.getElementById('caja-str-fecha');
+          var _sd=document.getElementById('caja-str-fecha-disp');
+          if(_si) _si.value=existingRow.stripe_real_updated_date;
+          if(_sd) _sd.textContent=existingRow.stripe_real_updated_date;
+        }
         set('caja-room',existingRow.room_charge);
         set('caja-alexander',existingRow.cargo_alexander);
         set('caja-pension-d',existingRow.pension_desayuno);
@@ -2390,6 +2420,20 @@ function calcCajaDifs() {
   // Show * on comentario when diferencia exists
   var reqEl = document.getElementById('caja-comentario-req');
   if(reqEl) reqEl.style.display = estadoCaja === 'Revisar' ? 'inline' : 'none';
+}
+
+function _setCajaStrFecha() {
+  var strVal = parseFloat((document.getElementById('caja-str-real')||{}).value)||0;
+  if(strVal > 0) {
+    var d = new Date();
+    var dd = String(d.getDate()).padStart(2,'0');
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var fecha = dd+'/'+mm+'/'+d.getFullYear();
+    var inp = document.getElementById('caja-str-fecha');
+    var disp = document.getElementById('caja-str-fecha-disp');
+    if(inp) inp.value = fecha;
+    if(disp) disp.textContent = fecha;
+  }
 }
 
 function checkCajaDiferencia() {
@@ -2492,6 +2536,7 @@ async function saveCajaForm() {
     diferencia_tarjeta: difTar,
     stripe_posmews: strPosmews,
     stripe_real: strReal,
+    stripe_real_updated_date: (document.getElementById('caja-str-fecha')||{}).value||null,
     diferencia_stripe: difStr,
     diferencia_operativa_sala: difOperativa,
     diferencia_caja: difOperativa,
@@ -3332,7 +3377,7 @@ function calcRecDifs() {
 async function openRecCajaModal(existingId) {
   _recCajaEditId = existingId||null;
   // Reset form
-  ['rec-cash-mews','rec-tarjeta-mews','rec-stripe-mews','rec-cash-real','rec-tpv-real','rec-stripe-real','rec-fondo-recibido','rec-fondo-traspaso','rec-cf-importe','rec-fondo-inicial','rec-dif-exp','rec-dif-accion'].forEach(function(id){
+  ['rec-cash-mews','rec-tarjeta-mews','rec-stripe-mews','rec-cash-real','rec-tpv-real','rec-stripe-real','rec-fondo-recibido','rec-fondo-traspaso','rec-cf-importe','rec-fondo-inicial','rec-dif-exp','rec-dif-accion','rec-room-recibido','rec-desayunos-mews','rec-pensiones-mews','rec-syncrolab-room'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
   if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
@@ -3365,19 +3410,22 @@ async function openRecCajaModal(existingId) {
       set('rec-fondo-inicial',row.fondo_inicial_siguiente);
       set('rec-dif-exp',row.explicacion_diferencia);
       set('rec-dif-accion',row.accion_diferencia);
+      set('rec-room-recibido',row.room_charge_recibido);
+      set('rec-desayunos-mews',row.desayunos_confirmados_mews);
+      set('rec-pensiones-mews',row.pensiones_confirmadas_mews);
+      set('rec-syncrolab-room',row.syncrolab_room_charged);
       calcRecDifs();
     });
   } else if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
     try{
-      var prevRows=await getDB('cash_closings');
+      var prevRows=await getDB('recepcion_cash');
       var prev=window.CAJAS_CONFIG.helpers.getPreviousCashRecord(prevRows,{
-        department:'recepcion',
-        finalFundField:'rec_fondo_traspaso'
+        finalFundField:'fondo_traspasado'
       });
       if(prev){
         window.CAJAS_CONFIG.helpers.applyAutoInitialFund({
           inputId:'rec-fondo-recibido',
-          value:prev.rec_fondo_traspaso,
+          value:prev.fondo_traspasado,
           previousId:prev.id,
           label:'Caja Recepcion Hotel'
         });
@@ -3463,6 +3511,10 @@ async function submitRecCaja() {
     explicacion_diferencia: document.getElementById('rec-dif-exp').value.trim()||null,
     accion_diferencia: document.getElementById('rec-dif-accion').value.trim()||null,
     informado_responsable: _recKpiState.dif_informado==='si',
+    room_charge_recibido: parseFloat((document.getElementById('rec-room-recibido')||{}).value)||0,
+    desayunos_confirmados_mews: parseInt((document.getElementById('rec-desayunos-mews')||{}).value)||0,
+    pensiones_confirmadas_mews: parseInt((document.getElementById('rec-pensiones-mews')||{}).value)||0,
+    syncrolab_room_charged: parseFloat((document.getElementById('rec-syncrolab-room')||{}).value)||0,
     created_at: _recCajaEditId?undefined:ts
   };
 
