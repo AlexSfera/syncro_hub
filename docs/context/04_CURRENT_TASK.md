@@ -1,44 +1,115 @@
-# Current Task — Dashboard
+# Current Task — Arquitectura y lógica de Cierres de Caja
 
 ## Scope
 
-Work only on Dashboard logic and the minimum related data source needed.
+Trabajar únicamente en la definición, implementación mínima y validación de lógica de:
+
+- Caja Sala
+- Caja Recepción Hotel
+
+El objetivo es dejar correctamente documentada y preparada la lógica de datos, cálculos, campos obligatorios, campos automáticos y diferencias operativas de cierres de caja.
+
+No modificar Dashboard, Mi Turno, Validación, Incidencias/FIO, Tareas, Sala, Cocina o Recepción salvo que sea estrictamente necesario para leer o mostrar correctamente el módulo de cierre de caja.
+
+---
 
 ## Problem
 
-Dashboard does not correctly show:
-- incidencias count;
-- gestiones pendientes count;
-- FIO/errors total;
-- pending tasks if applicable.
+Actualmente la lógica final de cierres de caja no está cerrada.
 
-## Expected Result
+Se necesita definir de forma clara:
 
-Dashboard must show real saved data, not hardcoded values.
+- campos de entrada;
+- campos calculados;
+- campos bloqueados/no editables;
+- fórmulas;
+- diferencias operativas;
+- fecha de cierre;
+- fecha automática de última actualización para valores acumulativos;
+- diferencias entre Caja Sala y Caja Recepción Hotel.
 
-Dashboard must correctly separate:
-- incidencias;
-- gestiones pendientes;
-- tareas pendientes;
-- FIO/errors.
+El sistema no debe asumir lógica anterior ni inventar fórmulas.
 
-Dashboard must group or filter by department when applicable.
+---
 
-## Do Not Modify
+## General Rules
 
-- Do not modify cash closure logic.
-- Do not modify unrelated UI.
-- Do not modify Sala, Cocina or Recepción logic unless absolutely required to read the correct data source.
-- Do not refactor the whole project.
+### Reglas comunes
 
-## Required Output
+- La fecha del cierre debe estar visible.
+- Los importes deben tratarse como números.
+- Los campos obligatorios deben estar marcados claramente.
+- Los campos calculados no deben ser editables manualmente.
+- Los campos automáticos no deben poder modificarse manualmente.
+- Los valores vacíos deben tratarse de forma segura, preferiblemente como `0` solo cuando tenga sentido operativo.
+- No mostrar `NaN`, `undefined`, `null`, errores técnicos ni arrays visibles en UI.
+- No cambiar Supabase schema sin avisar y justificar antes.
+- Antes de modificar código, identificar si la lógica activa está en `index.html`, `caja.js`, `cajas.js` u otro archivo.
+- No hacer refactor grande de `index.html`.
+- Hacer cambios pequeños, verificables y reversibles.
 
-Before changes:
-- Explain what files you will inspect.
-- Explain probable cause.
+---
 
-After changes:
-- List modified files.
-- Explain changes.
-- Give QA checklist.
-- Mention risks or [NO DATA].
+# Caja Sala
+
+## Fecha
+
+Campo:
+
+- Fecha
+
+Reglas:
+
+- Debe identificar el día del cierre.
+- Debe mostrarse en formato claro para usuario.
+- Si se usa formato interno distinto, no mostrarlo de forma técnica en UI.
+
+---
+
+## Bloque Cash
+
+### Campos
+
+1. Fondo de caja inicial
+2. Efectivo real contado *
+3. Cash según POSMEWS *
+4. Retiro efectivo caja fuerte *
+
+### Reglas de campos
+
+#### Fondo de caja inicial
+
+- Campo fijo.
+- No editable por el usuario en el cierre diario.
+- Debe venir desde el cierre anterior.
+- Si no existe cierre anterior o no hay dato disponible, mostrar `[NO DATA]` o bloquear guardado con mensaje entendible.
+- No inventar valor inicial.
+
+#### Efectivo real contado
+
+- Campo obligatorio.
+- Editable por usuario autorizado.
+- Valor numérico.
+
+#### Cash según POSMEWS
+
+- Campo obligatorio.
+- Editable por usuario autorizado.
+- Valor numérico.
+
+#### Retiro efectivo caja fuerte
+
+- Campo obligatorio.
+- Editable por usuario autorizado.
+- Valor numérico.
+- Puede ser `0`.
+
+---
+
+## Control Cash — Caja Sala
+
+### Fórmulas
+
+```text
+Diferencial operativa caja cash =
+Efectivo real contado - Fondo de caja inicial - Cash según POSMEWS
