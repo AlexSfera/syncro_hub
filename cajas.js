@@ -9,7 +9,7 @@
     'turno',
     'fondo_inicial',
     'fondo_final',
-    'retiro_efectivo_caja_fuerte',
+    'retiro_caja_fuerte',
     'comentario',
     'estado',
     'validacion',
@@ -35,7 +35,7 @@
         'pensiones_comida_ticadas',
         'propinas_tpv',
         'cargo_alexander_declarado',
-        'retiro_efectivo_caja_fuerte',
+        'retiro_caja_fuerte',
         'fondo_caja_final'
       ],
       campos_obligatorios: [
@@ -65,7 +65,7 @@
             'efectivo_mews',
             'tpv_real',
             'tpv_mews',
-            'retiro_efectivo_caja_fuerte',
+            'retiro_caja_fuerte',
             'fondo_caja_final'
           ],
           campos_obligatorios: [
@@ -86,7 +86,7 @@
             'efectivo_mews',
             'tpv_real',
             'tpv_mews',
-            'retiro_efectivo_caja_fuerte',
+            'retiro_caja_fuerte',
             'fondo_caja_final'
           ],
           campos_obligatorios: [
@@ -117,7 +117,7 @@
             'cargo_alexander_confirmado',
             'cargos_syncrolab_mews',
             'diferencias_detectadas',
-            'retiro_efectivo_caja_fuerte',
+            'retiro_caja_fuerte',
             'fondo_caja_final'
           ],
           campos_obligatorios: [
@@ -152,7 +152,7 @@
             'tpv_flyby_nubimed',
             'efectivo_clinica_real',
             'efectivo_nubimed',
-            'retiro_efectivo_caja_fuerte',
+            'retiro_caja_fuerte',
             'fondo_caja_final'
           ],
           campos_obligatorios: [
@@ -182,7 +182,7 @@
             'efectivo_nubimed',
             'cargo_mews_flyby',
             'cargo_mews_nubimed',
-            'retiro_efectivo_caja_fuerte',
+            'retiro_caja_fuerte',
             'fondo_caja_final'
           ],
           campos_obligatorios: [

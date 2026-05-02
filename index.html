@@ -3514,7 +3514,7 @@ async function renderRecepcionCajaList() {
     if(canReopen && r.estado!=='reabierto') acciones+=' <button class="btn btn-secondary btn-sm" onclick="reabrirCajaRec(&quot;'+r.id+'&quot;)">Reabrir</button>';
     if(isAdmin) acciones+=' <button class="btn btn-danger btn-sm" onclick="eliminarCajaRec(&quot;'+r.id+'&quot;)">Eliminar</button>';
     html+='<tr><td>'+fmtDate(r.fecha)+'</td><td>'+bTurno(r.turno)+'</td><td>'+r.usuario_nombre+'</td>'
-      +'<td style="color:'+difColor+'">'+(r.diferencia_total!==undefined?(r.efectivo_real-r.rec_cash_mews>=0?'+':'')+(r.efectivo_real-r.rec_cash_mews).toFixed(2)+'€':'—')+'</td>'
+      +'<td style="color:'+difColor+'">'+(r.diferencia_total!==undefined?difTxt:'—')+'</td>'
       +'<td style="color:'+difColor+'">'+(r.rec_tarjeta_mews!==undefined?(r.tarjeta_real-r.rec_tarjeta_mews>=0?'+':'')+(r.tarjeta_real-r.rec_tarjeta_mews).toFixed(2)+'€':'—')+'</td>'
       +'<td style="color:'+difColor+'">'+(r.rec_stripe_mews!==undefined?(r.stripe_real-r.rec_stripe_mews>=0?'+':'')+(r.stripe_real-r.rec_stripe_mews).toFixed(2)+'€':'—')+'</td>'
       +'<td style="font-family:var(--font-mono);font-weight:700;color:'+difColor+'">'+difTxt+'</td>'
