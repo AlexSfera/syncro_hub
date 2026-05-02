@@ -1,46 +1,44 @@
-# Current Task — Technical Map Only
+# Current Task — Dashboard
 
 ## Scope
 
-Analyze the current project structure only.
+Work only on Dashboard logic and the minimum related data source needed.
 
-## Objective
+## Problem
 
-Create a technical and functional map of the project before changing any code.
+Dashboard does not correctly show:
+- incidencias count;
+- gestiones pendientes count;
+- FIO/errors total;
+- pending tasks if applicable.
 
-## Required Analysis
+## Expected Result
 
-Review:
+Dashboard must show real saved data, not hardcoded values.
 
-- Project file structure.
-- Purpose of `index.html`.
-- Purpose of `shared.js`.
-- Purpose of `dashboard.js`.
-- Purpose of `recepcion.js`.
-- Purpose of `sala.js`.
-- Purpose of `caja.js`.
-- Purpose of `checklist.js`.
-- Purpose of `incidencia_tipos.js`.
-- Purpose of `sprint1_stabilization.sql`.
-- Supabase connection if present.
-- Data storage logic.
-- Roles and permissions if present.
-- Main modules detected.
-- Technical risks.
+Dashboard must correctly separate:
+- incidencias;
+- gestiones pendientes;
+- tareas pendientes;
+- FIO/errors.
+
+Dashboard must group or filter by department when applicable.
 
 ## Do Not Modify
 
-- Do not modify any code.
-- Do not create new files.
-- Do not change UI.
-- Do not refactor.
+- Do not modify cash closure logic.
+- Do not modify unrelated UI.
+- Do not modify Sala, Cocina or Recepción logic unless absolutely required to read the correct data source.
+- Do not refactor the whole project.
 
-## Expected Output
+## Required Output
 
-- Stack detected.
-- Functional modules detected.
-- Files and their purpose.
-- Data flow.
-- Risks.
-- Missing information marked as `[NO DATA]`.
-- Recommended order of work.
+Before changes:
+- Explain what files you will inspect.
+- Explain probable cause.
+
+After changes:
+- List modified files.
+- Explain changes.
+- Give QA checklist.
+- Mention risks or [NO DATA].

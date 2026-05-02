@@ -7,10 +7,12 @@ var _editingCajaId = null;
 
 function initCajaForm() { renderCajaList(); }
 
-function openCajaForm(existingId) {
+async function openCajaForm(existingId) {
   _editingCajaId=existingId||null;
   var title=document.getElementById('caja-form-title');
   if(title) title.textContent=existingId?'Editar Cierre de Caja':'Nuevo Cierre de Caja';
+  var canEditExisting=false;
+  var existingRow=null;
   var fechaEl=document.getElementById('caja-fecha');
   if(fechaEl) fechaEl.value=today();
   var respEl=document.getElementById('caja-responsable');
@@ -24,6 +26,62 @@ function openCajaForm(existingId) {
     var el=document.getElementById(id); if(el) el.value='';
   });
   document.querySelectorAll('#caja-servicios-check input[type=checkbox]').forEach(function(cb){ cb.checked=false; });
+  if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
+    window.CAJAS_CONFIG.helpers.clearInitialFundAutomation('caja-fondo-ini');
+  }
+  var fondoIniInput=document.getElementById('caja-fondo-ini');
+  if(!existingId&&fondoIniInput) fondoIniInput.value='';
+  if(!existingId&&window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
+    try{
+      var prevRows=await dbGetAll('sala_cash_closures');
+      var prev=window.CAJAS_CONFIG.helpers.getPreviousCashRecord(prevRows,{finalFundField:'fondo_final'});
+      if(prev){
+        window.CAJAS_CONFIG.helpers.applyAutoInitialFund({
+          inputId:'caja-fondo-ini',
+          value:prev.fondo_final,
+          previousId:prev.id,
+          label:'Caja Sala'
+        });
+      }
+    }catch(e){}
+  }
+  if(existingId){
+    try{
+      var rows=await dbGetAll('sala_cash_closures');
+      existingRow=rows.find(function(r){return r.id===existingId;})||null;
+      if(existingRow){
+        canEditExisting=(currentUser&&currentUser.rol==='admin')||(currentUser&&(currentUser.validador==1||currentUser.validador===true));
+        if(existingRow.estado==='Validado final') canEditExisting=false;
+        var set=function(id,val){var el=document.getElementById(id);if(el&&val!==undefined&&val!==null)el.value=val;};
+        set('caja-fecha',existingRow.fecha);
+        set('caja-ef-real',existingRow.efectivo_real);
+        set('caja-ef-posmews',existingRow.efectivo_posmews);
+        set('caja-fondo-ini',existingRow.fondo_inicial);
+        set('caja-fondo-fin',existingRow.fondo_final);
+        set('caja-retiro',existingRow.retiro_caja_fuerte);
+        set('caja-tar-posmews',existingRow.tarjeta_posmews);
+        set('caja-tar-tpv',existingRow.tarjeta_tpv);
+        set('caja-propinas-tpv',existingRow.propinas_tpv);
+        set('caja-propinas',existingRow.propinas);
+        set('caja-str-posmews',existingRow.stripe_posmews);
+        set('caja-str-real',existingRow.stripe_real);
+        set('caja-room',existingRow.room_charge);
+        set('caja-alexander',existingRow.cargo_alexander);
+        set('caja-pension-d',existingRow.pension_desayuno);
+        set('caja-pension-m',existingRow.media_pension);
+        set('caja-pension-c',existingRow.pension_completa);
+        set('caja-total-neto-manual',existingRow.subtotal_neto);
+        set('caja-total-bruto-manual',existingRow.total_bruto);
+        set('caja-comentario',existingRow.comentario);
+      }
+    }catch(e){}
+  }
+  var readonlyExisting=!!existingId&&!canEditExisting;
+  document.querySelectorAll('#modal-caja input,#modal-caja textarea').forEach(function(el){
+    if(el.type!=='hidden'&&el.dataset.autoInitialFund!=='1'&&el.dataset.autoFundLocked!=='1') el.readOnly=readonlyExisting;
+  });
+  var saveBtn=document.querySelector('#modal-caja .modal-footer .btn-primary');
+  if(saveBtn){saveBtn.style.display=readonlyExisting?'none':'';}
   calcCajaTotal();
   document.getElementById('modal-caja').classList.add('open');
 }
@@ -41,16 +99,17 @@ function calcCajaDifs() {
   var fondoIni=getV('caja-fondo-ini');
   var fondoFin=getV('caja-fondo-fin');
   var retiro=getV('caja-retiro');
-  var efEsperado=fondoIni+efPosmews;
-  var difEf=efReal-efEsperado;
-  var difRetiro=efReal-fondoFin-retiro;
+  var helpers=window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers;
+  var difFisica=helpers?helpers.calcularDiferenciaFisicaCaja({efectivoReal:efReal,fondoFinal:fondoFin,retiro:retiro}):efReal-fondoFin-retiro;
+  var difSistema=helpers?helpers.calcularDiferenciaSistemaCaja({efectivoSistema:efPosmews,retiro:retiro,fondoInicial:fondoIni,fondoFinal:fondoFin}):efPosmews-retiro-(fondoFin-fondoIni);
+  var fisicoEsperado=fondoFin+retiro;
 
   var efEspEl=document.getElementById('caja-ef-esperado');
-  if(efEspEl) efEspEl.textContent=efEsperado.toFixed(2)+' €';
-  setEl('caja-dif-ef',difEf);
-  setEl('dif-ef-disp',difEf);
+  if(efEspEl) efEspEl.textContent=fisicoEsperado.toFixed(2)+' €';
+  setEl('caja-dif-ef',difFisica);
+  setEl('dif-ef-disp',difFisica+difSistema);
   var retiroEl=document.getElementById('caja-dif-retiro');
-  if(retiroEl){ retiroEl.textContent=Math.abs(difRetiro)<0.01?'✓ OK retiro':'Δ retiro: '+fmt(difRetiro); retiroEl.style.color=Math.abs(difRetiro)<0.01?'var(--green)':'var(--red)'; }
+  if(retiroEl){ retiroEl.textContent=Math.abs(difSistema)<0.01?'✓ OK Cash POSMEWS':'Δ Cash POSMEWS: '+fmt(difSistema); retiroEl.style.color=Math.abs(difSistema)<0.01?'var(--green)':'var(--red)'; }
 
   var tarPosmews=getV('caja-tar-posmews');
   var tarTpv=getV('caja-tar-tpv');
@@ -66,14 +125,15 @@ function calcCajaDifs() {
   setEl('caja-dif-str',difStr);
   setEl('dif-str-disp',difStr);
 
-  var difTotal=difEf+difTar+difStr;
+  var difTotal=difFisica+difSistema+difTar+difStr;
   var totalEl=document.getElementById('dif-sala-total');
   if(totalEl){ totalEl.textContent=fmt(difTotal); setColor(totalEl,difTotal); }
 
+  var estadoCaja=helpers?helpers.calcularEstadoCaja({diferenciaFisica:difFisica,diferenciaSistema:difSistema,otrasDiferencias:[difTar,difStr]}):(Math.abs(difFisica)>0.01||Math.abs(difSistema)>0.01||Math.abs(difTar)>0.01||Math.abs(difStr)>0.01?'Revisar':'OK');
   var alertEl=document.getElementById('caja-diferencia-alert');
-  if(alertEl) alertEl.style.display=Math.abs(difTotal)>0.01?'block':'none';
+  if(alertEl) alertEl.style.display=estadoCaja==='Revisar'?'block':'none';
   var reqEl=document.getElementById('caja-comentario-req');
-  if(reqEl) reqEl.style.display=Math.abs(difTotal)>0.01?'inline':'none';
+  if(reqEl) reqEl.style.display=estadoCaja==='Revisar'?'inline':'none';
 }
 
 function checkCajaDiferencia() {
@@ -92,6 +152,17 @@ function getCajaServicios() {
 }
 
 async function saveCajaForm() {
+  if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers&&!window.CAJAS_CONFIG.helpers.validateAutoInitialFundBeforeSave('caja-fondo-ini')) return;
+  if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers&&window.CAJAS_CONFIG.helpers.auditAutoInitialFundChange&&!await window.CAJAS_CONFIG.helpers.auditAutoInitialFundChange('caja-fondo-ini','Caja Sala')) return;
+  if(_editingCajaId){
+    var canEdit=(currentUser&&currentUser.rol==='admin')||(currentUser&&(currentUser.validador==1||currentUser.validador===true));
+    if(!canEdit){toast('No tienes permiso para editar este cierre. Ábrelo en modo Ver.','err');return;}
+    try{
+      var existingRows=await dbGetAll('sala_cash_closures');
+      var existing=existingRows.find(function(r){return r.id===_editingCajaId;});
+      if(existing&&existing.estado==='Validado final'){toast('Cierre validado: reabre con motivo antes de modificar.','err');return;}
+    }catch(e){}
+  }
   var fecha=(document.getElementById('caja-fecha')||{}).value||today();
   var servicios=getCajaServicios();
   function getCV(id){ return parseFloat((document.getElementById(id)||{}).value)||0; }
@@ -99,12 +170,16 @@ async function saveCajaForm() {
   var fondoFin=getCV('caja-fondo-fin'), retiro=getCV('caja-retiro');
   var tarPosmews=getCV('caja-tar-posmews'), tarTpv=getCV('caja-tar-tpv'), propinasTpv=getCV('caja-propinas-tpv');
   var strPosmews=getCV('caja-str-posmews'), strReal=getCV('caja-str-real');
-  var difEf=efReal-(fondoIni+efPosmews);
+  var helpers=window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers;
+  var difFisica=helpers?helpers.calcularDiferenciaFisicaCaja({efectivoReal:efReal,fondoFinal:fondoFin,retiro:retiro}):efReal-fondoFin-retiro;
+  var difSistema=helpers?helpers.calcularDiferenciaSistemaCaja({efectivoSistema:efPosmews,retiro:retiro,fondoInicial:fondoIni,fondoFinal:fondoFin}):efPosmews-retiro-(fondoFin-fondoIni);
+  var difEf=difFisica+difSistema;
   var difTar=(tarTpv-propinasTpv)-tarPosmews;
   var difStr=strReal-strPosmews;
   var difOperativa=difEf+difTar+difStr;
   var comentario=(document.getElementById('caja-comentario')||{}).value||'';
-  if(Math.abs(difOperativa)>0.01&&!comentario.trim()){
+  var estadoCaja=helpers?helpers.calcularEstadoCaja({diferenciaFisica:difFisica,diferenciaSistema:difSistema,otrasDiferencias:[difTar,difStr]}):(Math.abs(difFisica)>0.01||Math.abs(difSistema)>0.01||Math.abs(difTar)>0.01||Math.abs(difStr)>0.01?'Revisar':'OK');
+  if(estadoCaja==='Revisar'&&!comentario.trim()){
     toast('Hay diferencia en caja — el comentario es obligatorio','err');
     document.getElementById('caja-comentario').focus();
     return;
@@ -169,6 +244,8 @@ async function renderCajaList() {
     var rows=data.map(function(c){
       var servs=displayServicio(c.servicios||'');
       var diffColor=Math.abs(c.diferencia_caja||0)>5?'var(--red)':'var(--green)';
+      var canEditRow=((currentUser&&currentUser.rol==='admin')||(currentUser&&(currentUser.validador==1||currentUser.validador===true)))&&c.estado!=='Validado final';
+      var actionTxt=canEditRow?'Editar':'Ver';
       return '<tr>'
         +'<td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(c.fecha)+'</td>'
         +'<td>'+servs+'</td>'
@@ -176,7 +253,7 @@ async function renderCajaList() {
         +'<td style="font-family:var(--font-mono);font-weight:700;color:#3b82f6">'+(c.subtotal_neto||0).toFixed(2)+' €</td>'
         +'<td style="font-family:var(--font-mono);color:'+diffColor+'">'+(c.diferencia_caja>=0?'+':'')+((c.diferencia_caja||0).toFixed(2))+' €</td>'
         +'<td>'+bEstado(c.estado)+'</td>'
-        +'<td><button class="btn btn-secondary btn-sm" onclick="openCajaForm(this.dataset.id)" data-id="'+c.id+'">✏️</button></td>'
+        +'<td><button class="btn btn-secondary btn-sm" onclick="openCajaForm(this.dataset.id)" data-id="'+c.id+'">'+actionTxt+'</button></td>'
         +'</tr>';
     }).join('');
     el.innerHTML='<table><tr><th>Fecha</th><th>Servicio</th><th>Responsable</th><th>Total neto</th><th>Diferencia</th><th>Estado</th><th></th></tr>'+rows+'</table>';

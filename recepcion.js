@@ -104,11 +104,16 @@ function calcRecDifs() {
   var realCash=parseFloat(document.getElementById('rec-cash-real').value)||0;
   var realTpv=parseFloat(document.getElementById('rec-tpv-real').value)||0;
   var realStr=parseFloat(document.getElementById('rec-stripe-real').value)||0;
+  var fondoRec=parseFloat((document.getElementById('rec-fondo-recibido')||{}).value)||0;
+  var fondoTras=parseFloat((document.getElementById('rec-fondo-traspaso')||{}).value)||0;
+  var cfImporte=parseFloat((document.getElementById('rec-cf-importe')||{}).value)||0;
 
-  var difCash=realCash-mewsCash;
+  var helpers=window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers;
+  var difCash=helpers?helpers.calcularDiferenciaFisicaCaja({efectivoReal:realCash,fondoFinal:fondoTras,retiro:cfImporte}):realCash-fondoTras-cfImporte;
+  var difCashSistema=helpers?helpers.calcularDiferenciaSistemaCaja({efectivoSistema:mewsCash,retiro:cfImporte,fondoInicial:fondoRec,fondoFinal:fondoTras}):mewsCash-cfImporte-(fondoTras-fondoRec);
   var difTar=realTpv-mewsTar;
   var difStr=realStr-mewsStr;
-  var difTotal=difCash+difTar+difStr;
+  var difTotal=difCash+difCashSistema+difTar+difStr;
 
   function colorDif(val){
     var el_color=val===0?'var(--green)':val>0?'var(--blue)':'var(--red)';
@@ -117,8 +122,14 @@ function calcRecDifs() {
   var dc=colorDif(difCash), dt=colorDif(difTar), ds=colorDif(difStr), dtt=colorDif(difTotal);
   var setCss=function(id,obj){var el=document.getElementById(id);if(el){el.textContent=obj.text;el.style.color=obj.color;}};
   setCss('rec-dif-cash',dc); setCss('rec-dif-tarjeta',dt); setCss('rec-dif-stripe',ds); setCss('rec-dif-total',dtt);
+  setCss('rec-dif-cash-total',colorDif(difCash+difCashSistema));
+  setCss('rec-dif-cash-mews',colorDif(difCashSistema));
+  var fisicoEl=document.getElementById('rec-fisico-esperado');
+  if(fisicoEl) fisicoEl.textContent=(fondoTras+cfImporte).toFixed(2)+' €';
+  var feEl=document.getElementById('rec-fondo-esperado');
+  if(feEl){var fs=colorDif(difCashSistema);feEl.textContent='Δ Cash MEWS: '+fs.text;feEl.style.color=fs.color;}
 
-  var hasError=Math.abs(difTotal)>0.01;
+  var hasError=(helpers?helpers.calcularEstadoCaja({diferenciaFisica:difCash,diferenciaSistema:difCashSistema,otrasDiferencias:[difTar,difStr]}):((Math.abs(difCash)>0.01||Math.abs(difCashSistema)>0.01||Math.abs(difTar)>0.01||Math.abs(difStr)>0.01)?'Revisar':'OK'))==='Revisar';
   var alertEl=document.getElementById('rec-dif-alert');
   var expBlock=document.getElementById('rec-dif-exp-block');
   if(alertEl) alertEl.style.display=hasError?'block':'none';
@@ -130,12 +141,15 @@ function calcRecDifs() {
   if(fondoIni) fondoIni.style.display=turno==='Noche'?'block':'none';
 }
 
-function openRecCajaModal(existingId) {
+async function openRecCajaModal(existingId) {
   _recCajaEditId = existingId||null;
   // Reset form
-  ['rec-cash-mews','rec-tarjeta-mews','rec-stripe-mews','rec-cash-real','rec-tpv-real','rec-stripe-real','rec-fondo-recibido','rec-fondo-traspaso','rec-fondo-inicial','rec-dif-exp','rec-dif-accion'].forEach(function(id){
+  ['rec-cash-mews','rec-tarjeta-mews','rec-stripe-mews','rec-cash-real','rec-tpv-real','rec-stripe-real','rec-fondo-recibido','rec-fondo-traspaso','rec-cf-importe','rec-fondo-inicial','rec-dif-exp','rec-dif-accion'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
+  if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
+    window.CAJAS_CONFIG.helpers.clearInitialFundAutomation('rec-fondo-recibido');
+  }
   var turno=getRecTurnoValue()||'—';
   var label=document.getElementById('rec-caja-turno-label');
   if(label) label.textContent=turno;
@@ -164,9 +178,26 @@ function openRecCajaModal(existingId) {
       set('rec-dif-accion',row.accion_tomada);
       calcRecDifs();
     });
+  } else if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
+    try{
+      var prevRows=await getDB('cash_closings');
+      var prev=window.CAJAS_CONFIG.helpers.getPreviousCashRecord(prevRows,{
+        department:'recepcion',
+        finalFundField:'rec_fondo_traspaso'
+      });
+      if(prev){
+        window.CAJAS_CONFIG.helpers.applyAutoInitialFund({
+          inputId:'rec-fondo-recibido',
+          value:prev.rec_fondo_traspaso,
+          previousId:prev.id,
+          label:'Caja Recepcion Hotel'
+        });
+      }
+    }catch(e){}
   }
   var m=document.getElementById('modal-rec-caja');
   if(m){ m.style.display='flex'; }
+  calcRecDifs();
 }
 
 function closeRecCajaModal() {
@@ -175,6 +206,8 @@ function closeRecCajaModal() {
 }
 
 async function submitRecCaja() {
+  if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers&&!window.CAJAS_CONFIG.helpers.validateAutoInitialFundBeforeSave('rec-fondo-recibido')) return;
+  if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers&&window.CAJAS_CONFIG.helpers.auditAutoInitialFundChange&&!await window.CAJAS_CONFIG.helpers.auditAutoInitialFundChange('rec-fondo-recibido','Caja Recepcion Hotel')) return;
   var errs=[];
   var mewsCash=parseFloat(document.getElementById('rec-cash-mews').value);
   var mewsTar=parseFloat(document.getElementById('rec-tarjeta-mews').value);
@@ -194,8 +227,12 @@ async function submitRecCaja() {
   if(isNaN(realStr))  errs.push('Stripe real obligatorio');
   if(isNaN(fondoTras)) errs.push('Fondo traspasado obligatorio');
 
-  var difTotal=(realCash-mewsCash)+(realTpv-mewsTar)+(realStr-mewsStr);
-  var hasError=Math.abs(difTotal)>0.01;
+  var cfImporte=parseFloat((document.getElementById('rec-cf-importe')||{}).value)||0;
+  var helpers=window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers;
+  var difFisica=helpers?helpers.calcularDiferenciaFisicaCaja({efectivoReal:realCash,fondoFinal:fondoTras,retiro:cfImporte}):realCash-fondoTras-cfImporte;
+  var difSistema=helpers?helpers.calcularDiferenciaSistemaCaja({efectivoSistema:mewsCash,retiro:cfImporte,fondoInicial:fondoRec,fondoFinal:fondoTras}):mewsCash-cfImporte-(fondoTras-fondoRec);
+  var difTotal=difFisica+difSistema+(realTpv-mewsTar)+(realStr-mewsStr);
+  var hasError=(helpers?helpers.calcularEstadoCaja({diferenciaFisica:difFisica,diferenciaSistema:difSistema,otrasDiferencias:[realTpv-mewsTar,realStr-mewsStr]}):((Math.abs(difFisica)>0.01||Math.abs(difSistema)>0.01||Math.abs(realTpv-mewsTar)>0.01||Math.abs(realStr-mewsStr)>0.01)?'Revisar':'OK'))==='Revisar';
   if(hasError){
     var exp=document.getElementById('rec-dif-exp').value.trim();
     if(!exp) errs.push('Diferencia detectada: explicación obligatoria');
@@ -665,12 +702,15 @@ function calcRecDifs() {
   var realTpv  = parseFloat((document.getElementById('rec-tpv-real')||{}).value)||0;
   var realStr  = parseFloat((document.getElementById('rec-stripe-real')||{}).value)||0;
   var fondoRec = parseFloat((document.getElementById('rec-fondo-recibido')||{}).value)||0;
+  var fondoTras= parseFloat((document.getElementById('rec-fondo-traspaso')||{}).value)||0;
   var cfImporte= parseFloat((document.getElementById('rec-cf-importe')||{}).value)||0;
 
-  var difCash  = realCash - mewsCash;
+  var helpers = window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers;
+  var difCash  = helpers?helpers.calcularDiferenciaFisicaCaja({efectivoReal:realCash,fondoFinal:fondoTras,retiro:cfImporte}):realCash-fondoTras-cfImporte;
+  var difCashSistema = helpers?helpers.calcularDiferenciaSistemaCaja({efectivoSistema:mewsCash,retiro:cfImporte,fondoInicial:fondoRec,fondoFinal:fondoTras}):mewsCash-cfImporte-(fondoTras-fondoRec);
   var difTar   = realTpv  - mewsTar;
   var difStr   = realStr  - mewsStr;
-  var difTotal = difCash + difTar + difStr;
+  var difTotal = difCash + difCashSistema + difTar + difStr;
 
   function fmt(val){
     return (val>=0?'+':'')+val.toFixed(2)+' €';
@@ -682,19 +722,22 @@ function calcRecDifs() {
     el.style.color = Math.abs(val)<0.01?'var(--green)':val>0?'var(--blue)':'var(--red)';
   }
   setColor('rec-dif-cash', difCash);
+  setColor('rec-dif-cash-mews', difCashSistema);
+  setColor('rec-dif-cash-total', difCash + difCashSistema);
   setColor('rec-dif-tarjeta', difTar);
   setColor('rec-dif-stripe', difStr);
   setColor('rec-dif-total', difTotal);
+  var fisicoEl = document.getElementById('rec-fisico-esperado');
+  if(fisicoEl) fisicoEl.textContent = (fondoTras + cfImporte).toFixed(2) + ' €';
 
-  // Caja fuerte: fondo esperado = fondo recibido + cash MEWS - retiro CF
-  var fondoEsperado = fondoRec + mewsCash - cfImporte;
+  // Control sistema: Cash MEWS = Retiro + incremento de fondo.
   var feEl = document.getElementById('rec-fondo-esperado');
   if(feEl){
-    feEl.textContent = fondoEsperado.toFixed(2) + ' €';
-    feEl.style.color = fondoEsperado >= 0 ? 'var(--green)' : 'var(--red)';
+    feEl.textContent = 'Δ Cash MEWS: ' + fmt(difCashSistema);
+    feEl.style.color = Math.abs(difCashSistema)<0.01?'var(--green)':Math.abs(difCashSistema)>5?'var(--red)':'var(--amber)';
   }
 
-  var hasError = Math.abs(difTotal) > 0.01;
+  var hasError = (helpers?helpers.calcularEstadoCaja({diferenciaFisica:difCash,diferenciaSistema:difCashSistema,otrasDiferencias:[difTar,difStr]}):((Math.abs(difCash)>0.01||Math.abs(difCashSistema)>0.01||Math.abs(difTar)>0.01||Math.abs(difStr)>0.01)?'Revisar':'OK'))==='Revisar';
   var alertEl = document.getElementById('rec-dif-alert');
   var expBlock = document.getElementById('rec-dif-exp-block');
   if(alertEl) alertEl.style.display = hasError ? 'block' : 'none';
