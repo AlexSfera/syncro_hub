@@ -3349,7 +3349,7 @@ async function openRecCajaModal(existingId) {
   document.getElementById('rec-caja-err').textContent='';
   // Load existing if editing
   if(existingId){
-    getDB('cash_closings').then(function(rows){
+    getDB('recepcion_cash').then(function(rows){
       var row=rows.find(function(r){return r.id===existingId;});
       if(!row) return;
       var set=function(id,val){var el=document.getElementById(id);if(el&&val!=null)el.value=val;};
@@ -3361,6 +3361,7 @@ async function openRecCajaModal(existingId) {
       set('rec-tpv-real',row.tarjeta_real);
       set('rec-stripe-real',row.stripe_real);
       set('rec-fondo-traspaso',row.rec_fondo_traspaso);
+      set('rec-cf-importe',row.retiro_caja_fuerte);
       set('rec-fondo-inicial',row.rec_fondo_inicial_dia);
       set('rec-dif-exp',row.diferencia_explicacion);
       set('rec-dif-accion',row.accion_tomada);
@@ -3447,6 +3448,7 @@ async function submitRecCaja() {
     usuario_nombre: currentUser.nombre,
     estado: 'cerrado',
     fondo_inicial: fondoRec,
+    retiro_caja_fuerte: cfImporte,
     efectivo_real: realCash,
     tarjeta_real: realTpv,
     stripe_real: realStr,
@@ -3468,15 +3470,15 @@ async function submitRecCaja() {
 
   try {
     if(_recCajaEditId){
-      await dbUpdate('cash_closings', _recCajaEditId, record);
+      await dbUpdate('recepcion_cash', _recCajaEditId, record);
       await auditLog('REC_CAJA_EDIT', currentUser.nombre+' editó caja recepción '+fecha+' turno '+turno);
       toast('Caja recepción actualizada','ok');
     } else {
-      await dbInsert('cash_closings', record);
+      await dbInsert('recepcion_cash', record);
       await auditLog('REC_CAJA_SAVE', currentUser.nombre+' cerró caja recepción '+fecha+' turno '+turno);
       toast('Caja recepción guardada','ok');
     }
-    invalidateCache('cash_closings');
+    invalidateCache('recepcion_cash');
     closeRecCajaModal();
     renderRecepcionCajaList();
   } catch(e){
@@ -3490,7 +3492,7 @@ async function renderRecepcionCajaList() {
   el.innerHTML='<div class="empty"><div class="empty-text">Cargando...</div></div>';
   var periodo=document.getElementById('rec-dash-periodo')?document.getElementById('rec-dash-periodo').value:'hoy';
   var rows=[];
-  try { rows=await getDB('cash_closings'); } catch(e){ rows=[]; }
+  try { rows=await getDB('recepcion_cash'); } catch(e){ rows=[]; }
   rows=rows.filter(function(r){return r.departamento==='recepcion';});
   // Filter by period
   var t=today(), sw=startOfWeek(), sm=startOfMonth();
@@ -3533,19 +3535,19 @@ async function reabrirCajaRec(cajaId) {
   var motivo=prompt('Motivo de reapertura (obligatorio):');
   if(!motivo||!motivo.trim()){toast('Motivo obligatorio','err');return;}
   try {
-    await dbUpdate('cash_closings', cajaId, {
+    await dbUpdate('recepcion_cash', cajaId, {
       estado:'reabierto',
       reabierto_por: currentUser.nombre,
       fecha_reapertura: new Date().toISOString(),
       motivo_reapertura: motivo.trim()
     });
     await dbInsert('closing_audit_log',{
-      id:genId(),tabla:'cash_closings',registro_id:cajaId,
+      id:genId(),tabla:'recepcion_cash',registro_id:cajaId,
       usuario_id:currentUser.id,usuario_nombre:currentUser.nombre,
       accion:'reabierto',motivo:motivo.trim(),fecha_registro:today(),
       created_at:new Date().toISOString()
     });
-    invalidateCache('cash_closings');
+    invalidateCache('recepcion_cash');
     toast('Caja reabierta','ok');
     renderRecepcionCajaList();
   } catch(e){ toast('Error: '+e.message,'err'); }
@@ -3558,13 +3560,13 @@ async function eliminarCajaRec(cajaId) {
   if(!confirm('¿Eliminar este cierre de caja? Esta acción quedará registrada en auditoría.')) return;
   try {
     await dbInsert('closing_audit_log',{
-      id:genId(),tabla:'cash_closings',registro_id:cajaId,
+      id:genId(),tabla:'recepcion_cash',registro_id:cajaId,
       usuario_id:currentUser.id,usuario_nombre:currentUser.nombre,
       accion:'eliminado',motivo:motivo.trim(),fecha_registro:today(),
       created_at:new Date().toISOString()
     });
-    await dbDelete('cash_closings', cajaId);
-    invalidateCache('cash_closings');
+    await dbDelete('recepcion_cash', cajaId);
+    invalidateCache('recepcion_cash');
     toast('Caja eliminada — registrado en auditoría','ok');
     renderRecepcionCajaList();
   } catch(e){ toast('Error: '+e.message,'err'); }
@@ -3576,7 +3578,7 @@ async function renderRecepcionDashboard() {
   el.innerHTML='<div class="empty"><div class="empty-text">Cargando...</div></div>';
   var periodo=document.getElementById('rec-dash-periodo2')?document.getElementById('rec-dash-periodo2').value:'hoy';
   var rows=[];
-  try { rows=await getDB('cash_closings'); } catch(e){ rows=[]; }
+  try { rows=await getDB('recepcion_cash'); } catch(e){ rows=[]; }
   rows=rows.filter(function(r){return r.departamento==='recepcion';});
   var t=today(), sw=startOfWeek(), sm=startOfMonth();
   if(periodo==='hoy') rows=rows.filter(function(r){return r.fecha===t;});
