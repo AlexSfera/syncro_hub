@@ -350,7 +350,7 @@ Eliminar dead code confirmado en shared.js sin tocar lógica activa.
 
 ### Estado
 ```text
-COMPLETADO — QA automático OK — QA manual pendiente en navegador
+COMPLETADO — QA automático OK — QA manual OK (confirmado Alexander 2026-05-04)
 ```
 
 ### Objetivo
@@ -373,14 +373,14 @@ Mover capa DB de `shared.js` a `shared_db.js`, cargando el nuevo archivo antes q
 - [x] Diff `shared.js`: solo stubs de comentario, sin ruido de whitespace
 - [x] Diff `index.html`: 1 línea añadida
 
-### QA manual pendiente en navegador
-- [ ] Login con PIN admin → sesión abre y app carga sin error en consola
-- [ ] Login con PIN chef → sesión abre
-- [ ] DevTools Network → `shared_db.js` carga con 200
-- [ ] Guardar turno → sin error Supabase en consola
-- [ ] Validar turno → sin error
-- [ ] Dashboard carga → sin error
-- [ ] Exportar CSV → sin error
+### QA manual en navegador — OK (Alexander 2026-05-04)
+- [x] Login con PIN admin → sesión abre y app carga sin error en consola
+- [x] Login con PIN chef → sesión abre
+- [x] DevTools Network → `shared_db.js` carga con 200
+- [x] Guardar turno → sin error Supabase en consola
+- [x] Validar turno → sin error
+- [x] Dashboard carga → sin error
+- [x] Exportar CSV → sin error
 
 ---
 
@@ -388,7 +388,7 @@ Mover capa DB de `shared.js` a `shared_db.js`, cargando el nuevo archivo antes q
 
 ### Estado
 ```text
-COMPLETADO — QA automático OK — SQL pendiente en Supabase — QA manual pendiente
+COMPLETADO — SQL ejecutado en Supabase — QA manual OK (confirmado Alexander 2026-05-04)
 ```
 
 ### Prioridad
@@ -433,19 +433,13 @@ fondoRec=100, mewsCash=80, realCash=180, cfImporte=50:
 ### No hay SQL adicional
 Los campos usados (`fondo_real_a_traspasar`, `fondo_traspasado`) ya están en el SQL pendiente de TASK-008/009.
 
-### QA manual pendiente
-- [ ] Ejecutar SQL aditivo completo (TASK-008 + TASK-009)
-- [ ] Login → borrar registros de prueba anteriores con `fondo_traspasado = 0` en DB
-   (ó probar directamente con usuario sin registros previos)
-- [ ] Abrir + Nuevo cuadre → verificar que `rec-fondo-recibido` está editable (sin "Desbloquear" si no hay previo o previo tenía 0)
-- [ ] Introducir: fondo=100, MEWS cash=80, cash real=180, retiro=50
-  - Δ Cash = 0 ✓
-  - Fondo esperado = 130 ✓
-  - Total desvío = 0 (con tarjeta/stripe/transf = 0) ✓
-  - Sin alerta operativa ✓
-- [ ] Guardar → volver a abrir → comprobar que `fondo_recibido` se auto-carga correctamente
-- [ ] Comprobar que con registro previo correcto (fondo_traspasado > 0), el campo SÍ se bloquea
-- [ ] Caja Sala → confirmar sin cambios
+### QA manual — OK (Alexander 2026-05-04)
+- [x] SQL aditivo completo (TASK-008 + TASK-009) ejecutado en Supabase
+- [x] `rec-fondo-recibido` editable cuando previo = 0
+- [x] Fórmulas: Δ Cash = 0, Fondo esperado = 130, Total desvío = 0 ✓
+- [x] Campo se auto-carga correctamente en registros existentes
+- [x] Campo se bloquea cuando `fondo_traspasado > 0` en DB ✓
+- [x] Caja Sala intacta — sin cambios
 
 ---
 
@@ -453,7 +447,7 @@ Los campos usados (`fondo_real_a_traspasar`, `fondo_traspasado`) ya están en el
 
 ### Estado
 ```text
-COMPLETADO — QA automático OK — SQL pendiente en Supabase — QA manual pendiente
+COMPLETADO — SQL ejecutado en Supabase — QA manual OK (confirmado Alexander 2026-05-04)
 ```
 
 ### Prioridad
@@ -508,19 +502,15 @@ ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS dif_fondo_traspaso     numer
 - [x] `openRecCajaModal` resetea y carga nuevo campo
 - [x] Caja Sala (`calcCajaDifs`, `sala_cash_closures`) intacta — 25 referencias sin cambios
 
-### QA manual pendiente
-- [ ] Ejecutar SQL aditivo (ambos: TASK-008 + TASK-009) en Supabase
-- [ ] Abrir Caja Recepción → + Nuevo cuadre
-- [ ] Verificar sección TRASPASO AL SIGUIENTE TURNO visible
-- [ ] Probar: fondo 100, cash MEWS 80, cash real 180, retiro 50
-  - Δ Cash = 0 ✓
-  - Fondo esperado = 130 ✓
-- [ ] Dejar `Fondo real a traspasar` vacío → no aparece alerta traspaso
-- [ ] Introducir fondo real = 130 → Diferencia = 0, sin alerta
-- [ ] Introducir fondo real = 0 → Diferencia = −130, aparece alerta, exige explicación
-- [ ] Guardar → recargar → fondo real y diferencia persisten correctamente
-- [ ] Abrir registro existente → fondo real cargado en campo
-- [ ] Caja Sala → confirmar fórmulas no cambiadas
+### QA manual — OK (Alexander 2026-05-04)
+- [x] SQL aditivo (TASK-008 + TASK-009) ejecutado en Supabase
+- [x] Sección TRASPASO AL SIGUIENTE TURNO visible ✓
+- [x] Fórmulas: Δ Cash = 0, Fondo esperado = 130 ✓
+- [x] Fondo real a traspasar: campo vacío → sin alerta ✓
+- [x] Fondo real = 130 → Diferencia = 0, sin alerta ✓
+- [x] Fondo real = 0 → Diferencia = −130, alerta + explicación obligatoria ✓
+- [x] Persistencia en DB correcta ✓
+- [x] Caja Sala intacta — fórmulas sin cambios ✓
 
 ---
 
@@ -528,7 +518,7 @@ ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS dif_fondo_traspaso     numer
 
 ### Estado
 ```text
-COMPLETADO — QA automático OK — QA manual pendiente en navegador + SQL pendiente en Supabase
+COMPLETADO — SQL ejecutado en Supabase — QA manual OK (confirmado Alexander 2026-05-04)
 ```
 
 ### Prioridad
@@ -587,19 +577,17 @@ ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS retiro_caja_fuerte          
 - [x] Caja Sala (calcCajaDifs, sala_cash_closures) intacta
 - [x] 2 definiciones de calcRecDifs: la activa es la de línea ~4051
 
-### QA manual pendiente
-- [ ] Ejecutar SQL aditivo en Supabase
-- [ ] Login → navegar a Caja Recepción
-- [ ] + Nuevo cuadre de caja → completar KPI → abrir modal caja
-- [ ] Verificar secciones: EFECTIVO, TARJETA, STRIPE, TRANSFERENCIA, DIFERENCIA OPERATIVA
-- [ ] Probar: todo 0 → desvío = 0
-- [ ] Probar: diferencia en cash → desvío ≠ 0 → pedir explicación
-- [ ] Probar: cambiar Stripe Platform → fecha se actualiza automáticamente
-- [ ] Probar: cambiar Transferencia → fecha se actualiza automáticamente
-- [ ] Guardar → recargar → verificar persistencia de todos los campos
-- [ ] Ver registro → fondo final calculado muestra correctamente
-- [ ] Verificar dashboard no roto
-- [ ] Crear Caja Sala → confirmar fórmulas Sala no cambiadas
+### QA manual — OK (Alexander 2026-05-04)
+- [x] SQL aditivo ejecutado en Supabase ✓
+- [x] Secciones EFECTIVO / TARJETA / STRIPE / TRANSFERENCIA / DIFERENCIA OPERATIVA ✓
+- [x] Todo 0 → desvío = 0 ✓
+- [x] Diferencia en cash → desvío ≠ 0 → explicación requerida ✓
+- [x] Stripe Platform → fecha se actualiza ✓
+- [x] Transferencia → fecha se actualiza ✓
+- [x] Persistencia de todos los campos ✓
+- [x] Fondo final calculado correcto ✓
+- [x] Dashboard no roto ✓
+- [x] Caja Sala — fórmulas sin cambios ✓
 
 ---
 
@@ -607,8 +595,8 @@ ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS retiro_caja_fuerte          
 
 | Prioridad | Tarea | Estado |
 |---|---|---|
-| **P1.9 — PRIMERO** | **Ejecutar SQL aditivo (TASK-008 + TASK-009) + QA manual** | **Pendiente Alexander** |
-| P2.2 | TASK-007 Fase 3: Extraer `shared_format.js` | Pendiente QA Fase 2 + confirmación |
+| ~~P1.9~~ | ~~Ejecutar SQL aditivo (TASK-008 + TASK-009) + QA manual~~ | ~~COMPLETADO 2026-05-04~~ |
+| **P2.2 — SIGUIENTE** | **TASK-007 Fase 3: Extraer `shared_format.js`** | **Listo para iniciar** |
 | P3 | Extraer templates HTML de `index.html` | Futuro |
 | P3 | Implementar Caja SYNCROLAB | Futuro / depende de tabla real |
 
