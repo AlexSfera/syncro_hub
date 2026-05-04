@@ -85,7 +85,7 @@ P3 = futuro / mejora
 ### Estado
 
 ```text
-Pendiente
+Confirmado
 ```
 
 ### Pregunta pendiente
@@ -137,10 +137,42 @@ Opción C — híbrido.
 Alexander
 ```
 
+### Quién decidió
+
+```text
+Alexander
+```
+
+### Fecha decisión
+
+```text
+2026-05-04
+```
+
 ### Resultado final
 
 ```text
-[NO DATA]
+Confirmado. Modelo híbrido.
+
+- Soft delete como comportamiento normal en producción.
+- Registros eliminados se marcan como eliminados y se excluyen de Dashboard,
+  Validación operativa, listados activos y KPIs.
+- Trazabilidad garantizada mediante audit log.
+- Hard delete permitido solo para Admin.
+- Hard delete solo en modo limpieza / datos de prueba / corrección excepcional.
+- Antes de hard delete debe registrarse audit log previo con:
+    - tabla afectada;
+    - id del registro;
+    - usuario que elimina;
+    - fecha/hora;
+    - motivo;
+    - snapshot mínimo del registro si está disponible.
+- Hard delete requiere confirmación fuerte en UI.
+- Usuario lineal nunca puede eliminar definitivamente.
+- Validador/Jefe no puede hard delete salvo permiso explícito futuro.
+- No ejecutar SQL ahora.
+- No tocar código ahora.
+- No tocar Supabase ahora.
 ```
 
 ---
@@ -158,7 +190,7 @@ Alexander
 ### Estado
 
 ```text
-Pendiente
+Confirmado
 ```
 
 ### Pregunta pendiente
@@ -230,10 +262,32 @@ Crear fio_records y mantener campos actuales como compatibilidad temporal.
 - Alertas FIO críticas no gestionadas incompletas.
 - Bonus futuro bloqueado.
 
+### Quién decidió
+
+```text
+Alexander
+```
+
+### Fecha decisión
+
+```text
+2026-05-04
+```
+
 ### Resultado final
 
 ```text
-[NO DATA]
+Confirmado.
+
+- Crear fio_records como tabla definitiva para FIO.
+- Mantener columnas actuales en shifts como compatibilidad temporal.
+- No eliminar columnas actuales de shifts todavía.
+- Dashboard y Validación deben migrar progresivamente a fio_records.
+- Usuario lineal nunca crea FIO.
+- Solo Admin / Validador / Jefe autorizado puede crear FIO.
+- La migración debe ser faseada y documentada.
+- No ejecutar SQL ahora.
+- No tocar código ahora.
 ```
 
 ---
@@ -253,7 +307,7 @@ Crear fio_records y mantener campos actuales como compatibilidad temporal.
 ### Estado
 
 ```text
-Pendiente
+Confirmado
 ```
 
 ### Pregunta pendiente
@@ -303,10 +357,37 @@ closed_by
 - Validación no puede separar gestión/incidencia/tarea.
 - QA queda bloqueado en gestiones.
 
+### Quién decidió
+
+```text
+Alexander
+```
+
+### Fecha decisión
+
+```text
+2026-05-04
+```
+
 ### Resultado final
 
 ```text
-[NO DATA]
+Confirmado.
+
+- Crear gestion_pendiente como tabla separada.
+- No mezclar gestiones con incidencias.
+- No mezclar gestiones con tareas.
+- No usar observaciones/follow_up para ocultar gestiones.
+- Gestiones deben ser visibles hasta cierre.
+- Deben alimentar Dashboard, Validación y Follow-up.
+- La migración debe ser faseada.
+- No ejecutar SQL ahora.
+- No tocar código ahora.
+
+Campos mínimos confirmados:
+id, shift_id, employee_id, department_code, fecha, servicio_turno,
+tipo_gestion, descripcion, estado, deadline, created_at, updated_at,
+closed_at, closed_by.
 ```
 
 ---
@@ -326,7 +407,7 @@ closed_by
 ### Estado
 
 ```text
-Pendiente
+Confirmado
 ```
 
 ### Problema
@@ -367,10 +448,37 @@ resolved_at timestamptz
 - Conciliación por fecha puede fallar.
 - Tareas vencidas pueden fallar.
 
+### Quién decidió
+
+```text
+Alexander
+```
+
+### Fecha decisión
+
+```text
+2026-05-04
+```
+
 ### Resultado final
 
 ```text
-[NO DATA]
+Confirmado.
+
+- Mantener campos text actuales por compatibilidad.
+- Añadir columnas normalizadas sin romper campos actuales.
+- Usar columnas normalizadas para Dashboard, filtros, orden cronológico, SLA y reporting.
+- No eliminar campos actuales.
+- Migración faseada con backfill y QA.
+- No ejecutar SQL ahora.
+- No tocar código ahora.
+
+Columnas a añadir:
+- fecha_date date
+- deadline_date date
+- created_at_ts timestamptz (si falta created_at real)
+- updated_at_ts timestamptz (si aplica)
+- closed_at timestamptz (para incidencias, gestiones y tareas cerradas/resueltas)
 ```
 
 ---

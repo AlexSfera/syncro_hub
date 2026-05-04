@@ -175,14 +175,82 @@ Dividir `06_DATA_MODEL.md` (~1.885 líneas) en dos archivos especializados para 
 
 ---
 
+## TASK-004 — Confirmar decisiones P0 en `09_DECISIONS_PENDING.md`
+
+### Estado
+```text
+COMPLETADO
+```
+
+### Prioridad
+```text
+P1.3
+```
+
+### Objetivo
+Revisar `09_DECISIONS_PENDING.md`, presentar las decisiones P0 a Alexander y registrar las confirmaciones en el archivo.
+
+### Decisiones confirmadas
+- DEC-P0-002 — Tabla definitiva para FIO → **Confirmado** (2026-05-04)
+- DEC-P0-003 — Tabla definitiva para gestiones pendientes → **Confirmado** (2026-05-04)
+- DEC-P0-004 — Fechas normalizadas en Supabase → **Confirmado** (2026-05-04)
+
+### Decisiones aún pendientes
+- DEC-P0-001 — Política de eliminación → **Pendiente**
+
+### Archivos modificados
+- `docs/context/09_DECISIONS_PENDING.md` — Estado y Resultado final actualizados en DEC-P0-002, 003, 004.
+- `docs/context/08_CURRENT_TASK.md` — este archivo.
+
+### Criterios de aceptación verificados
+- [x] DEC-P0-002 actualizada con decisión, fecha y quién decidió.
+- [x] DEC-P0-003 actualizada con decisión, campos confirmados, fecha y quién decidió.
+- [x] DEC-P0-004 actualizada con decisión, columnas confirmadas, fecha y quién decidió.
+- [x] No se tocó código.
+- [x] No se ejecutó SQL.
+- [x] No se tocó `index.html` ni `shared.js`.
+
+---
+
+## TASK-005 — Confirmar DEC-P0-001 (política de eliminación)
+
+### Estado
+```text
+COMPLETADO
+```
+
+### Prioridad
+```text
+P1.4
+```
+
+### Objetivo
+Registrar la decisión de Alexander sobre política de eliminación en producción.
+
+### Decisión confirmada
+- DEC-P0-001 — Política de eliminación → **Confirmado modelo híbrido** (2026-05-04)
+
+### Archivos modificados
+- `docs/context/09_DECISIONS_PENDING.md` — Estado y Resultado final actualizados en DEC-P0-001.
+- `docs/context/08_CURRENT_TASK.md` — este archivo.
+
+### Criterios de aceptación verificados
+- [x] DEC-P0-001 actualizada con decisión, fecha y quién decidió.
+- [x] Modelo híbrido documentado: soft delete normal + hard delete solo Admin.
+- [x] Requisitos de audit log previo al hard delete documentados.
+- [x] No se tocó código.
+- [x] No se ejecutó SQL.
+- [x] No se tocó `index.html` ni `shared.js`.
+
+---
+
 ## PRÓXIMAS TAREAS — NO EMPEZAR TODAVÍA
 
 | Prioridad | Tarea | Estado |
 |---|---|---|
-| **P1.3 — SIGUIENTE** | **TASK-004 — Revisar `09_DECISIONS_PENDING.md` y preparar decisiones P0 para Alexander** | **Pendiente confirmación** |
-| P2 | Dividir `shared.js` en módulos por responsabilidad | Pendiente — no empezar todavía |
+| **P2 — SIGUIENTE** | **Dividir `shared.js` en módulos por responsabilidad** | **Pendiente confirmación** |
 | P3 | Extraer templates HTML de `index.html` | Futuro |
-| P3 | Implementar Caja SYNCROLAB | Futuro / depende de decisión y tabla real |
+| P3 | Implementar Caja SYNCROLAB | Futuro / depende de tabla real |
 
 ---
 
@@ -209,10 +277,12 @@ feature/cajas-v1
 Ver `09_DECISIONS_PENDING.md`.
 
 Pendientes críticos:
-- DEC-P0-001 — política de eliminación.
-- DEC-P0-002 — tabla definitiva para FIO.
-- DEC-P0-003 — tabla definitiva para gestiones pendientes.
-- DEC-P0-004 — [NO DATA si no está confirmado en archivo].
+- DEC-P0-001 — política de eliminación. [CONFIRMADO 2026-05-04]
+- DEC-P0-002 — tabla definitiva para FIO. [CONFIRMADO 2026-05-04]
+- DEC-P0-003 — tabla definitiva para gestiones pendientes. [CONFIRMADO 2026-05-04]
+- DEC-P0-004 — fechas normalizadas en Supabase. [CONFIRMADO 2026-05-04]
+
+Todas las decisiones P0 están confirmadas.
 
 ### Regla Caja Recepción
 Usar `recepcion_cash` como tabla canónica.  
