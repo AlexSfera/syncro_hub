@@ -140,12 +140,47 @@ Dividir `04_MODULE_DASHBOARD.md` para reducir contexto en sesiones futuras y sep
 
 ---
 
+## TASK-003 — Dividir `06_DATA_MODEL.md` en schema + SQL
+
+### Estado
+```text
+COMPLETADO
+```
+
+### Prioridad
+```text
+P1.2
+```
+
+### Objetivo
+Dividir `06_DATA_MODEL.md` (~1.885 líneas) en dos archivos especializados para reducir contexto en sesiones futuras.
+
+### Archivos resultantes
+- `06a_DATA_MODEL_SCHEMA.md` — schema, campos, relaciones, reglas, riesgos
+- `06b_DATA_MODEL_SQL.md` — SQL de migración, queries dashboard, conciliaciones, endpoints, QA checklist, prompt técnico
+- `06_DATA_MODEL.md` — índice/puente (~40 líneas)
+
+### Criterios de aceptación verificados
+- [x] Existe `06a_DATA_MODEL_SCHEMA.md`.
+- [x] Existe `06b_DATA_MODEL_SQL.md`.
+- [x] `06_DATA_MODEL.md` queda como índice/puente.
+- [x] No se pierde contenido.
+- [x] No se resumen reglas.
+- [x] No se cambian nombres de tablas.
+- [x] No se cambia SQL.
+- [x] No se eliminan warnings ni riesgos.
+- [x] No se eliminan bloques `[NO DATA]`.
+- [x] No se modifica código.
+- [x] No se ejecutó ningún SQL.
+
+---
+
 ## PRÓXIMAS TAREAS — NO EMPEZAR TODAVÍA
 
 | Prioridad | Tarea | Estado |
 |---|---|---|
-| P1.2 | Dividir `06_DATA_MODEL.md` en schema + SQL | Pendiente |
-| P2 | Dividir `shared.js` en módulos por responsabilidad | Pendiente |
+| **P1.3 — SIGUIENTE** | **TASK-004 — Revisar `09_DECISIONS_PENDING.md` y preparar decisiones P0 para Alexander** | **Pendiente confirmación** |
+| P2 | Dividir `shared.js` en módulos por responsabilidad | Pendiente — no empezar todavía |
 | P3 | Extraer templates HTML de `index.html` | Futuro |
 | P3 | Implementar Caja SYNCROLAB | Futuro / depende de decisión y tabla real |
 
