@@ -244,11 +244,53 @@ Registrar la decisión de Alexander sobre política de eliminación en producci�
 
 ---
 
+## TASK-006 — Mapa de dependencias de shared.js
+
+### Estado
+```text
+COMPLETADO
+```
+
+### Prioridad
+```text
+P1.5
+```
+
+### Objetivo
+Analizar `shared.js` y preparar mapa técnico de división segura antes de cualquier refactor.
+
+### Archivos leídos
+- `shared.js` (1991 líneas)
+- `index.html` líneas 1741–1748 (orden de carga de scripts)
+- `index.html` script inline (líneas 1749–4113)
+- `caja.js`, `checklist.js`, `recepcion.js` — búsquedas de funciones duplicadas
+
+### Archivos creados
+- `docs/context/10_SHARED_DEPENDENCIES_MAP.md`
+
+### Hallazgos críticos
+1. El script inline de index.html (~87 funciones) sobreescribe 14 funciones de archivos .js
+2. `shared.js` contiene dead code: `pinOk`, `logout` (inline gana), keyboard listener roto
+3. `updPin`, `pinPress`, `pinDel` nunca están definidas en ningún archivo
+4. Dependencias circulares shared.js ↔ sala.js / checklist.js / inline — inofensivas con `<script src>` normal
+
+### Criterios de aceptación verificados
+- [x] `10_SHARED_DEPENDENCIES_MAP.md` creado
+- [x] No se modificó código
+- [x] No se modificó shared.js
+- [x] No se modificó index.html
+- [x] Todas las funciones principales listadas y categorizadas
+- [x] Orden de carga propuesto
+- [x] 11 riesgos documentados
+- [x] Plan faseado de 5 fases para TASK-007
+
+---
+
 ## PRÓXIMAS TAREAS — NO EMPEZAR TODAVÍA
 
 | Prioridad | Tarea | Estado |
 |---|---|---|
-| **P2 — SIGUIENTE** | **Dividir `shared.js` en módulos por responsabilidad** | **Pendiente confirmación** |
+| **P2 — SIGUIENTE** | **TASK-007: Dividir `shared.js` en módulos** | **Pendiente confirmación — leer TASK-006 primero** |
 | P3 | Extraer templates HTML de `index.html` | Futuro |
 | P3 | Implementar Caja SYNCROLAB | Futuro / depende de tabla real |
 
