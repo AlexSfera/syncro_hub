@@ -384,6 +384,53 @@ Mover capa DB de `shared.js` a `shared_db.js`, cargando el nuevo archivo antes q
 
 ---
 
+## TASK-007 Fase 3 — Extraer shared_format.js
+
+### Estado
+```text
+COMPLETADO — QA automático OK — QA manual OK (confirmado Alexander 2026-05-04)
+```
+
+### Objetivo
+Mover helpers de formato/utilidades puras de `shared.js` a `shared_format.js`, cargando el nuevo archivo después de `shared.js`.
+
+### Cambios realizados
+- Creado `shared_format.js` (96 líneas, 30 funciones): badges dept, genId, helpers de fecha, normalización de estado, formato/comparación, badges de estado
+- `shared.js` — 1854 → 1769 líneas (−85): 30 funciones reemplazadas por 4 stubs de comentario
+- `index.html` — +1 línea: `<script src="shared_format.js"></script>` después de `shared.js` y antes de `checklist.js`
+
+### Funciones extraídas (30)
+- **Badges dept**: `deptStyle`, `deptIcon`, `deptBadge`
+- **ID**: `genId`
+- **Fecha**: `today`, `fmtDate`, `fmtTs`, `startOfWeek`, `startOfMonth`, `isOverdue`, `getDateOnly`, `toYMD`, `getMinTaskDeadline`, `getMaxTaskDeadline`, `validateTaskDeadline`
+- **Normalización**: `normalizeTaskState`, `normalizeIncidentState`, `isTaskOpen`, `isIncidentOpen`, `normalizeDeptName`
+- **Formato**: `formatDisplayValue`, `formatServiceOrTurn`, `formatStaffList`, `recordMatchesShift`
+- **Badges estado**: `bFU`, `bEstado`, `bSev`, `bPrio`, `bTaskEstado`, `bIncidentEstado`
+
+### Archivos NO modificados
+- `shared_db.js`, `sala.js`, `caja.js`, `cajas.js`, `recepcion.js`, `checklist.js`, `dashboard.js` — intactos
+- Permisos, CRUD, fórmulas de caja — sin cambios
+
+### QA automático verificado
+- [x] `node --check shared_format.js` — sin errores
+- [x] `node --check shared.js` — sin errores
+- [x] `node --check shared_db.js` — sin errores
+- [x] 30 funciones presentes en `shared_format.js` y ausentes en `shared.js`
+- [x] `index.html`: `shared_format.js` carga DESPUÉS de `shared.js` y ANTES de `checklist.js`
+- [x] Diff funcional `shared.js`: solo stubs de comentario (−89 líneas, +5)
+- [x] Diff `index.html`: 1 línea añadida
+
+### QA manual en navegador — OK (Alexander 2026-05-04)
+- [x] Login → badges de departamento correctos
+- [x] Tareas → badges de estado correctos
+- [x] Validación → badges de turno correctos
+- [x] Dashboard → fechas formateadas correctas
+- [x] Consola DevTools → sin ReferenceError ni TypeError
+- [x] Caja Sala — fórmulas sin cambios
+- [x] Caja Recepción — fórmulas sin cambios
+
+---
+
 ## TASK-010 — BUG-CAJA-RECEPCION-LOGICA-003: Causa raíz fondoRec = 0
 
 ### Estado
@@ -596,7 +643,8 @@ ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS retiro_caja_fuerte          
 | Prioridad | Tarea | Estado |
 |---|---|---|
 | ~~P1.9~~ | ~~Ejecutar SQL aditivo (TASK-008 + TASK-009) + QA manual~~ | ~~COMPLETADO 2026-05-04~~ |
-| **P2.2 — SIGUIENTE** | **TASK-007 Fase 3: Extraer `shared_format.js`** | **Listo para iniciar** |
+| ~~P2.2~~ | ~~TASK-007 Fase 3: Extraer `shared_format.js`~~ | ~~COMPLETADO 2026-05-04~~ |
+| **P2.3 — SIGUIENTE** | **TASK-007 Fase 4: Extraer `shared_auth.js`** | **Pendiente QA Fase 3 + confirmación** |
 | P3 | Extraer templates HTML de `index.html` | Futuro |
 | P3 | Implementar Caja SYNCROLAB | Futuro / depende de tabla real |
 
