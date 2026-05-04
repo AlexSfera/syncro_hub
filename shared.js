@@ -327,26 +327,7 @@ async function seedEmployees(){
   
   // seed handled by SQL
 }
-async function pinOk(){
-  const employees=await getDB('employees');
-  let found=null;
-  if(ROLE_PINS[currentPin]){
-    const rol=ROLE_PINS[currentPin];
-    found=employees.find(e=>e.rol===rol&&e.estado==='Activo')||{id:'SYS_'+rol,nombre:rol==='admin'?'Administrador':rol==='fb'?'F&B Manager':rol==='jefe_recepcion'?'Jefe Recepción':'Chef',rol,estado:'Activo',pin:currentPin,responsable:1,validador:1,area:rol==='jefe_recepcion'?'Recepción':rol==='fb'?'Sala':'Cocina',puesto:rol};
-  } else {
-    found=employees.find(e=>e.pin===currentPin&&e.estado==='Activo');
-  }
-  if(!found){
-    const el=document.getElementById('pin-display');
-    el.classList.add('error'); el.textContent='ERROR';
-    document.getElementById('login-error').style.display='block';
-    setTimeout(()=>{ currentPin=''; updPin(); el.classList.remove('error'); document.getElementById('login-error').style.display='none'; },1500);
-    return;
-  }
-  currentUser=found; currentPin=''; updPin(); startApp();
-}
-function logout(){ currentUser=null; currentPin=''; updPin(); document.getElementById('app').style.display='none'; document.getElementById('login-screen').style.display='flex'; }
-document.addEventListener('keydown',e=>{ if(document.getElementById('login-screen').style.display==='none') return; if(e.key>='0'&&e.key<='9') pinPress(e.key); if(e.key==='Backspace') pinDel(); if(e.key==='Enter') pinOk(); });
+// pinOk, logout (shared), keydown login listener — removed: dead code (portal replaces login flow; logout is overridden by inline)
 
 // ═══════════════════════════════════════════════════════════════════════
 // APP
