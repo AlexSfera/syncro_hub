@@ -1349,41 +1349,70 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <div style="font-size:12px;color:var(--text3);margin-bottom:20px;">Compara los datos de MEWS con los valores reales. Si hay diferencia, es obligatorio explicarla.</div>
 
     <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#8b5cf6;letter-spacing:.15em;margin-bottom:8px;">EFECTIVO</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Control físico: Cash contado = Fondo a traspasar + Retiro · Control MEWS: Cash MEWS = Retiro + incremento de fondo</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Diferencial = Efectivo real contado − Fondo inicial − Cash MEWS</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="fg"><label>Cash real contado (€) <span class="req">*</span></label><input type="number" id="rec-cash-real" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
-      <div class="fg"><label>Fondo recibido del turno anterior (€)</label><input type="number" id="rec-fondo-recibido" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
+      <div class="fg"><label>Fondo de caja inicial (€) — del turno anterior</label><input type="number" id="rec-fondo-recibido" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#f3f4f6;"></div>
+      <div class="fg"><label>Efectivo real contado (€) <span class="req">*</span></label><input type="number" id="rec-cash-real" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
       <div class="fg"><label>Cash según MEWS (€) <span class="req">*</span></label><input type="number" id="rec-cash-mews" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
-      <div class="fg"><label>Fondo a traspasar al siguiente turno (€) <span class="req">*</span></label><input type="number" id="rec-fondo-traspaso" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
       <div class="fg"><label>Retiro efectivo caja fuerte (€)</label><input type="number" id="rec-cf-importe" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;padding:10px;background:var(--bg3);border-radius:6px;">
-      <div><div style="font-size:11px;color:var(--text3);">Físico esperado</div>
-        <div id="rec-fisico-esperado" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text);">0.00 €</div></div>
-      <div><div style="font-size:11px;color:var(--text3);">Diferencia física de caja</div>
-        <div id="rec-dif-cash" style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--green);">0.00 €</div></div>
-      <div style="grid-column:span 2"><div style="font-size:11px;color:var(--text3);">Diferencia Cash MEWS</div>
-        <div id="rec-dif-cash-mews" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text3);">0.00 €</div></div>
+      <div><div style="font-size:11px;color:var(--text3);">Fondo esperado a traspasar</div>
+        <div id="rec-fondo-final-calc" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text);">0.00 €</div></div>
+      <div><div style="font-size:11px;color:var(--text3);">Diferencial caja cash</div>
+        <div id="rec-dif-cash" style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--green);">+0.00 €</div></div>
     </div>
 
-    <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#8b5cf6;letter-spacing:.15em;margin:16px 0 8px;">TARJETA Y STRIPE</div>
+    <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#8b5cf6;letter-spacing:.15em;margin:16px 0 8px;">TRASPASO AL SIGUIENTE TURNO</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;">
+      <div class="fg"><label>Fondo real a traspasar (€)</label><input type="number" id="rec-fondo-traspaso-real" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px;background:var(--bg3);border-radius:6px;margin-bottom:8px;">
+      <div><div style="font-size:11px;color:var(--text3);">Esperado</div><div id="rec-fondo-esperado-disp" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text);">0.00 €</div></div>
+      <div><div style="font-size:11px;color:var(--text3);">Real</div><div id="rec-fondo-real-disp" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text);">—</div></div>
+      <div><div style="font-size:11px;color:var(--text3);">Diferencia</div><div id="rec-dif-fondo-traspaso" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text3);">—</div></div>
+    </div>
+    <div id="rec-traspaso-alert" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:10px;color:#dc2626;font-size:12px;margin-bottom:8px;font-family:var(--font-mono);">⚠ Diferencia en fondo a traspasar — revisar antes de cerrar</div>
+
+    <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#8b5cf6;letter-spacing:.15em;margin:16px 0 8px;">TARJETA</div>
     <div class="grid2" style="margin-bottom:12px;">
       <div class="fg"><label>Tarjeta según MEWS (€) <span class="req">*</span></label><input type="number" id="rec-tarjeta-mews" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
-      <div class="fg"><label>Tarjeta según TPV físico (€) <span class="req">*</span></label><input type="number" id="rec-tpv-real" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
+      <div class="fg"><label>Total TPV (€) <span class="req">*</span></label><input type="number" id="rec-tpv-real" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
+    </div>
+
+    <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#8b5cf6;letter-spacing:.15em;margin:16px 0 8px;">STRIPE</div>
+    <div class="grid2" style="margin-bottom:12px;">
+      <div class="fg">
+        <label>Stripe Platform (€) <span class="req">*</span></label>
+        <input type="number" id="rec-stripe-real" min="0" step="0.01" placeholder="0.00" oninput="onRecStripePlatformInput()" style="color:#111827;background:#ffffff;">
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">Últ. actualización: <span id="rec-stripe-platform-date-display">—</span></div>
+        <input type="hidden" id="rec-stripe-platform-updated-at">
+      </div>
       <div class="fg"><label>Stripe según MEWS (€) <span class="req">*</span></label><input type="number" id="rec-stripe-mews" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
-      <div class="fg"><label>Stripe real — Stripe.com (€) <span class="req">*</span></label><input type="number" id="rec-stripe-real" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
+    </div>
+
+    <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#8b5cf6;letter-spacing:.15em;margin:16px 0 8px;">TRANSFERENCIA</div>
+    <div class="grid2" style="margin-bottom:12px;">
+      <div class="fg">
+        <label>Transferencia por banco (€)</label>
+        <input type="number" id="rec-transferencia-banco" min="0" step="0.01" placeholder="0.00" oninput="onRecTransferenciaBancoInput()" style="color:#111827;background:#ffffff;">
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">Últ. actualización: <span id="rec-transferencia-banco-date-display">—</span></div>
+        <input type="hidden" id="rec-transferencia-banco-updated-at">
+      </div>
+      <div class="fg"><label>Transferencia facturada MEWS (€)</label><input type="number" id="rec-transferencia-mews" min="0" step="0.01" placeholder="0.00" oninput="calcRecDifs()" style="color:#111827;background:#ffffff;"></div>
     </div>
 
     <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:12px;">
-      <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.15em;margin-bottom:10px;">DIFERENCIAS CALCULADAS</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;margin-bottom:10px;">
-		        <div><div style="font-size:11px;color:var(--text3);">Δ Efectivo total</div><div id="rec-dif-cash-total" style="font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--green);">0.00 €</div></div>
-        <div><div style="font-size:11px;color:var(--text3);">Δ Tarjeta</div><div id="rec-dif-tarjeta" style="font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--green);">0.00 €</div></div>
-        <div><div style="font-size:11px;color:var(--text3);">Δ Stripe</div><div id="rec-dif-stripe" style="font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--green);">0.00 €</div></div>
+      <div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.15em;margin-bottom:10px;">DIFERENCIA OPERATIVA</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center;margin-bottom:10px;">
+        <div><div style="font-size:11px;color:var(--text3);">Caja Cash</div><div id="rec-dif-cash-total" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--green);">+0.00 €</div></div>
+        <div><div style="font-size:11px;color:var(--text3);">Control Tarjeta</div><div id="rec-dif-tarjeta" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--green);">+0.00 €</div></div>
+        <div><div style="font-size:11px;color:var(--text3);">Control Stripe</div><div id="rec-dif-stripe" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--green);">+0.00 €</div></div>
+        <div><div style="font-size:11px;color:var(--text3);">Control Transferencia</div><div id="rec-dif-transferencia" style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--green);">+0.00 €</div></div>
       </div>
       <div style="text-align:center;padding:10px;background:var(--bg4);border-radius:6px;">
-        <div style="font-size:11px;color:var(--text3);">Diferencia operativa total</div>
-        <div id="rec-dif-total" style="font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--green);">0.00 €</div>
+        <div style="font-size:11px;color:var(--text3);">Total desvío</div>
+        <div id="rec-dif-total" style="font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--green);">+0.00 €</div>
       </div>
     </div>
 
@@ -1402,7 +1431,6 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
     </div>
 
-    <div id="rec-fondo-esperado" style="display:none;">—</div>
     <div id="rec-fondo-inicial-block" style="display:none;" class="fg">
       <label>Fondo inicial día siguiente (€) — Solo turno noche <span class="req">*</span></label>
       <input type="number" id="rec-fondo-inicial" min="0" step="0.01" placeholder="0.00" style="color:#111827;background:#ffffff;">
@@ -3393,9 +3421,16 @@ function calcRecDifs() {
 async function openRecCajaModal(existingId) {
   _recCajaEditId = existingId||null;
   // Reset form
-  ['rec-cash-mews','rec-tarjeta-mews','rec-stripe-mews','rec-cash-real','rec-tpv-real','rec-stripe-real','rec-fondo-recibido','rec-fondo-traspaso','rec-cf-importe','rec-fondo-inicial','rec-dif-exp','rec-dif-accion','rec-room-recibido','rec-desayunos-mews','rec-pensiones-mews','rec-syncrolab-room'].forEach(function(id){
+  ['rec-cash-mews','rec-tarjeta-mews','rec-stripe-mews','rec-cash-real','rec-tpv-real','rec-stripe-real','rec-fondo-recibido','rec-cf-importe','rec-fondo-inicial','rec-dif-exp','rec-dif-accion','rec-room-recibido','rec-desayunos-mews','rec-pensiones-mews','rec-syncrolab-room','rec-transferencia-banco','rec-transferencia-mews','rec-stripe-platform-updated-at','rec-transferencia-banco-updated-at','rec-fondo-traspaso-real'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
+  var _spD=document.getElementById('rec-stripe-platform-date-display'); if(_spD) _spD.textContent='—';
+  var _tbD=document.getElementById('rec-transferencia-banco-date-display'); if(_tbD) _tbD.textContent='—';
+  var _ffC=document.getElementById('rec-fondo-final-calc'); if(_ffC) _ffC.textContent='0.00 €';
+  var _feD=document.getElementById('rec-fondo-esperado-disp'); if(_feD) _feD.textContent='0.00 €';
+  var _frD=document.getElementById('rec-fondo-real-disp'); if(_frD) _frD.textContent='—';
+  var _dftD=document.getElementById('rec-dif-fondo-traspaso'); if(_dftD){_dftD.textContent='—';_dftD.style.color='var(--text3)';}
+  var _taD=document.getElementById('rec-traspaso-alert'); if(_taD) _taD.style.display='none';
   if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
     window.CAJAS_CONFIG.helpers.clearInitialFundAutomation('rec-fondo-recibido');
   }
@@ -3421,7 +3456,6 @@ async function openRecCajaModal(existingId) {
       set('rec-cash-real',row.cash_real);
       set('rec-tpv-real',row.tpv_real);
       set('rec-stripe-real',row.stripe_real);
-      set('rec-fondo-traspaso',row.fondo_traspasado);
       set('rec-cf-importe',row.retiro_caja_fuerte);
       set('rec-fondo-inicial',row.fondo_inicial_siguiente);
       set('rec-dif-exp',row.explicacion_diferencia);
@@ -3430,6 +3464,19 @@ async function openRecCajaModal(existingId) {
       set('rec-desayunos-mews',row.desayunos_confirmados_mews);
       set('rec-pensiones-mews',row.pensiones_confirmadas_mews);
       set('rec-syncrolab-room',row.syncrolab_room_charged);
+      set('rec-transferencia-banco',row.transferencia_banco);
+      set('rec-transferencia-mews',row.transferencia_mews);
+      set('rec-fondo-traspaso-real',row.fondo_real_a_traspasar);
+      if(row.stripe_platform_updated_at){
+        set('rec-stripe-platform-updated-at',row.stripe_platform_updated_at);
+        var _spDL=document.getElementById('rec-stripe-platform-date-display');
+        if(_spDL) _spDL.textContent=fmtDate((row.stripe_platform_updated_at||'').substring(0,10))||row.stripe_platform_updated_at;
+      }
+      if(row.transferencia_banco_updated_at){
+        set('rec-transferencia-banco-updated-at',row.transferencia_banco_updated_at);
+        var _tbDL=document.getElementById('rec-transferencia-banco-date-display');
+        if(_tbDL) _tbDL.textContent=fmtDate((row.transferencia_banco_updated_at||'').substring(0,10))||row.transferencia_banco_updated_at;
+      }
       calcRecDifs();
     });
   } else if(window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers){
@@ -3439,12 +3486,15 @@ async function openRecCajaModal(existingId) {
         finalFundField:'fondo_traspasado'
       });
       if(prev){
-        window.CAJAS_CONFIG.helpers.applyAutoInitialFund({
-          inputId:'rec-fondo-recibido',
-          value:prev.fondo_traspasado,
-          previousId:prev.id,
-          label:'Caja Recepcion Hotel'
-        });
+        var _autoFondo=prev.fondo_real_a_traspasar!=null?prev.fondo_real_a_traspasar:(prev.fondo_traspasado||0);
+        if(_autoFondo>0){
+          window.CAJAS_CONFIG.helpers.applyAutoInitialFund({
+            inputId:'rec-fondo-recibido',
+            value:_autoFondo,
+            previousId:prev.id,
+            label:'Caja Recepcion Hotel'
+          });
+        }
       }
     }catch(e){}
   }
@@ -3469,9 +3519,15 @@ async function submitRecCaja() {
   var realTpv=parseFloat(document.getElementById('rec-tpv-real').value);
   var realStr=parseFloat(document.getElementById('rec-stripe-real').value);
   var fondoRec=parseFloat(document.getElementById('rec-fondo-recibido').value)||0;
-  var fondoTras=parseFloat(document.getElementById('rec-fondo-traspaso').value);
   var turno=getRecTurnoValue();
   var cfImporte=parseFloat((document.getElementById('rec-cf-importe')||{}).value)||0;
+  var transfBanco=parseFloat((document.getElementById('rec-transferencia-banco')||{}).value)||0;
+  var transfMews=parseFloat((document.getElementById('rec-transferencia-mews')||{}).value)||0;
+  var stripeUpdAt=(document.getElementById('rec-stripe-platform-updated-at')||{}).value||null;
+  var transfUpdAt=(document.getElementById('rec-transferencia-banco-updated-at')||{}).value||null;
+  var fondoTras=fondoRec+(isNaN(mewsCash)?0:mewsCash)-cfImporte;
+  var fondoTraspasoReal=parseFloat((document.getElementById('rec-fondo-traspaso-real')||{}).value);
+  var difFondoTraspaso=!isNaN(fondoTraspasoReal)?(fondoTraspasoReal-fondoTras):null;
 
   if(isNaN(mewsCash)) errs.push('Cash según MEWS obligatorio');
   if(isNaN(mewsTar))  errs.push('Tarjeta según MEWS obligatoria');
@@ -3479,14 +3535,15 @@ async function submitRecCaja() {
   if(isNaN(realCash)) errs.push('Cash real obligatorio');
   if(isNaN(realTpv))  errs.push('TPV real obligatorio');
   if(isNaN(realStr))  errs.push('Stripe real obligatorio');
-  if(isNaN(fondoTras)) errs.push('Fondo traspasado obligatorio');
 
-  var difCash=realCash-mewsCash;
-  var difTar=realTpv-mewsTar;
+  var difCash=realCash-fondoRec-mewsCash;
+  var difTar=mewsTar-realTpv;
   var difStr=realStr-mewsStr;
-  var difTotal=difCash+difTar+difStr;
+  var difTransf=transfBanco-transfMews;
+  var difTotal=difCash+difTar+difStr+difTransf;
   var hasError=Math.abs(difTotal)>0.01;
-  if(hasError){
+  var hasDifFondo=difFondoTraspaso!==null&&Math.abs(difFondoTraspaso)>0.01;
+  if(hasError||hasDifFondo){
     var exp=document.getElementById('rec-dif-exp').value.trim();
     if(!exp) errs.push('Diferencia detectada: explicación obligatoria');
   }
@@ -3520,9 +3577,16 @@ async function submitRecCaja() {
     cash_real: realCash,
     tpv_real: realTpv,
     stripe_real: realStr,
+    transferencia_banco: transfBanco,
+    transferencia_banco_updated_at: transfUpdAt,
+    transferencia_mews: transfMews,
+    stripe_platform_updated_at: stripeUpdAt,
     dif_cash: difCash,
     dif_tarjeta: difTar,
     dif_stripe: difStr,
+    dif_transferencia: difTransf,
+    fondo_real_a_traspasar: !isNaN(fondoTraspasoReal)?fondoTraspasoReal:null,
+    dif_fondo_traspaso: difFondoTraspaso,
     dif_total: difTotal,
     explicacion_diferencia: document.getElementById('rec-dif-exp').value.trim()||null,
     accion_diferencia: document.getElementById('rec-dif-accion').value.trim()||null,
@@ -3572,7 +3636,8 @@ async function renderRecepcionCajaList() {
   var isAdmin=currentUser&&currentUser.rol==='admin';
   var isJefeRec=currentUser&&currentUser.rol==='jefe_recepcion';
   var canReopen=isAdmin||isJefeRec;
-  var html='<table><tr><th>Fecha</th><th>Turno</th><th>Recepcionista</th><th>Δ Cash</th><th>Δ TPV</th><th>Δ Stripe</th><th>Δ Total</th><th>Estado</th><th>Acciones</th></tr>';
+  var html='<table><tr><th>Fecha</th><th>Turno</th><th>Recepcionista</th><th>Δ Cash</th><th>Δ Tarjeta</th><th>Δ Stripe</th><th>Δ Transf.</th><th>Total desvío</th><th>Estado</th><th>Acciones</th></tr>';
+  function _fmtDif(v){ return v!=null?(parseFloat(v)>=0?'+':'')+parseFloat(v).toFixed(2)+'€':'—'; }
   rows.forEach(function(r){
     var difColor=Math.abs(r.dif_total||0)<0.01?'var(--green)':'var(--red)';
     var difTxt=(r.dif_total>=0?'+':'')+parseFloat(r.dif_total||0).toFixed(2)+'€';
@@ -3581,9 +3646,10 @@ async function renderRecepcionCajaList() {
     if(canReopen && r.estado!=='reabierto') acciones+=' <button class="btn btn-secondary btn-sm" onclick="reabrirCajaRec(&quot;'+r.id+'&quot;)">Reabrir</button>';
     if(isAdmin) acciones+=' <button class="btn btn-danger btn-sm" onclick="eliminarCajaRec(&quot;'+r.id+'&quot;)">Eliminar</button>';
     html+='<tr><td>'+fmtDate(r.fecha)+'</td><td>'+bTurno(r.turno)+'</td><td>'+r.responsable_nombre+'</td>'
-      +'<td style="color:'+difColor+'">'+(r.dif_cash!=null?(r.dif_cash>=0?'+':'')+parseFloat(r.dif_cash).toFixed(2)+'€':'—')+'</td>'
-      +'<td style="color:'+difColor+'">'+(r.dif_tarjeta!=null?(r.dif_tarjeta>=0?'+':'')+parseFloat(r.dif_tarjeta).toFixed(2)+'€':'—')+'</td>'
-      +'<td style="color:'+difColor+'">'+(r.dif_stripe!=null?(r.dif_stripe>=0?'+':'')+parseFloat(r.dif_stripe).toFixed(2)+'€':'—')+'</td>'
+      +'<td style="color:'+difColor+'">'+_fmtDif(r.dif_cash)+'</td>'
+      +'<td style="color:'+difColor+'">'+_fmtDif(r.dif_tarjeta)+'</td>'
+      +'<td style="color:'+difColor+'">'+_fmtDif(r.dif_stripe)+'</td>'
+      +'<td style="color:'+difColor+'">'+_fmtDif(r.dif_transferencia)+'</td>'
       +'<td style="font-family:var(--font-mono);font-weight:700;color:'+difColor+'">'+difTxt+'</td>'
       +'<td>'+estadoBadge+'</td><td>'+acciones+'</td></tr>';
   });
@@ -4005,24 +4071,25 @@ var _origInitTurnoForm = typeof initTurnoForm === 'function' ? initTurnoForm : n
   }
 })();
 
-// ── Update calcRecDifs to include caja fuerte logic ──
+// ── calcRecDifs — Caja Recepción con 4 componentes ──
 function calcRecDifs() {
-  var mewsCash = parseFloat((document.getElementById('rec-cash-mews')||{}).value)||0;
-  var mewsTar  = parseFloat((document.getElementById('rec-tarjeta-mews')||{}).value)||0;
-  var mewsStr  = parseFloat((document.getElementById('rec-stripe-mews')||{}).value)||0;
-  var realCash = parseFloat((document.getElementById('rec-cash-real')||{}).value)||0;
-  var realTpv  = parseFloat((document.getElementById('rec-tpv-real')||{}).value)||0;
-  var realStr  = parseFloat((document.getElementById('rec-stripe-real')||{}).value)||0;
-  var fondoRec = parseFloat((document.getElementById('rec-fondo-recibido')||{}).value)||0;
-  var fondoTras= parseFloat((document.getElementById('rec-fondo-traspaso')||{}).value)||0;
-  var cfImporte= parseFloat((document.getElementById('rec-cf-importe')||{}).value)||0;
+  var fondoRec   = parseFloat((document.getElementById('rec-fondo-recibido')||{}).value)||0;
+  var realCash   = parseFloat((document.getElementById('rec-cash-real')||{}).value)||0;
+  var mewsCash   = parseFloat((document.getElementById('rec-cash-mews')||{}).value)||0;
+  var cfImporte  = parseFloat((document.getElementById('rec-cf-importe')||{}).value)||0;
+  var mewsTar    = parseFloat((document.getElementById('rec-tarjeta-mews')||{}).value)||0;
+  var realTpv    = parseFloat((document.getElementById('rec-tpv-real')||{}).value)||0;
+  var realStr    = parseFloat((document.getElementById('rec-stripe-real')||{}).value)||0;
+  var mewsStr    = parseFloat((document.getElementById('rec-stripe-mews')||{}).value)||0;
+  var transfBanco= parseFloat((document.getElementById('rec-transferencia-banco')||{}).value)||0;
+  var transfMews = parseFloat((document.getElementById('rec-transferencia-mews')||{}).value)||0;
 
-  var helpers = window.CAJAS_CONFIG&&window.CAJAS_CONFIG.helpers;
-  var difCash  = helpers?helpers.calcularDiferenciaFisicaCaja({efectivoReal:realCash,fondoFinal:fondoTras,retiro:cfImporte}):realCash-fondoTras-cfImporte;
-  var difCashSistema = helpers?helpers.calcularDiferenciaSistemaCaja({efectivoSistema:mewsCash,retiro:cfImporte,fondoInicial:fondoRec,fondoFinal:fondoTras}):mewsCash-cfImporte-(fondoTras-fondoRec);
-  var difTar   = realTpv  - mewsTar;
-  var difStr   = realStr  - mewsStr;
-  var difTotal = difCash + difCashSistema + difTar + difStr;
+  var fondoFinal = fondoRec + mewsCash - cfImporte;
+  var difCash    = realCash - fondoRec - mewsCash;
+  var difTar     = mewsTar - realTpv;
+  var difStr     = realStr - mewsStr;
+  var difTransf  = transfBanco - transfMews;
+  var difTotal   = difCash + difTar + difStr + difTransf;
 
   function fmt(val){
     return (val>=0?'+':'')+val.toFixed(2)+' €';
@@ -4033,31 +4100,67 @@ function calcRecDifs() {
     el.textContent = fmt(val);
     el.style.color = Math.abs(val)<0.01?'var(--green)':val>0?'var(--blue)':'var(--red)';
   }
+
+  var ffEl = document.getElementById('rec-fondo-final-calc');
+  if(ffEl) ffEl.textContent = fondoFinal.toFixed(2)+' €';
+
   setColor('rec-dif-cash', difCash);
-  setColor('rec-dif-cash-mews', difCashSistema);
-  setColor('rec-dif-cash-total', difCash + difCashSistema);
+  setColor('rec-dif-cash-total', difCash);
   setColor('rec-dif-tarjeta', difTar);
   setColor('rec-dif-stripe', difStr);
+  setColor('rec-dif-transferencia', difTransf);
   setColor('rec-dif-total', difTotal);
-  var fisicoEl = document.getElementById('rec-fisico-esperado');
-  if(fisicoEl) fisicoEl.textContent = (fondoTras + cfImporte).toFixed(2) + ' €';
 
-  // Control sistema: Cash MEWS = Retiro + incremento de fondo.
-  var feEl = document.getElementById('rec-fondo-esperado');
-  if(feEl){
-    feEl.textContent = 'Δ Cash MEWS: ' + fmt(difCashSistema);
-    feEl.style.color = Math.abs(difCashSistema)<0.01?'var(--green)':Math.abs(difCashSistema)>5?'var(--red)':'var(--amber)';
+  // ── Traspaso al siguiente turno ──
+  var fondoTraspasoRaw = parseFloat((document.getElementById('rec-fondo-traspaso-real')||{}).value);
+  var hasFT = !isNaN(fondoTraspasoRaw);
+  var difFT = hasFT ? (fondoTraspasoRaw - fondoFinal) : 0;
+
+  var feDispEl = document.getElementById('rec-fondo-esperado-disp');
+  if(feDispEl) feDispEl.textContent = fondoFinal.toFixed(2)+' €';
+  var frDispEl = document.getElementById('rec-fondo-real-disp');
+  if(frDispEl) frDispEl.textContent = hasFT ? fondoTraspasoRaw.toFixed(2)+' €' : '—';
+  var dftDispEl = document.getElementById('rec-dif-fondo-traspaso');
+  if(dftDispEl){
+    if(hasFT){
+      dftDispEl.textContent = fmt(difFT);
+      dftDispEl.style.color = Math.abs(difFT)<0.01?'var(--green)':difFT>0?'var(--blue)':'var(--red)';
+    } else {
+      dftDispEl.textContent = '—';
+      dftDispEl.style.color = 'var(--text3)';
+    }
   }
+  var trasAlertEl = document.getElementById('rec-traspaso-alert');
+  if(trasAlertEl) trasAlertEl.style.display = (hasFT && Math.abs(difFT)>0.01) ? 'block' : 'none';
 
-  var hasError = (helpers?helpers.calcularEstadoCaja({diferenciaFisica:difCash,diferenciaSistema:difCashSistema,otrasDiferencias:[difTar,difStr]}):((Math.abs(difCash)>0.01||Math.abs(difCashSistema)>0.01||Math.abs(difTar)>0.01||Math.abs(difStr)>0.01)?'Revisar':'OK'))==='Revisar';
+  var hasError = Math.abs(difTotal)>0.01;
+  var hasTrasError = hasFT && Math.abs(difFT)>0.01;
   var alertEl = document.getElementById('rec-dif-alert');
   var expBlock = document.getElementById('rec-dif-exp-block');
   if(alertEl) alertEl.style.display = hasError ? 'block' : 'none';
-  if(expBlock) expBlock.style.display = hasError ? 'block' : 'none';
+  if(expBlock) expBlock.style.display = (hasError||hasTrasError) ? 'block' : 'none';
 
   var turno = typeof getRecTurnoValue === 'function' ? getRecTurnoValue() : '';
-  var fondoIni = document.getElementById('rec-fondo-inicial-block');
-  if(fondoIni) fondoIni.style.display = turno === 'Noche' ? 'block' : 'none';
+  var fondoIniBlock = document.getElementById('rec-fondo-inicial-block');
+  if(fondoIniBlock) fondoIniBlock.style.display = turno === 'Noche' ? 'block' : 'none';
+}
+
+function onRecStripePlatformInput(){
+  var ts = new Date().toISOString();
+  var hidEl = document.getElementById('rec-stripe-platform-updated-at');
+  if(hidEl) hidEl.value = ts;
+  var dispEl = document.getElementById('rec-stripe-platform-date-display');
+  if(dispEl) dispEl.textContent = fmtDate(ts.substring(0,10));
+  calcRecDifs();
+}
+
+function onRecTransferenciaBancoInput(){
+  var ts = new Date().toISOString();
+  var hidEl = document.getElementById('rec-transferencia-banco-updated-at');
+  if(hidEl) hidEl.value = ts;
+  var dispEl = document.getElementById('rec-transferencia-banco-date-display');
+  if(dispEl) dispEl.textContent = fmtDate(ts.substring(0,10));
+  calcRecDifs();
 }
 
 // ── renderFollowupList is called from initTurnoForm patch below ──

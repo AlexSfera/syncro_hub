@@ -286,11 +286,329 @@ Analizar `shared.js` y preparar mapa técnico de división segura antes de cualq
 
 ---
 
-## PRÓXIMAS TAREAS — NO EMPEZAR TODAVÍA
+## TASK-007 Fase 1 — Limpiar dead code en shared.js
+
+### Estado
+```text
+COMPLETADO
+```
+
+### Prioridad
+```text
+P2
+```
+
+### Objetivo
+Eliminar dead code confirmado en shared.js sin tocar lógica activa.
+
+### Cambios realizados
+- Eliminada `function pinOk()` (líneas 330–347 originales) — flujo de login reemplazado por portal
+- Eliminada `function logout()` (línea 348 original) — sobreescrita por inline, nunca se ejecutaba
+- Eliminado keyboard listener (línea 349 original) — referenciaba `login-screen`, `pinPress`, `pinDel` inexistentes → TypeError en cada keydown
+
+### Archivos modificados
+- `shared.js` — 1991 → 1972 líneas (−19, diff limpio: 1 insertion / 20 deletions)
+- `docs/context/08_CURRENT_TASK.md` — este archivo
+
+### Archivos NO modificados (confirmado)
+- `index.html` — sin cambios
+- `dashboard.js` — sin cambios
+- `sala.js`, `caja.js`, `cajas.js`, `recepcion.js`, `checklist.js` — sin cambios
+- Permisos — sin cambios
+- CRUD — sin cambios
+- Supabase — sin cambios
+
+### Referencias activas conservadas en shared.js
+- `startApp()` línea 336 actual: `if(ls2)` check sobre `login-screen` — seguro, con null check
+- `DOMContentLoaded` línea 1949 actual: `if(ls)` check sobre `login-screen` — seguro, con null check
+
+### QA automático verificado
+- [x] `pinOk` eliminada de shared.js
+- [x] `logout` de shared.js eliminada (versión activa sigue en inline de index.html)
+- [x] Keyboard listener roto eliminado
+- [x] No se tocaron permisos, CRUD, dashboard
+- [x] No se movieron funciones
+- [x] No se crearon módulos
+- [x] No se modificó index.html
+- [x] Referencias con null check en startApp y DOMContentLoaded conservadas
+- [x] Diff limpio: 1 insertion / 20 deletions, sin ruido de whitespace
+- [x] Line endings originales preservados (CRLF/LF mixto original intacto)
+
+### QA manual pendiente en navegador
+- [ ] Abrir `index.html` en navegador
+- [ ] Login correcto con PIN de admin (`300415`) → portal abre sesión sin error
+- [ ] Login correcto con PIN de chef (`0101`) → portal abre sesión sin error
+- [ ] Login correcto con PIN de fb (`1010`) → portal abre sesión sin error
+- [ ] Login con PIN incorrecto → muestra error y resetea (lógica en inline, no en shared.js)
+- [ ] Logout desde cualquier sesión → regresa al portal (lógica en inline, no en shared.js)
+- [ ] Navegar a cada pantalla → sin errores en consola
+- [ ] Abrir DevTools → consola sin TypeError ni ReferenceError al pulsar teclas
+
+---
+
+## TASK-007 Fase 2 — Extraer shared_db.js
+
+### Estado
+```text
+COMPLETADO — QA automático OK — QA manual pendiente en navegador
+```
+
+### Objetivo
+Mover capa DB de `shared.js` a `shared_db.js`, cargando el nuevo archivo antes que `shared.js`.
+
+### Cambios realizados
+- Creado `shared_db.js` (126 líneas): `SUPABASE_URL/KEY`, `sbRequest`, `dbGetAll/Insert/Update/Delete/Upsert`, `getDB`, `invalidateCache`, `setDB`, `migrateFromLocalStorage`, `auditLog`
+- `shared.js` — 1972 → 1854 líneas (−118): bloque DB reemplazado por 2 stubs de comentario
+- `index.html` — +1 línea: `<script src="shared_db.js"></script>` antes de `<script src="shared.js"></script>`
+
+### Archivos NO modificados
+- `sala.js`, `caja.js`, `cajas.js`, `recepcion.js`, `checklist.js`, `dashboard.js` — intactos
+- Permisos, CRUD, lógica de negocio — sin cambios
+
+### QA automático verificado
+- [x] `node --check shared_db.js` — sin errores de sintaxis
+- [x] `node --check shared.js` — sin errores de sintaxis
+- [x] 11 funciones DB presentes en `shared_db.js` y ausentes en `shared.js`
+- [x] `index.html`: `shared_db.js` carga ANTES de `shared.js`
+- [x] Diff `shared.js`: solo stubs de comentario, sin ruido de whitespace
+- [x] Diff `index.html`: 1 línea añadida
+
+### QA manual pendiente en navegador
+- [ ] Login con PIN admin → sesión abre y app carga sin error en consola
+- [ ] Login con PIN chef → sesión abre
+- [ ] DevTools Network → `shared_db.js` carga con 200
+- [ ] Guardar turno → sin error Supabase en consola
+- [ ] Validar turno → sin error
+- [ ] Dashboard carga → sin error
+- [ ] Exportar CSV → sin error
+
+---
+
+## TASK-010 — BUG-CAJA-RECEPCION-LOGICA-003: Causa raíz fondoRec = 0
+
+### Estado
+```text
+COMPLETADO — QA automático OK — SQL pendiente en Supabase — QA manual pendiente
+```
+
+### Prioridad
+```text
+P1 — Bug crítico
+```
+
+### Diagnóstico
+4 definiciones de `calcRecDifs` en el codebase:
+
+| Archivo | Línea | Estado | Fórmula difCash |
+|---|---|---|---|
+| recepcion.js | 100 | muerta (overwritten por 697) | helpers.calcularDiferenciaFisicaCaja |
+| recepcion.js | 697 | muerta (overwritten por inline) | helpers.calcularDiferenciaFisicaCaja |
+| index.html | ~3377 | muerta (overwritten por ~4075) | helpers.calcularDiferenciaFisicaCaja |
+| index.html | **~4075** | **ACTIVA** | `realCash - fondoRec - mewsCash` ✓ |
+
+**Fórmula en función activa ERA correcta.** La causa raíz era otra:
+
+`applyAutoInitialFund` (cajas.js:380) hace `readOnly=true` en `rec-fondo-recibido` con `prev.fondo_traspasado`. Si ese valor es 0 en DB (guardado con código viejo antes de TASK-008), el campo queda bloqueado a 0 y el usuario no puede entrar 100. calcRecDifs leía fondoRec = 0 → difCash = 180 - 0 - 80 = 100.
+
+### Fix aplicado
+En `openRecCajaModal` (inline script ~3489):
+- Prefiere `fondo_real_a_traspasar` (nuevo campo TASK-009) sobre `fondo_traspasado`
+- Solo llama `applyAutoInitialFund` (y bloquea el campo) cuando el valor auto-cargado es **> 0**
+- Si el valor es 0 (dato incorrecto en DB), el campo queda editable → usuario puede entrar el valor correcto
+
+### Verificaciones
+```
+fondoRec=100, mewsCash=80, realCash=180, cfImporte=50:
+  difCash    = 180 − 100 − 80 = 0   ✓
+  fondoFinal = 100 + 80 − 50 = 130  ✓
+  difTotal   = difCash + difTar + difStr + difTransf (sin dif_fondo_traspaso) ✓
+```
+
+### Archivos modificados
+- `index.html` — `openRecCajaModal`: lógica de auto-fill corregida (~3489)
+
+### Archivos NO modificados
+- `cajas.js`, `recepcion.js`, `shared.js`, `shared_db.js`, `sala.js` — intactos
+
+### No hay SQL adicional
+Los campos usados (`fondo_real_a_traspasar`, `fondo_traspasado`) ya están en el SQL pendiente de TASK-008/009.
+
+### QA manual pendiente
+- [ ] Ejecutar SQL aditivo completo (TASK-008 + TASK-009)
+- [ ] Login → borrar registros de prueba anteriores con `fondo_traspasado = 0` en DB
+   (ó probar directamente con usuario sin registros previos)
+- [ ] Abrir + Nuevo cuadre → verificar que `rec-fondo-recibido` está editable (sin "Desbloquear" si no hay previo o previo tenía 0)
+- [ ] Introducir: fondo=100, MEWS cash=80, cash real=180, retiro=50
+  - Δ Cash = 0 ✓
+  - Fondo esperado = 130 ✓
+  - Total desvío = 0 (con tarjeta/stripe/transf = 0) ✓
+  - Sin alerta operativa ✓
+- [ ] Guardar → volver a abrir → comprobar que `fondo_recibido` se auto-carga correctamente
+- [ ] Comprobar que con registro previo correcto (fondo_traspasado > 0), el campo SÍ se bloquea
+- [ ] Caja Sala → confirmar sin cambios
+
+---
+
+## TASK-009 — BUG-CAJA-RECEPCION-LOGICA-002: Traspaso + Fondo real
+
+### Estado
+```text
+COMPLETADO — QA automático OK — SQL pendiente en Supabase — QA manual pendiente
+```
+
+### Prioridad
+```text
+P1 — Bug crítico
+```
+
+### Bugs / features implementados
+1. **Fondo recibido como referencia de Δ Cash**: fórmula `difCash = realCash - fondoRec - mewsCash` ya estaba en función activa (línea ~4072); si mostraba +100 era porque `fondo_traspasado` en DB estaba en 0 (SQL pendiente) → `applyAutoInitialFund` cargaba 0 en campo readonly.
+2. **Bloque TRASPASO AL SIGUIENTE TURNO** añadido entre EFECTIVO y TARJETA:
+   - Campo `rec-fondo-traspaso-real` (editable, usuario introduce lo que físicamente traspasa)
+   - Display 3 columnas: Esperado | Real | Diferencia (colores green/blue/red)
+   - Alerta separada `rec-traspaso-alert` si diferencia traspaso ≠ 0
+3. **Validación**: si `dif_fondo_traspaso ≠ 0`, bloque explicación obligatoria se activa (mismo `rec-dif-exp-block`)
+4. **Total desvío operativo NO cambiado** (sigue siendo cash + tarjeta + stripe + transferencia)
+5. **Label**: "Fondo de caja final" → "Fondo esperado a traspasar"
+
+### Función activa
+`calcRecDifs` en index.html línea ~4072 (la de línea ~3366 es dead code)
+
+### Fórmulas implementadas
+```
+difCash          = realCash - fondoRec - mewsCash
+fondoEsperado    = fondoRec + mewsCash - cfImporte    (= fondoFinal, read-only)
+difFT            = fondoTraspasoReal - fondoEsperado
+difTotal         = difCash + difTar + difStr + difTransf  (sin cambios)
+```
+
+### Campos nuevos guardados en DB
+- `fondo_real_a_traspasar` — lo que el recepcionista físicamente traspasa
+- `dif_fondo_traspaso` — diferencia vs fondo esperado
+
+### Archivos modificados
+- `index.html` — HTML modal + calcRecDifs activo + submitRecCaja + openRecCajaModal
+
+### Archivos NO modificados
+- `shared.js`, `shared_db.js`, `sala.js`, `cajas.js`, `caja.js`, `recepcion.js`, `dashboard.js`
+
+### SQL aditivo PENDIENTE — ejecutar en Supabase
+```sql
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS fondo_real_a_traspasar numeric DEFAULT NULL;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS dif_fondo_traspaso     numeric DEFAULT 0;
+```
+*(Ver también SQL pendiente de TASK-008 arriba)*
+
+### QA automático verificado
+- [x] `node --check shared.js` — sin errores
+- [x] `node --check shared_db.js` — sin errores
+- [x] HTML: `rec-fondo-traspaso-real`, `rec-fondo-esperado-disp`, `rec-fondo-real-disp`, `rec-dif-fondo-traspaso`, `rec-traspaso-alert` presentes
+- [x] `calcRecDifs` activo lee `rec-fondo-traspaso-real` y calcula `difFT`
+- [x] `submitRecCaja` guarda `fondo_real_a_traspasar` y `dif_fondo_traspaso`
+- [x] `openRecCajaModal` resetea y carga nuevo campo
+- [x] Caja Sala (`calcCajaDifs`, `sala_cash_closures`) intacta — 25 referencias sin cambios
+
+### QA manual pendiente
+- [ ] Ejecutar SQL aditivo (ambos: TASK-008 + TASK-009) en Supabase
+- [ ] Abrir Caja Recepción → + Nuevo cuadre
+- [ ] Verificar sección TRASPASO AL SIGUIENTE TURNO visible
+- [ ] Probar: fondo 100, cash MEWS 80, cash real 180, retiro 50
+  - Δ Cash = 0 ✓
+  - Fondo esperado = 130 ✓
+- [ ] Dejar `Fondo real a traspasar` vacío → no aparece alerta traspaso
+- [ ] Introducir fondo real = 130 → Diferencia = 0, sin alerta
+- [ ] Introducir fondo real = 0 → Diferencia = −130, aparece alerta, exige explicación
+- [ ] Guardar → recargar → fondo real y diferencia persisten correctamente
+- [ ] Abrir registro existente → fondo real cargado en campo
+- [ ] Caja Sala → confirmar fórmulas no cambiadas
+
+---
+
+## TASK-008 — Bug fix Caja Recepción: fórmulas + Transferencia + UI
+
+### Estado
+```text
+COMPLETADO — QA automático OK — QA manual pendiente en navegador + SQL pendiente en Supabase
+```
+
+### Prioridad
+```text
+P1 — Bug crítico
+```
+
+### Bugs corregidos
+1. **CASH**: Fórmula errónea `realCash - mewsCash` → corregida a `realCash - fondoRec - mewsCash`
+2. **TARJETA**: Signo invertido `realTpv - mewsTar` → corregido a `mewsTar - realTpv`
+3. **STRIPE**: Label "Stripe real — Stripe.com" → "Stripe Platform"; sin fecha automática → añadida
+4. **TRANSFERENCIA**: Sección completamente nueva (banco + MEWS + control + fecha automática)
+5. **DIFERENCIA OPERATIVA**: 3 componentes → 4 componentes (cash + tarjeta + stripe + transferencia)
+6. **Fondo de caja**: `fondo_traspasado` era editable → ahora calculado (fondoRec + cashMews - retiro)
+7. **UI**: Secciones separadas, labels claros, sin "MUSE", sin "Stripe.com"
+
+### Función activa
+`calcRecDifs` en index.html línea ~4051 (la de línea ~3366 es dead code, no ejecuta)
+
+### Fórmulas implementadas
+```
+difCash    = realCash - fondoRec - mewsCash
+fondoFinal = fondoRec + mewsCash - cfImporte   (calculado, readonly display)
+difTar     = mewsTar - realTpv
+difStr     = stripeReal - stripeMews
+difTransf  = transfBanco - transfMews
+difTotal   = difCash + difTar + difStr + difTransf
+```
+
+### Archivos modificados
+- `index.html` — modal HTML + calcRecDifs activo + submitRecCaja + openRecCajaModal + renderRecepcionCajaList
+
+### Archivos NO modificados
+- `shared.js`, `shared_db.js`, `sala.js`, `cajas.js`, `caja.js`, `recepcion.js`, `dashboard.js`
+
+### SQL aditivo PENDIENTE — ejecutar en Supabase
+```sql
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS transferencia_banco            numeric  DEFAULT 0;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS transferencia_banco_updated_at text     DEFAULT NULL;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS transferencia_mews             numeric  DEFAULT 0;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS dif_transferencia              numeric  DEFAULT 0;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS stripe_platform_updated_at     text     DEFAULT NULL;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS room_charge_recibido           numeric  DEFAULT 0;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS desayunos_confirmados_mews     integer  DEFAULT 0;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS pensiones_confirmadas_mews     integer  DEFAULT 0;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS syncrolab_room_charged         numeric  DEFAULT 0;
+ALTER TABLE recepcion_cash ADD COLUMN IF NOT EXISTS retiro_caja_fuerte             numeric  DEFAULT 0;
+```
+
+### QA automático verificado
+- [x] `node --check shared.js` — sin errores
+- [x] `node --check shared_db.js` — sin errores
+- [x] Todos los IDs nuevos presentes en HTML
+- [x] `rec-fondo-traspaso` eliminado como input editable
+- [x] `rec-fondo-esperado`, `rec-fisico-esperado`, `rec-dif-cash-mews` eliminados del HTML
+- [x] Caja Sala (calcCajaDifs, sala_cash_closures) intacta
+- [x] 2 definiciones de calcRecDifs: la activa es la de línea ~4051
+
+### QA manual pendiente
+- [ ] Ejecutar SQL aditivo en Supabase
+- [ ] Login → navegar a Caja Recepción
+- [ ] + Nuevo cuadre de caja → completar KPI → abrir modal caja
+- [ ] Verificar secciones: EFECTIVO, TARJETA, STRIPE, TRANSFERENCIA, DIFERENCIA OPERATIVA
+- [ ] Probar: todo 0 → desvío = 0
+- [ ] Probar: diferencia en cash → desvío ≠ 0 → pedir explicación
+- [ ] Probar: cambiar Stripe Platform → fecha se actualiza automáticamente
+- [ ] Probar: cambiar Transferencia → fecha se actualiza automáticamente
+- [ ] Guardar → recargar → verificar persistencia de todos los campos
+- [ ] Ver registro → fondo final calculado muestra correctamente
+- [ ] Verificar dashboard no roto
+- [ ] Crear Caja Sala → confirmar fórmulas Sala no cambiadas
+
+---
+
+## PRÓXIMAS TAREAS
 
 | Prioridad | Tarea | Estado |
 |---|---|---|
-| **P2 — SIGUIENTE** | **TASK-007: Dividir `shared.js` en módulos** | **Pendiente confirmación — leer TASK-006 primero** |
+| **P1.9 — PRIMERO** | **Ejecutar SQL aditivo (TASK-008 + TASK-009) + QA manual** | **Pendiente Alexander** |
+| P2.2 | TASK-007 Fase 3: Extraer `shared_format.js` | Pendiente QA Fase 2 + confirmación |
 | P3 | Extraer templates HTML de `index.html` | Futuro |
 | P3 | Implementar Caja SYNCROLAB | Futuro / depende de tabla real |
 
