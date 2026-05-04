@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SYNCROSFERA - Portal Operativo</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- ==================== SECTION: styles ==================== -->
 <style>
 
 :root {
@@ -381,6 +382,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 </style>
 </head>
 <body>
+<!-- ==================== SECTION: login ==================== -->
 <div id="portal-screen" style="position:fixed;inset:0;z-index:1000;overflow-y:auto;background:#0B1F33;display:flex;flex-direction:column;">
 
   <!-- PIN MODAL -->
@@ -535,6 +537,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <button class="btn-logout" onclick="logout()">SALIR</button>
     </div>
   </div>
+  <!-- ==================== SECTION: navigation ==================== -->
   <!-- BOTTOM NAV (mobile) -->
   <div id="bottom-nav">
     <div class="bnav-inner" id="bnav-inner"></div>
@@ -609,6 +612,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           </div>
           <div class="fg" id="servicio-fg-block"><label>Servicio <span class="req">*</span></label>
             <div id="t-servicio-wrapper">
+              <!-- ==================== SECTION: cocina ==================== -->
               <!-- Cocina: single select (default) -->
               <select id="t-servicio" style="display:none;">
                 <option value="">— Seleccionar —</option>
@@ -638,6 +642,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
         
 
+        <!-- ==================== SECTION: gestiones ==================== -->
         <!-- GESTIÓN PENDIENTE BLOCK -->
         <div style="margin-top:14px;">
           <div class="sec-div">Gestión pendiente</div>
@@ -671,6 +676,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
           </div>
         </div>
 
+        <!-- ==================== SECTION: incidencias ==================== -->
         <!-- INCIDENCIA OPERATIVA BLOCK -->
         <div style="margin-top:14px;">
           <div class="sec-div">Incidencia operativa</div>
@@ -769,6 +775,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
     </div>
 
+    <!-- ==================== SECTION: tareas ==================== -->
     <!-- ══ TAREAS ══ -->
     <div class="screen" id="screen-tareas">
       <div class="page-header"><div class="page-title">🔗 Tareas Inter-Departamento</div><div class="page-sub">Todas las tareas de todos los departamentos</div></div>
@@ -794,6 +801,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div id="tareas-list"></div>
     </div>
 
+    <!-- ==================== SECTION: validacion ==================== -->
     <!-- ══ VALIDACIÓN ══ -->
     <div class="screen" id="screen-validacion">
       <div class="page-header"><div class="page-title">✅ Validación</div><div class="page-sub">Validar · Rechazar · Pedir corrección · Costes de merma</div>
@@ -833,6 +841,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
     </div>
 
+    <!-- ==================== SECTION: dashboard ==================== -->
     <!-- ══ DASHBOARD ══ -->
     <div class="screen" id="screen-dashboard">
       <div class="page-header"><div class="page-title">📊 Dashboard</div><div class="page-sub" id="dash-sub"></div></div>
@@ -953,6 +962,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
     </div>
 
+    <!-- ==================== SECTION: maestro ==================== -->
     <!-- ══ MAESTRO ══ -->
     <div class="screen" id="screen-maestro">
       <div class="page-header"><div class="page-title">👥 Maestro Cocina</div><div class="page-sub">Solo Administrador</div></div>
@@ -962,6 +972,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
       <div class="card"><div class="tbl-wrap" id="maestro-table"></div></div>
     
+    <!-- ==================== SECTION: recepcion ==================== -->
     <!-- ══ RECEPCIÓN CAJA SCREEN ══ -->
     <div id="screen-rec-caja" class="screen">
       <div class="page-header">
@@ -993,6 +1004,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
     </div>
 </div>
 
+    <!-- ==================== SECTION: cajas ==================== -->
     <!-- ══ EXPORT ══ -->
     <!-- ══ CIERRE CAJA ══ -->
 <div class="screen" id="screen-caja">
@@ -1014,6 +1026,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
   <div id="caja-list" class="tbl-wrap"></div>
 </div>
 
+<!-- ==================== SECTION: modals ==================== -->
 <!-- MODAL: Cierre Caja -->
 <div class="modal-overlay" id="modal-caja">
   <div class="modal" style="max-width:680px;max-height:90vh;overflow-y:auto;">
@@ -1170,6 +1183,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
   </div><!-- /main -->
 </div><!-- /app -->
 
+<!-- ==================== SECTION: sala ==================== -->
 <!-- ══ MODAL AJUSTES SALA (before checklist) ══ -->
 <div id="modal-ajustes" style="position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:650;padding:16px;">
   <div style="background:var(--bg3);border:1px solid #3b82f6;border-radius:14px;padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;">
@@ -1732,6 +1746,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 <script src="recepcion.js"></script>
 <script src="incidencia_tipos.js"></script>
     <script src="dashboard.js"></script>
+<!-- ==================== SECTION: scripts-inline ==================== -->
 <script>
 // ═══════════════════════════════════════════════════════
 // CHECKLIST PRE-TURNO
