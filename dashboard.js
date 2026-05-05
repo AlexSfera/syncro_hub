@@ -221,9 +221,9 @@ async function renderDashboard() {
   var validAreas = _dashDeptSet(_dashCurrentDept);
   shifts = allShifts.filter(function(s) { return _inArea(s.area, validAreas); });
   mermas = allMermas.filter(function(m) {
-    var mArea = m.area || m.departamento || '';
-    if (!mArea) return true;
-    return validAreas.indexOf(_dashCanonicalDept(mArea)) !== -1;
+    var s = shiftMap[m.shift_id];
+    if (!s) return false;
+    return validAreas.indexOf(_dashCanonicalDept(s.area)) !== -1;
   });
   incis  = allIncis.filter(function(i)  { return _isOperationalIncident(i) && inciMatchDept(i, validAreas); });
   tareas = allTareas.filter(function(t) { return tareaMatchDept(t, validAreas); });
@@ -232,7 +232,7 @@ async function renderDashboard() {
   // Filtrar por periodo
   if (desde) {
     shifts = shifts.filter(function(s) { return s.fecha >= desde; });
-    mermas = mermas.filter(function(m) { return m.fecha >= desde; });
+    mermas = mermas.filter(function(m) { var s = shiftMap[m.shift_id]; return s && s.fecha >= desde; });
     incis = incis.filter(function(i) { return i.fecha >= desde; });
     tareas = tareas.filter(function(t) { return (t.created_at || t.deadline || '') >= desde; });
     gestiones = gestiones.filter(function(t) { return (t.created_at || t.deadline || '') >= desde; });
@@ -254,8 +254,8 @@ async function renderDashboard() {
   _renderKpiCards(shifts, mermas, incis, tareas, gestiones, deptCfg);
   _renderActividadEmpleado(shifts, allShifts);
   _renderAlertas(shifts, mermas, incis, tareas);
-  _renderIncidencias(incis);
-  _renderGestiones(gestiones);
+  _renderIncidencias(incis, shiftMap);
+  _renderGestiones(gestiones, shiftMap);
   _renderMerma(mermas);
   _renderTareas(tareas);
   _renderFIO(shifts);
@@ -432,7 +432,7 @@ function _renderAlertas(shifts, mermas, incis, tareas) {
 }
 
 // ── INCIDENCIAS DETALLE ───────────────────────────────────────
-function _renderIncidencias(incis) {
+function _renderIncidencias(incis, shiftMap) {
   var el = document.getElementById('dash-inci-table');
   if (!el) return;
 
@@ -442,7 +442,10 @@ function _renderIncidencias(incis) {
   var diEstado = (document.getElementById('di-estado') || {}).value || '';
 
   var filtered = incis.slice();
-  if (diDept)   filtered = filtered.filter(function(i) { return (i.area || '') === diDept; });
+  if (diDept) filtered = filtered.filter(function(i) {
+    var s = shiftMap && shiftMap[i.shift_id];
+    return ((s && s.area) || i.area || '') === diDept;
+  });
   if (diCat)    filtered = filtered.filter(function(i) { return i.categoria === diCat; });
   if (diSev)    filtered = filtered.filter(function(i) { return i.severidad === diSev; });
   if (diEstado) filtered = filtered.filter(function(i) { return normalizeIncidentState(i.estado) === diEstado; });
@@ -478,6 +481,8 @@ function _renderIncidencias(incis) {
       var sevColor = i.severidad === 'Crítica' ? 'b-red' : i.severidad === 'Alta' ? 'b-orange' : i.severidad === 'Media' ? 'b-yellow' : 'b-gray';
       var normI = normalizeIncidentState(i.estado);
       var estColor = normI === INCIDENT_STATES.ABIERTA ? 'b-red' : normI === INCIDENT_STATES.EN_PROCESO ? 'b-blue' : 'b-green';
+      var iShift = shiftMap && shiftMap[i.shift_id];
+      var iDept = (iShift && iShift.area) || i.area || '—';
       var hora = _localHora(i.created_at);
       var accionTomada = formatDisplayValue(i.accion_inmediata) || '—';
       var acciones = '<button class="btn btn-secondary btn-sm" onclick="_dashShowDetail(\'' + i.id + '\',\'incidencias\')">Ver</button>';
@@ -485,7 +490,7 @@ function _renderIncidencias(incis) {
       return '<tr>'
         + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(i.fecha) + '</td>'
         + '<td style="font-family:var(--font-mono);font-size:11px">' + hora + '</td>'
-        + '<td>' + deptBadge(i.area || '—') + '</td>'
+        + '<td>' + deptBadge(iDept) + '</td>'
         + '<td style="font-size:12px">' + formatDisplayValue(i.categoria) + '</td>'
         + '<td><span class="badge ' + sevColor + '">' + formatDisplayValue(i.severidad) + '</span></td>'
         + '<td style="max-width:180px;font-size:12px">' + formatDisplayValue(i.descripcion) + '</td>'
@@ -498,7 +503,7 @@ function _renderIncidencias(incis) {
 }
 
 // ── GESTIONES ────────────────────────────────────────────────
-function _renderGestiones(gestiones) {
+function _renderGestiones(gestiones, shiftMap) {
   var gridEl = document.getElementById('dash-gestiones-kpi');
   var tableEl = document.getElementById('dash-gestiones-table');
   if (!gridEl && !tableEl) return;
@@ -549,7 +554,8 @@ function _renderGestiones(gestiones) {
       var hora = _localHora(t.created_at);
       var fechaVal = t.fecha || (t.created_at ? (t.created_at.replace(' ', 'T').slice(0, 10)) : '');
       var tipo = formatDisplayValue(t.titulo || t.origen) || '—';
-      var accionTomada = formatDisplayValue(t.notas_cierre) || '—';
+      var tShift = shiftMap && shiftMap[t.shift_id];
+      var accionTomada = (tShift && formatDisplayValue(tShift.i_accion)) || formatDisplayValue(t.notas_cierre) || '—';
       var acciones = '<button class="btn btn-secondary btn-sm" onclick="_dashShowDetail(\'' + t.id + '\',\'tareas\')">Ver</button>';
       if (isAdmin) acciones += ' <button class="btn btn-danger btn-sm" onclick="_dashDeleteRecord(\'' + t.id + '\',\'tareas\')">Eliminar</button>';
       return '<tr style="' + (vencida ? 'background:rgba(239,68,68,.05)' : '') + '">'
