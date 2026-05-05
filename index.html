@@ -796,7 +796,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
 
     <!-- ══ VALIDACIÓN ══ -->
     <div class="screen" id="screen-validacion">
-      <div class="page-header"><div class="page-title">✅ Validación</div><div class="page-sub">Validar · Rechazar · Pedir corrección · Costes de merma</div>
+      <div class="page-header"><div class="page-title">✅ Validación</div><div class="page-sub">Validar · Pedir corrección · Costes de merma</div>
       <div style="display:flex;gap:8px;margin-top:14px;">
         <button id="val-tab-followup" onclick="switchValTab('followup')" style="padding:8px 18px;border-radius:6px;border:2px solid #2ec4b6;background:rgba(46,196,182,.15);color:#2ec4b6;font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.1em;">FOLLOW-UP</button>
         <button id="val-tab-caja" onclick="switchValTab('caja')" style="padding:8px 18px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text3);font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.1em;">CIERRE CAJA</button>
@@ -806,7 +806,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
         <div class="fg"><label>Desde</label><input type="date" id="v-desde"></div>
         <div class="fg"><label>Hasta</label><input type="date" id="v-hasta"></div>
         <div class="fg"><label>Estado</label>
-          <select id="v-estado"><option value="">Todos</option><option>Pendiente</option><option>En corrección</option><option>Validado</option><option>Rechazado</option></select></div>
+          <select id="v-estado"><option value="">Todos</option><option>Pendiente</option><option>En corrección</option><option>Validado</option></select></div>
         <div class="fg"><label>Servicio</label>
           <select id="v-servicio"><option value="">Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option><option>Evento</option></select></div>
         <div><button class="btn btn-secondary" style="margin-top:20px" onclick="renderValidacion()">🔍 Filtrar</button></div>
@@ -879,12 +879,14 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <!-- Panel: Incidencias -->
       <div class="dash-panel" id="tab-panel-incidencias" role="tabpanel">
         <div class="filter-bar" style="margin-bottom:10px;">
-          <div class="fg"><label>Categoría</label>
-            <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Incidencia operativa</option><option>Reportada por empleado</option></select></div>
+          <div class="fg"><label>Departamento</label>
+            <select id="di-dept" onchange="renderDashboard()"><option value="">Todos</option><option>Cocina</option><option>Sala</option><option>Friegue</option><option>Recepción</option><option>F&amp;B</option></select></div>
+          <div class="fg"><label>Tipo</label>
+            <select id="di-cat" onchange="renderDashboard()"><option value="">Todos</option><option>Incidencia operativa</option><option>Reportada por empleado</option></select></div>
           <div class="fg"><label>Severidad</label>
             <select id="di-sev" onchange="renderDashboard()"><option value="">Todas</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
-          <div class="fg"><label>Estado incidencia</label>
-            <select id="di-estado" onchange="renderDashboard()"><option value="">Todas</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Validada</option></select></div>
+          <div class="fg"><label>Estado</label>
+            <select id="di-estado" onchange="renderDashboard()"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option></select></div>
         </div>
         <div class="kpi-grid" id="kpi-incis"></div>
         <div class="card"><div class="card-title">INCIDENCIAS — DETALLE</div><div class="tbl-wrap" id="dash-inci-table"></div></div>
@@ -901,10 +903,16 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
 
-      <!-- Panel: Gestiones pendientes -->
+      <!-- Panel: Gestiones -->
       <div class="dash-panel" id="tab-panel-gestiones" role="tabpanel">
+        <div class="filter-bar" style="margin-bottom:10px;">
+          <div class="fg"><label>Departamento</label>
+            <select id="dg-dept" onchange="renderDashboard()"><option value="">Todos</option><option>Cocina</option><option>Sala</option><option>Friegue</option><option>Recepción</option><option>F&amp;B</option></select></div>
+          <div class="fg"><label>Estado</label>
+            <select id="dg-estado" onchange="renderDashboard()"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option></select></div>
+        </div>
         <div class="kpi-grid" id="dash-gestiones-kpi"></div>
-        <div class="card"><div class="card-title">GESTIONES PENDIENTES</div><div class="tbl-wrap" id="dash-gestiones-table"></div></div>
+        <div class="card"><div class="card-title">GESTIONES</div><div class="tbl-wrap" id="dash-gestiones-table"></div></div>
       </div>
 
       <!-- Panel: FIO -->
@@ -1639,9 +1647,19 @@ tr:hover td{background:rgba(255,255,255,.018);}
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-validar')">Cancelar</button>
       <button class="btn btn-warn btn-sm" onclick="doValidacion('En corrección')">↩ Corrección</button>
-      <button class="btn btn-danger btn-sm" onclick="doValidacion('Rechazado')">✗ Rechazar</button>
       <button class="btn btn-success btn-sm" onclick="doValidacion('Validado')">✓ Validar</button>
     </div>
+  </div>
+</div>
+
+<!-- ══ DETALLE REGISTRO DASHBOARD ══ -->
+<div id="dash-detail-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);z-index:950;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;" onclick="if(event.target===this)_dashCloseDetail()">
+  <div style="background:var(--bg2);border-radius:12px;border:1px solid var(--border);max-width:560px;width:100%;padding:20px;margin-top:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;">Detalle del registro</div>
+      <button onclick="_dashCloseDetail()" style="background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--text3);padding:0 4px;">✕</button>
+    </div>
+    <div class="dash-detail-body"></div>
   </div>
 </div>
 

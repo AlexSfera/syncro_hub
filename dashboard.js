@@ -43,6 +43,13 @@ function getDashDeptsForUser() {
 }
 
 // ── HELPERS LOCALES ───────────────────────────────────────────
+function _localHora(ts) {
+  if (!ts) return '—';
+  var n = typeof ts === 'string' ? ts.replace(' ', 'T') : ts;
+  var d = new Date(n);
+  if (isNaN(d.getTime())) return '—';
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
 function _isFio(s) {
   return s.fio === true || s.fio === 1 || s.fio === 'true' || s.fio === '1';
 }
@@ -213,7 +220,11 @@ async function renderDashboard() {
   var shifts, mermas, incis, tareas;
   var validAreas = _dashDeptSet(_dashCurrentDept);
   shifts = allShifts.filter(function(s) { return _inArea(s.area, validAreas); });
-  mermas = allMermas.filter(function(m) { return mermaMatchDept(m, validAreas); });
+  mermas = allMermas.filter(function(m) {
+    var mArea = m.area || m.departamento || '';
+    if (!mArea) return true;
+    return validAreas.indexOf(_dashCanonicalDept(mArea)) !== -1;
+  });
   incis  = allIncis.filter(function(i)  { return _isOperationalIncident(i) && inciMatchDept(i, validAreas); });
   tareas = allTareas.filter(function(t) { return tareaMatchDept(t, validAreas); });
   var gestiones = tareas.filter(_isGestionTask);
@@ -372,8 +383,26 @@ function _renderAlertas(shifts, mermas, incis, tareas) {
 
   var msgs = [];
 
-  var pendH = shifts.filter(function(s) { return s.estado === 'Pendiente'; }).length;
-  if (pendH > 0) msgs.push({ t: 'warn', m: pendH + ' turno(s) pendiente(s) de validación' });
+  // Alerta unificada de turnos pendientes
+  var pendShifts = shifts.filter(function(s) { return s.estado === 'Pendiente'; });
+  var corrShifts = shifts.filter(function(s) { return s.estado === 'En corrección'; });
+  if (pendShifts.length > 0 || corrShifts.length > 0) {
+    var byDept = {};
+    pendShifts.forEach(function(s) { var a = s.area || '?'; byDept[a] = (byDept[a] || 0) + 1; });
+    var deptBreak = Object.keys(byDept).map(function(k) { return k + ': ' + byDept[k]; }).join(' · ');
+    var conInfo = pendShifts.filter(function(s) {
+      return s.merma_declarada === 'si' || s.incidencia_declarada === 'si' || (s.observacion && s.observacion.trim());
+    }).length;
+    var html = '<strong>' + pendShifts.length + ' turno(s) pendiente(s) de validación</strong>';
+    if (deptBreak) html += '<div style="font-size:11px;color:var(--text3);margin-top:3px">' + deptBreak + '</div>';
+    if (conInfo > 0) {
+      html += '<div style="font-size:11px;margin-top:3px">' + conInfo + ' de ellos con información operativa declarada <span title="Turno con merma, incidencia u observación registrada al cierre del turno" style="cursor:help;border-bottom:1px dotted currentColor">ⓘ</span></div>';
+    }
+    if (corrShifts.length > 0) {
+      html += '<div style="font-size:11px;margin-top:3px;opacity:.8">' + corrShifts.length + ' turno(s) devuelto(s) a corrección — pendiente de reenvío</div>';
+    }
+    msgs.push({ t: 'warn', m: html });
+  }
 
   var inciCrit = incis.filter(function(i) { return i.severidad === 'Crítica' && isIncidentOpen(i); });
   if (inciCrit.length) msgs.push({ t: 'err', m: '⛔ ' + inciCrit.length + ' incidencia(s) CRÍTICA(s) sin cerrar' });
@@ -387,14 +416,13 @@ function _renderAlertas(shifts, mermas, incis, tareas) {
   var sinCoste = mermas.filter(function(m) { return !m.coste_unitario || m.coste_unitario === 0; }).length;
   if (sinCoste > 0) msgs.push({ t: 'warn', m: sinCoste + ' línea(s) de merma sin coste asignado' });
 
-  // Comprobar turnos hace más de 24h sin validar
   var ahora = new Date();
-  var turnos24h = shifts.filter(function(s) {
-    if (s.estado !== 'Pendiente') return false;
-    var ts = new Date(s.created_at || s.fecha);
-    return (ahora - ts) > 86400000;
+  var turnos24h = pendShifts.filter(function(s) {
+    var n = (s.created_at || '').replace(' ', 'T');
+    var ts = new Date(n || s.fecha);
+    return !isNaN(ts.getTime()) && (ahora - ts) > 86400000;
   }).length;
-  if (turnos24h > 0) msgs.push({ t: 'warn', m: turnos24h + ' follow-up(s) sin validar más de 24h' });
+  if (turnos24h > 0) msgs.push({ t: 'warn', m: turnos24h + ' turno(s) sin validar desde hace más de 24h' });
 
   if (!msgs.length) msgs.push({ t: 'ok', m: '✓ Sin alertas activas en el periodo' });
 
@@ -408,13 +436,15 @@ function _renderIncidencias(incis) {
   var el = document.getElementById('dash-inci-table');
   if (!el) return;
 
-  var diCat = (document.getElementById('di-cat') || {}).value || '';
-  var diSev = (document.getElementById('di-sev') || {}).value || '';
+  var diDept   = (document.getElementById('di-dept')   || {}).value || '';
+  var diCat    = (document.getElementById('di-cat')    || {}).value || '';
+  var diSev    = (document.getElementById('di-sev')    || {}).value || '';
   var diEstado = (document.getElementById('di-estado') || {}).value || '';
 
   var filtered = incis.slice();
-  if (diCat) filtered = filtered.filter(function(i) { return i.categoria === diCat; });
-  if (diSev) filtered = filtered.filter(function(i) { return i.severidad === diSev; });
+  if (diDept)   filtered = filtered.filter(function(i) { return (i.area || '') === diDept; });
+  if (diCat)    filtered = filtered.filter(function(i) { return i.categoria === diCat; });
+  if (diSev)    filtered = filtered.filter(function(i) { return i.severidad === diSev; });
   if (diEstado) filtered = filtered.filter(function(i) { return normalizeIncidentState(i.estado) === diEstado; });
 
   // KPI incidencias
@@ -438,28 +468,36 @@ function _renderIncidencias(incis) {
     return;
   }
 
-  filtered.sort(function(a, b) { return b.fecha.localeCompare(a.fecha); });
+  filtered.sort(function(a, b) { return (b.fecha || '').localeCompare(a.fecha || ''); });
 
-  el.innerHTML = '<table>'
-    + '<tr><th>Fecha</th><th>Categoría</th><th>Severidad</th><th>Descripción</th><th>Estado</th><th>Empleado</th><th>Acción</th></tr>'
+  var isAdmin = currentUser && currentUser.rol === 'admin';
+
+  el.innerHTML = '<div style="overflow-x:auto"><table>'
+    + '<tr><th>Fecha</th><th>Hora</th><th>Departamento</th><th>Tipo</th><th>Severidad</th><th>Descripción</th><th>Acción tomada</th><th>Estado</th><th>Acción</th></tr>'
     + filtered.map(function(i) {
       var sevColor = i.severidad === 'Crítica' ? 'b-red' : i.severidad === 'Alta' ? 'b-orange' : i.severidad === 'Media' ? 'b-yellow' : 'b-gray';
       var normI = normalizeIncidentState(i.estado);
       var estColor = normI === INCIDENT_STATES.ABIERTA ? 'b-red' : normI === INCIDENT_STATES.EN_PROCESO ? 'b-blue' : 'b-green';
+      var hora = _localHora(i.created_at);
+      var accionTomada = formatDisplayValue(i.accion_inmediata) || '—';
+      var acciones = '<button class="btn btn-secondary btn-sm" onclick="_dashShowDetail(\'' + i.id + '\',\'incidencias\')">Ver</button>';
+      if (isAdmin) acciones += ' <button class="btn btn-danger btn-sm" onclick="_dashDeleteRecord(\'' + i.id + '\',\'incidencias\')">Eliminar</button>';
       return '<tr>'
         + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(i.fecha) + '</td>'
-        + '<td>' + formatDisplayValue(i.categoria) + '</td>'
+        + '<td style="font-family:var(--font-mono);font-size:11px">' + hora + '</td>'
+        + '<td>' + deptBadge(i.area || '—') + '</td>'
+        + '<td style="font-size:12px">' + formatDisplayValue(i.categoria) + '</td>'
         + '<td><span class="badge ' + sevColor + '">' + formatDisplayValue(i.severidad) + '</span></td>'
-        + '<td style="max-width:200px;font-size:12px">' + formatDisplayValue(i.descripcion) + '</td>'
-        + '<td><span class="badge ' + estColor + '">' + normI + '</span></td>'
-        + '<td style="font-size:12px">' + formatDisplayValue(i.nombre || i.empleado) + '</td>'
-        + '<td>' + (canValidateIncident(currentUser,i) ? '<button class="btn btn-primary btn-sm" onclick="advanceIncident(\'' + i.id + '\',\'Validada\')">Validar</button>' : '—') + '</td>'
+        + '<td style="max-width:180px;font-size:12px">' + formatDisplayValue(i.descripcion) + '</td>'
+        + '<td style="max-width:160px;font-size:12px;color:var(--text3)">' + accionTomada + '</td>'
+        + '<td>' + bIncidentEstado(i.estado) + '</td>'
+        + '<td style="white-space:nowrap">' + acciones + '</td>'
         + '</tr>';
     }).join('')
-    + '</table>';
+    + '</table></div>';
 }
 
-// ── GESTIONES PENDIENTES ─────────────────────────────────────
+// ── GESTIONES ────────────────────────────────────────────────
 function _renderGestiones(gestiones) {
   var gridEl = document.getElementById('dash-gestiones-kpi');
   var tableEl = document.getElementById('dash-gestiones-table');
@@ -468,42 +506,64 @@ function _renderGestiones(gestiones) {
   var abiertas = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.ABIERTA; });
   var enProc = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.EN_PROCESO; });
   var cerradas = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.CERRADA; });
-  var validadas = gestiones.filter(function(t) { return normalizeTaskState(t.estado) === TASK_STATES.VALIDADA; });
   var vencidas = gestiones.filter(function(t) { return isOverdue(t.deadline) && isTaskOpen(t); });
-  var pendientes = gestiones.filter(_tareaActiva);
 
   if (gridEl) {
     gridEl.innerHTML = '<div class="kpi k-amber"><div class="kpi-lbl">Abiertas</div><div class="kpi-val">' + abiertas.length + '</div></div>'
       + '<div class="kpi k-blue"><div class="kpi-lbl">En proceso</div><div class="kpi-val">' + enProc.length + '</div></div>'
       + '<div class="kpi k-green"><div class="kpi-lbl">Cerradas</div><div class="kpi-val">' + cerradas.length + '</div></div>'
-      + '<div class="kpi k-green"><div class="kpi-lbl">Validadas</div><div class="kpi-val">' + validadas.length + '</div></div>'
       + '<div class="kpi k-red"><div class="kpi-lbl">Vencidas</div><div class="kpi-val">' + vencidas.length + '</div></div>';
   }
 
   if (!tableEl) return;
-  if (!pendientes.length) {
-    tableEl.innerHTML = '<div class="empty"><div class="empty-text">Sin gestiones pendientes</div></div>';
+
+  // Filtros del panel de gestiones
+  var dgDept   = (document.getElementById('dg-dept')   || {}).value || '';
+  var dgEstado = (document.getElementById('dg-estado') || {}).value || '';
+
+  var filtered = gestiones.slice();
+  if (dgDept)   filtered = filtered.filter(function(t) { return (t.area || t.dept_destino || '') === dgDept; });
+  if (dgEstado) filtered = filtered.filter(function(t) { return normalizeTaskState(t.estado) === dgEstado; });
+
+  if (!filtered.length) {
+    tableEl.innerHTML = '<div class="empty"><div class="empty-text">Sin gestiones en el periodo</div></div>';
     return;
   }
-  pendientes.sort(function(a, b) {
+
+  filtered.sort(function(a, b) {
     if (isOverdue(a.deadline) && !isOverdue(b.deadline)) return -1;
     if (!isOverdue(a.deadline) && isOverdue(b.deadline)) return 1;
-    return (a.deadline || '').localeCompare(b.deadline || '');
+    var ta = (a.created_at || '').replace(' ', 'T');
+    var tb = (b.created_at || '').replace(' ', 'T');
+    return tb.localeCompare(ta);
   });
-  tableEl.innerHTML = '<table>'
-    + '<tr><th>Deadline</th><th>Estado</th><th>Origen</th><th>Descripción</th><th>Destino</th><th>Creado por</th></tr>'
-    + pendientes.map(function(t) {
+
+  var isAdmin = currentUser && currentUser.rol === 'admin';
+
+  tableEl.innerHTML = '<div style="overflow-x:auto"><table>'
+    + '<tr><th>Fecha</th><th>Hora</th><th>Departamento</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th>Acción tomada</th><th>Acción</th></tr>'
+    + filtered.map(function(t) {
+      var normSt = normalizeTaskState(t.estado);
+      var stColor = normSt === TASK_STATES.ABIERTA ? 'b-red' : normSt === TASK_STATES.EN_PROCESO ? 'b-blue' : 'b-green';
       var vencida = isOverdue(t.deadline);
+      var hora = _localHora(t.created_at);
+      var fechaVal = t.fecha || (t.created_at ? (t.created_at.replace(' ', 'T').slice(0, 10)) : '');
+      var tipo = formatDisplayValue(t.titulo || t.origen) || '—';
+      var accionTomada = formatDisplayValue(t.notas_cierre) || '—';
+      var acciones = '<button class="btn btn-secondary btn-sm" onclick="_dashShowDetail(\'' + t.id + '\',\'tareas\')">Ver</button>';
+      if (isAdmin) acciones += ' <button class="btn btn-danger btn-sm" onclick="_dashDeleteRecord(\'' + t.id + '\',\'tareas\')">Eliminar</button>';
       return '<tr style="' + (vencida ? 'background:rgba(239,68,68,.05)' : '') + '">'
-        + '<td style="font-family:var(--font-mono);font-size:11px;color:' + (vencida ? 'var(--red)' : 'var(--text)') + '">' + fmtDate(t.deadline) + (vencida ? ' ⚠' : '') + '</td>'
-        + '<td>' + bTaskEstado(t.estado) + '</td>'
-        + '<td><span class="task-origin">' + formatDisplayValue(t.origen) + '</span></td>'
-        + '<td style="font-size:12px;max-width:260px">' + formatDisplayValue(t.descripcion || t.titulo) + '</td>'
-        + '<td>' + deptBadge(t.dept_destino) + '</td>'
-        + '<td style="font-size:12px">' + formatDisplayValue(t.creado_por) + '</td>'
+        + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(fechaVal) + '</td>'
+        + '<td style="font-family:var(--font-mono);font-size:11px">' + hora + '</td>'
+        + '<td>' + deptBadge(t.area || t.dept_destino || '—') + '</td>'
+        + '<td style="font-size:12px">' + tipo + '</td>'
+        + '<td style="font-size:12px;max-width:200px">' + formatDisplayValue(t.descripcion) + '</td>'
+        + '<td><span class="badge ' + stColor + '">' + normSt + '</span></td>'
+        + '<td style="max-width:160px;font-size:12px;color:var(--text3)">' + accionTomada + '</td>'
+        + '<td style="white-space:nowrap">' + acciones + '</td>'
         + '</tr>';
     }).join('')
-    + '</table>';
+    + '</table></div>';
 }
 
 // ── TAREAS POR DEPARTAMENTO ───────────────────────────────────
@@ -997,5 +1057,78 @@ async function renderCostTable() {
 function _syncInciTiposFilter() {
   if (typeof populateDashInciFilter === 'function') {
     populateDashInciFilter(_dashCurrentDept);
+  }
+}
+
+// ── DETALLE DE REGISTRO (overlay) ────────────────────────────
+async function _dashShowDetail(id, table) {
+  var overlay = document.getElementById('dash-detail-overlay');
+  if (!overlay) return;
+  var body = overlay.querySelector('.dash-detail-body');
+  if (body) body.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0;text-align:center">Cargando…</div>';
+  overlay.style.display = 'flex';
+  try {
+    var records = await getDB(table);
+    var rec = records.find(function(r) { return String(r.id) === String(id); });
+    if (!rec) { if (body) body.innerHTML = '<div style="color:var(--text3);font-size:13px">Registro no encontrado.</div>'; return; }
+    function row(label, val) {
+      if (!val || val === '—' || val === '[NO DATA]') return '';
+      return '<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">'
+        + '<div style="flex:0 0 140px;color:var(--text3);font-size:11px;font-family:var(--font-mono);letter-spacing:.05em;text-transform:uppercase;padding-top:2px">' + label + '</div>'
+        + '<div style="flex:1;word-break:break-word">' + val + '</div>'
+        + '</div>';
+    }
+    var html = '';
+    if (table === 'incidencias') {
+      var hora = _localHora(rec.created_at);
+      html += row('Fecha', fmtDate(rec.fecha) + (hora !== '—' ? ' · ' + hora : ''));
+      html += row('Departamento', rec.area || '—');
+      html += row('Tipo / Categoría', rec.categoria || '—');
+      html += row('Severidad', rec.severidad || '—');
+      html += row('Descripción', formatDisplayValue(rec.descripcion));
+      html += row('Acción tomada', formatDisplayValue(rec.accion_inmediata));
+      html += row('Estado', rec.estado || '—');
+      html += row('Declarado por', rec.nombre || rec.empleado || '—');
+      var staff = '';
+      if (rec.staff_implicado_nombres) {
+        try { staff = JSON.parse(rec.staff_implicado_nombres).join(', '); } catch(e) { staff = rec.staff_implicado_nombres; }
+      }
+      html += row('Personal implicado', staff || '—');
+      html += row('Observaciones', formatDisplayValue(rec.observacion || rec.notas));
+    } else {
+      var horaT = _localHora(rec.created_at);
+      var fechaT = rec.fecha || (rec.created_at ? rec.created_at.replace(' ', 'T').slice(0, 10) : '');
+      html += row('Fecha', fmtDate(fechaT) + (horaT !== '—' ? ' · ' + horaT : ''));
+      html += row('Departamento', rec.area || rec.dept_destino || '—');
+      html += row('Tipo', rec.titulo || rec.origen || '—');
+      html += row('Descripción', formatDisplayValue(rec.descripcion));
+      html += row('Estado', rec.estado || '—');
+      html += row('Creado por', rec.creado_por || '—');
+      html += row('Acción tomada / Notas cierre', formatDisplayValue(rec.notas_cierre));
+      html += row('Deadline', fmtDate(rec.deadline));
+      html += row('Prioridad', rec.prioridad || '—');
+      html += row('Responsable', rec.responsable_nombre || '—');
+    }
+    if (body) body.innerHTML = html || '<div style="color:var(--text3);font-size:13px">Sin datos adicionales.</div>';
+  } catch(e) {
+    if (body) body.innerHTML = '<div style="color:var(--red);font-size:13px">Error al cargar: ' + e.message + '</div>';
+  }
+}
+
+function _dashCloseDetail() {
+  var overlay = document.getElementById('dash-detail-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function _dashDeleteRecord(id, table) {
+  if (!currentUser || currentUser.rol !== 'admin') return;
+  if (!confirm('¿Eliminar este registro? Esta acción no se puede deshacer.')) return;
+  try {
+    await sbRequest('DELETE', table, null, 'id=eq.' + id);
+    invalidateCache(table);
+    toast('Registro eliminado', 'ok');
+    renderDashboard();
+  } catch(e) {
+    toast('Error al eliminar: ' + e.message, 'err');
   }
 }
