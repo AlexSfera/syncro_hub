@@ -811,12 +811,12 @@ tr:hover td{background:rgba(255,255,255,.018);}
       </div>
       </div>
       <div class="filter-bar">
-        <div class="fg"><label>Desde</label><input type="date" id="v-desde"></div>
-        <div class="fg"><label>Hasta</label><input type="date" id="v-hasta"></div>
+        <div class="fg"><label>Desde</label><input type="date" id="v-desde" onchange="renderValidacion()"></div>
+        <div class="fg"><label>Hasta</label><input type="date" id="v-hasta" onchange="renderValidacion()"></div>
         <div class="fg"><label>Estado</label>
-          <select id="v-estado"><option value="">Todos</option><option>Pendiente</option><option>En corrección</option><option>Validado</option><option>Rechazado</option></select></div>
+          <select id="v-estado" onchange="renderValidacion()"><option value="">Todos</option><option>Pendiente</option><option>En corrección</option><option>Validado</option><option>Rechazado</option></select></div>
         <div class="fg"><label>Servicio</label>
-          <select id="v-servicio"><option value="">Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option><option>Evento</option></select></div>
+          <select id="v-servicio" onchange="renderValidacion()"><option value="">Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option><option>Evento</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
         <div><button class="btn btn-secondary" style="margin-top:20px" onclick="renderValidacion()">🔍 Filtrar</button></div>
       </div>
       <!-- FOLLOW-UP TAB -->
@@ -1630,11 +1630,11 @@ tr:hover td{background:rgba(255,255,255,.018);}
             <button class="tbtn" id="fio-no" onclick="setT('fio','no')">NO — Sin FIO</button>
           </div>
         </div>
-        <div class="fg">
-          <label>Empleado responsable del error</label>
-          <select id="val-error-empleado">
-            <option value="">— Sin error / Sin responsable —</option>
-          </select>
+        <div class="fg" style="grid-column:span 2">
+          <label>Empleados con FIO <span style="font-size:11px;font-weight:400;color:var(--text3);">— selecciona todos los implicados</span></label>
+          <div id="val-fio-empleados-list" style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--bg);font-size:12px;">
+            <span style="color:var(--text3)">Cargando...</span>
+          </div>
         </div>
         <div class="fg">
           <label>Concepto FIO</label>
@@ -1825,6 +1825,7 @@ async function chkConfirm(){
   if(isSala && currentUser._activeDept !== 'Recepción') {
     openCajaOfferModal();
   } else if(isRec) {
+    await _doSaveTurno();
     openRecKpiModal();
   } else {
     await _doSaveTurno();
@@ -2007,6 +2008,7 @@ async function deleteShift(shiftId){
 
 // ── OPEN SHIFT DETAIL (admin/chef/fb) ──
 async function openShiftDetail(shiftId){
+  _currentDetailShiftId = shiftId;
   const shifts = await getDB('shifts');
   const s = shifts.find(x=>x.id===shiftId);
   if(!s) return;
@@ -2036,7 +2038,10 @@ async function openShiftDetail(shiftId){
     try{
       var chk = JSON.parse(s.checklist_items);
       var isFriegue = s.area==='Friegue'||s.puesto==='Friegue';
-      var items = isFriegue ? CHK_FRIEGUE_ITEMS : CHK_COCINA_ITEMS;
+      var isRecShift = s.area==='Recepción';
+      var items;
+      if(isRecShift){ var srv=(s.servicio||'').toLowerCase(); items=srv==='tarde'?CHK_REC_TARDE_ITEMS:srv==='noche'?CHK_REC_NOCHE_ITEMS:CHK_REC_MANANA_ITEMS; }
+      else { items = isFriegue ? CHK_FRIEGUE_ITEMS : CHK_COCINA_ITEMS; }
       var done = chk.filter(Boolean).length;
       html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">';
       html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#2ec4b6;letter-spacing:.15em;margin-bottom:10px;">2 · CHECKLIST ('+done+'/'+chk.length+' completados)</div>';
@@ -2054,8 +2059,8 @@ async function openShiftDetail(shiftId){
   }
 
   // ── BLOQUE 3: Gestión pendiente ──
-  var gestions3 = allTareas.concat(incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; }));
-  var incisOp3  = incis.filter(function(i){ return i.categoria !== 'Gestión pendiente'; });
+  var gestions3 = allTareas.concat(incis.filter(function(i){ return i.categoria === 'Gestión pendiente' || i.categoria === 'Follow-up / Gestión'; }));
+  var incisOp3  = incis.filter(function(i){ return i.categoria !== 'Gestión pendiente' && i.categoria !== 'Follow-up / Gestión'; });
   if(gestions3.length>0){
     html += '<div style="background:var(--bg2);border:1px solid var(--amber);border-radius:8px;padding:14px;margin-bottom:12px;">';
     html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:10px;">3 · GESTIONES PENDIENTES DECLARADAS</div>';
@@ -2067,6 +2072,27 @@ async function openShiftDetail(shiftId){
       if(g.deadline) html += '<div><span style="color:var(--text3)">Deadline: </span>'+fmtDate(g.deadline)+'</div>';
       html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+formatDisplayValue(g.descripcion || g.titulo)+'</strong></div>';
       html += '</div>';
+      var isGestTarea = !!g.dept_destino;
+      var isGestTarea = !!g.dept_destino;
+      if(isGestTarea){
+        var normGSt = normalizeTaskState(g.estado);
+        if(canCloseTask(currentUser,g) && (normGSt===TASK_STATES.ABIERTA||normGSt===TASK_STATES.EN_PROCESO)){
+          html += '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
+          if(normGSt===TASK_STATES.ABIERTA) html += '<button style="background:rgba(245,158,11,.15);border:1px solid var(--amber);color:var(--amber);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceTask(\''+g.id+'\',\'En proceso\').then(_refreshShiftDetail)">▶ En proceso</button>';
+          html += '<button style="background:rgba(249,115,22,.15);border:1px solid #f97316;color:#f97316;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceTask(\''+g.id+'\',\'Cerrada\').then(_refreshShiftDetail)">✓ Cerrar</button>';
+          if(isAdmin(currentUser)) html += '<button style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="cancelGestion(\''+g.id+'\',\'tareas\',_refreshShiftDetail)">✕ Eliminar</button>';
+          html += '</div>';
+        }
+      } else {
+        var normGI = normalizeIncidentState(g.estado);
+        if(canCloseIncident(currentUser,g)){
+          html += '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
+          if(normGI===INCIDENT_STATES.ABIERTA) html += '<button style="background:rgba(245,158,11,.15);border:1px solid var(--amber);color:var(--amber);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+g.id+'\',\'En proceso\').then(_refreshShiftDetail)">▶ En proceso</button>';
+          html += '<button style="background:rgba(249,115,22,.15);border:1px solid #f97316;color:#f97316;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+g.id+'\',\'Cerrada\').then(_refreshShiftDetail)">✓ Cerrar</button>';
+          if(isAdmin(currentUser)) html += '<button style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="cancelGestion(\''+g.id+'\',\'incidencias\',_refreshShiftDetail)">✕ Eliminar</button>';
+          html += '</div>';
+        }
+      }
     });
     html += '</div>';
   } else {
@@ -2094,6 +2120,14 @@ async function openShiftDetail(shiftId){
         }catch(e){}
       }
       html += '</div>';
+      var normI2 = normalizeIncidentState(i.estado);
+      if(canCloseIncident(currentUser,i)){
+        html += '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
+        if(normI2===INCIDENT_STATES.ABIERTA) html += '<button style="background:rgba(245,158,11,.15);border:1px solid var(--amber);color:var(--amber);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+i.id+'\',\'En proceso\').then(_refreshShiftDetail)">▶ En proceso</button>';
+        html += '<button style="background:rgba(249,115,22,.15);border:1px solid #f97316;color:#f97316;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+i.id+'\',\'Cerrada\').then(_refreshShiftDetail)">✓ Cerrar</button>';
+        if(isAdmin(currentUser)) html += '<button style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="cancelGestion(\''+i.id+'\',\'incidencias\',_refreshShiftDetail)">✕ Eliminar</button>';
+        html += '</div>';
+      }
     });
     html += '</div>';
   }
@@ -3799,9 +3833,9 @@ async function renderFollowupList() {
 
   var gestiones = allTareas.filter(function(t){ return isTaskOpen(t) && isGestion(t) && sameDept(t); });
   var tareas = allTareas.filter(function(t){ return isTaskOpen(t) && !isGestion(t) && sameDept(t); });
-  var gestionesHistoricas = allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria === 'Gestión pendiente' && sameDept(i); });
+  var gestionesHistoricas = allIncis.filter(function(i){ return isIncidentOpen(i) && (i.categoria === 'Gestión pendiente' || i.categoria === 'Follow-up / Gestión') && sameDept(i); });
   var incidencias = isSupervisorUser
-    ? allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria !== 'Gestión pendiente' && sameDept(i); })
+    ? allIncis.filter(function(i){ return isIncidentOpen(i) && i.categoria !== 'Gestión pendiente' && i.categoria !== 'Follow-up / Gestión' && sameDept(i); })
     : [];
 
   var total = gestiones.length + gestionesHistoricas.length + tareas.length + incidencias.length;
@@ -3812,14 +3846,16 @@ async function renderFollowupList() {
     return;
   }
 
-  function buildTaskRows(list, title){
+  function buildTaskRows(list, isGestionMode){
     if(!list.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0;">Ninguna</div>';
     var t = '<table><tr><th>Deadline</th><th>Estado</th><th>Descripción</th><th>Destino</th><th>Creado por</th><th>Acciones</th></tr>';
     list.forEach(function(row){
       var acciones = '';
       var st = normalizeTaskState(row.estado);
       if(canProgressTask(row) && st === TASK_STATES.ABIERTA) acciones += '<button class="btn btn-secondary btn-sm" onclick="advanceTask(\''+row.id+'\',\'En proceso\')">En proceso</button> ';
-      if(canCloseTask(currentUser,row) && st === TASK_STATES.EN_PROCESO) acciones += '<button class="btn btn-secondary btn-sm" onclick="advanceTask(\''+row.id+'\',\'Cerrada\')">Cerrar</button>';
+      if(isGestionMode && canCloseTask(currentUser,row) && st === TASK_STATES.ABIERTA) acciones += '<button class="btn btn-danger btn-sm" onclick="advanceTask(\''+row.id+'\',\'Cerrada\')">Cerrar</button> ';
+      if(canCloseTask(currentUser,row) && st === TASK_STATES.EN_PROCESO) acciones += '<button class="btn btn-danger btn-sm" onclick="advanceTask(\''+row.id+'\',\'Cerrada\')">Cerrar</button> ';
+      if(isGestionMode && isAdminUser) acciones += '<button class="btn btn-sm" style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);" onclick="cancelGestion(\''+row.id+'\',\'tareas\')">Eliminar</button>';
       t += '<tr>'
         + '<td style="font-family:var(--font-mono);font-size:11px;'+(isOverdue(row.deadline)?'color:var(--red);font-weight:700;':'')+'">' + fmtDate(row.deadline) + (isOverdue(row.deadline)?' ⚠':'') + '</td>'
         + '<td>' + bTaskEstado(row.estado) + '</td>'
@@ -3845,6 +3881,7 @@ async function renderFollowupList() {
       var acciones = canClose
         ? (normI===INCIDENT_STATES.ABIERTA?'<button class="btn btn-secondary btn-sm" onclick="advanceIncident(\''+i.id+'\',\'En proceso\')">En proceso</button> ':'') + '<button class="btn btn-secondary btn-sm" onclick="openCloseFollowup(\''+i.id+'\')">Cerrar</button>'
         : '';
+      if(isAdminUser) acciones += ' <button class="btn btn-sm" style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);" onclick="cancelGestion(\''+i.id+'\',\'incidencias\')">Eliminar</button>';
       t += '<tr>'
         + '<td style="font-size:12px;">' + formatDisplayValue(i.tipo_incidencia) + '</td>'
         + '<td style="font-size:12px;max-width:200px;">' + formatDisplayValue(i.descripcion).slice(0,70) + (i.descripcion && i.descripcion.length>70?'...':'') + '</td>'
@@ -3863,13 +3900,13 @@ async function renderFollowupList() {
   // Gestiones pendientes — visible to all
   html += '<div style="margin-bottom:10px;">';
   html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.12em;margin-bottom:6px;">GESTIONES PENDIENTES (' + (gestiones.length + gestionesHistoricas.length) + ')</div>';
-  html += buildTaskRows(gestiones, 'Gestiones pendientes');
+  html += buildTaskRows(gestiones, true);
   if(gestionesHistoricas.length) html += buildIncidentRows(gestionesHistoricas);
   html += '</div>';
 
   html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">';
   html += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--purple);letter-spacing:.12em;margin-bottom:6px;">TAREAS (' + tareas.length + ')</div>';
-  html += buildTaskRows(tareas, 'Tareas');
+  html += buildTaskRows(tareas, false);
   html += '</div>';
 
   // Incidencias operativas — supervisors only
@@ -4013,6 +4050,24 @@ async function submitCloseFollowup() {
     errEl.textContent = 'No se pudo cerrar la incidencia. Inténtalo de nuevo.';
   }
 }
+
+// ── Admin: eliminar gestión pendiente ──
+async function cancelGestion(id, table, onSuccess) {
+  if(!isAdmin(currentUser)) { toast('Solo Admin puede eliminar gestiones.', 'err'); return; }
+  var motivo = window.prompt('Motivo de eliminación (obligatorio):');
+  if(!motivo || !motivo.trim()) { toast('Eliminación cancelada — motivo requerido.', 'err'); return; }
+  if(!window.confirm('¿Eliminar esta gestión? Esta acción no se puede deshacer.')) return;
+  var ok = await dbDelete(table, id);
+  if(!ok) { toast('Error al eliminar. Inténtalo de nuevo.', 'err'); return; }
+  invalidateCache(table);
+  await auditLog('GESTION_ELIMINADA', table + ':' + id + ' — ' + motivo.trim());
+  toast('Gestión eliminada.', 'ok');
+  if(typeof onSuccess === 'function') onSuccess(); else renderFollowupList();
+}
+
+// ── Global para refresh del modal de detalle de turno ──
+var _currentDetailShiftId = null;
+function _refreshShiftDetail() { if(_currentDetailShiftId) openShiftDetail(_currentDetailShiftId); }
 
 // ── SYNCROLAB ventas ──
 var _syncroVentas = [];

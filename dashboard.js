@@ -100,8 +100,16 @@ function _isOperationalIncident(i) {
 function _isGestionTask(t) {
   if (!t) return false;
   var text = normalizeDeptName([t.origen, t.titulo, t.descripcion].join(' '));
-  if (text.indexOf('gestion') !== -1 || text.indexOf('gestión') !== -1) return true;
-  return !!t.dept_destino && (normalizeTaskState(t.estado) === TASK_STATES.ABIERTA || normalizeTaskState(t.estado) === TASK_STATES.EN_PROCESO);
+  return text.indexOf('gestion') !== -1 || text.indexOf('gestión') !== -1
+      || text.indexOf('follow') !== -1;
+}
+function _isGestionIncidencia(i) {
+  if (!i) return false;
+  var cat = normalizeDeptName(i.categoria);
+  var ori = normalizeDeptName(i.origen);
+  return cat === 'gestión pendiente' || cat === 'gestion pendiente'
+      || cat === 'follow-up / gestión' || cat === 'follow-up / gestion'
+      || ori === 'gestion_pendiente' || ori === 'followup';
 }
 
 // ── ESTADO ACTUAL DEL DASHBOARD ──────────────────────────────
@@ -216,7 +224,9 @@ async function renderDashboard() {
   mermas = allMermas.filter(function(m) { return mermaMatchDept(m, validAreas); });
   incis  = allIncis.filter(function(i)  { return _isOperationalIncident(i) && inciMatchDept(i, validAreas); });
   tareas = allTareas.filter(function(t) { return tareaMatchDept(t, validAreas); });
-  var gestiones = tareas.filter(_isGestionTask);
+  var gestionesTareas = tareas.filter(_isGestionTask).map(function(t){ return Object.assign({_table:'tareas'}, t); });
+  var gestionesIncis  = allIncis.filter(function(i) { return _isGestionIncidencia(i) && inciMatchDept(i, validAreas); }).map(function(i){ return Object.assign({_table:'incidencias'}, i); });
+  var gestiones = gestionesTareas.concat(gestionesIncis);
 
   // Filtrar por periodo
   if (desde) {
@@ -224,7 +234,7 @@ async function renderDashboard() {
     mermas = mermas.filter(function(m) { return m.fecha >= desde; });
     incis = incis.filter(function(i) { return i.fecha >= desde; });
     tareas = tareas.filter(function(t) { return (t.created_at || t.deadline || '') >= desde; });
-    gestiones = gestiones.filter(function(t) { return (t.created_at || t.deadline || '') >= desde; });
+    gestiones = gestiones.filter(function(g) { return (g.created_at || g.deadline || g.fecha || '') >= desde; });
   }
   if (empFilt) shifts = shifts.filter(function(s) { return s.nombre === empFilt; });
   if (sevFilt) shifts = shifts.filter(function(s) { return s.gravedad_error === sevFilt; });
@@ -239,14 +249,17 @@ async function renderDashboard() {
   // Poblar selector de empleados
   _populateDashEmpDropdown(allShifts, _dashCurrentDept);
 
+  // Tareas reales: excluir las que son gestiones (ya van al panel Gestiones)
+  var tareasReales = tareas.filter(function(t) { return !_isGestionTask(t); });
+
   // Renderizar secciones
-  _renderKpiCards(shifts, mermas, incis, tareas, gestiones, deptCfg);
+  _renderKpiCards(shifts, mermas, incis, tareasReales, gestiones, deptCfg);
   _renderActividadEmpleado(shifts, allShifts);
-  _renderAlertas(shifts, mermas, incis, tareas);
+  _renderAlertas(shifts, mermas, incis, tareasReales);
   _renderIncidencias(incis);
   _renderGestiones(gestiones);
   _renderMerma(mermas);
-  _renderTareas(tareas);
+  _renderTareas(tareasReales);
   _renderFIO(shifts);
   renderCostTable();
 
@@ -488,19 +501,42 @@ function _renderGestiones(gestiones) {
   pendientes.sort(function(a, b) {
     if (isOverdue(a.deadline) && !isOverdue(b.deadline)) return -1;
     if (!isOverdue(a.deadline) && isOverdue(b.deadline)) return 1;
-    return (a.deadline || '').localeCompare(b.deadline || '');
+    return (a.deadline || a.fecha || '').localeCompare(b.deadline || b.fecha || '');
   });
+  var isAdminDash = typeof isAdmin === 'function' && isAdmin(currentUser);
   tableEl.innerHTML = '<table>'
-    + '<tr><th>Deadline</th><th>Estado</th><th>Origen</th><th>Descripción</th><th>Destino</th><th>Creado por</th></tr>'
-    + pendientes.map(function(t) {
-      var vencida = isOverdue(t.deadline);
+    + '<tr><th>Fecha / Deadline</th><th>Estado</th><th>Origen</th><th>Descripción</th><th>Destino</th><th>Creado por</th><th>Acciones</th></tr>'
+    + pendientes.map(function(g) {
+      var fechaRef = g.deadline || g.fecha || '';
+      var vencida = isOverdue(g.deadline);
+      var origen = g.origen || g.categoria || '—';
+      var desc = g.descripcion || g.titulo || '—';
+      var destino = g.dept_destino || g.area || '—';
+      var creadoPor = g.creado_por || g.nombre || '—';
+      var acciones = '';
+      if(g._table === 'tareas') {
+        var normDSt = typeof normalizeTaskState==='function' ? normalizeTaskState(g.estado) : g.estado;
+        if(typeof canCloseTask==='function' && canCloseTask(currentUser,g) && (normDSt===TASK_STATES.ABIERTA||normDSt===TASK_STATES.EN_PROCESO)){
+          if(normDSt===TASK_STATES.ABIERTA) acciones += '<button class="btn btn-secondary btn-sm" onclick="advanceTask(\''+g.id+'\',\'En proceso\').then(renderDashboard)">En proceso</button> ';
+          acciones += '<button class="btn btn-danger btn-sm" onclick="advanceTask(\''+g.id+'\',\'Cerrada\').then(renderDashboard)">Cerrar</button> ';
+        }
+        if(isAdminDash) acciones += '<button class="btn btn-sm" style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);" onclick="cancelGestion(\''+g.id+'\',\'tareas\',renderDashboard)">Eliminar</button>';
+      } else {
+        var normDI = typeof normalizeIncidentState==='function' ? normalizeIncidentState(g.estado) : g.estado;
+        if(typeof canCloseIncident==='function' && canCloseIncident(currentUser,g)){
+          if(normDI===INCIDENT_STATES.ABIERTA) acciones += '<button class="btn btn-secondary btn-sm" onclick="advanceIncident(\''+g.id+'\',\'En proceso\').then(renderDashboard)">En proceso</button> ';
+          acciones += '<button class="btn btn-danger btn-sm" onclick="advanceIncident(\''+g.id+'\',\'Cerrada\').then(renderDashboard)">Cerrar</button> ';
+        }
+        if(isAdminDash) acciones += '<button class="btn btn-sm" style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);" onclick="cancelGestion(\''+g.id+'\',\'incidencias\',renderDashboard)">Eliminar</button>';
+      }
       return '<tr style="' + (vencida ? 'background:rgba(239,68,68,.05)' : '') + '">'
-        + '<td style="font-family:var(--font-mono);font-size:11px;color:' + (vencida ? 'var(--red)' : 'var(--text)') + '">' + fmtDate(t.deadline) + (vencida ? ' ⚠' : '') + '</td>'
-        + '<td>' + bTaskEstado(t.estado) + '</td>'
-        + '<td><span class="task-origin">' + formatDisplayValue(t.origen) + '</span></td>'
-        + '<td style="font-size:12px;max-width:260px">' + formatDisplayValue(t.descripcion || t.titulo) + '</td>'
-        + '<td>' + deptBadge(t.dept_destino) + '</td>'
-        + '<td style="font-size:12px">' + formatDisplayValue(t.creado_por) + '</td>'
+        + '<td style="font-family:var(--font-mono);font-size:11px;color:' + (vencida ? 'var(--red)' : 'var(--text)') + '">' + fmtDate(fechaRef) + (vencida ? ' ⚠' : '') + '</td>'
+        + '<td>' + bTaskEstado(g.estado) + '</td>'
+        + '<td><span class="task-origin">' + formatDisplayValue(origen) + '</span></td>'
+        + '<td style="font-size:12px;max-width:200px">' + formatDisplayValue(desc) + '</td>'
+        + '<td>' + deptBadge(destino) + '</td>'
+        + '<td style="font-size:12px">' + formatDisplayValue(creadoPor) + '</td>'
+        + '<td style="white-space:nowrap">' + (acciones||'—') + '</td>'
         + '</tr>';
     }).join('')
     + '</table>';

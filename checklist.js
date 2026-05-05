@@ -70,6 +70,7 @@ async function chkConfirm(){
   if(isSala&&currentUser._activeDept!=='Recepción'){
     openCajaOfferModal();
   } else if(isRec){
+    await _doSaveTurno();
     openRecKpiModal();
   } else {
     await _doSaveTurno();

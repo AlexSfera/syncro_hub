@@ -1116,10 +1116,10 @@ async function renderValidacion(){
   const hasta=document.getElementById('v-hasta').value;
   const estado=document.getElementById('v-estado').value;
   const serv=document.getElementById('v-servicio').value;
-  if(desde) shifts=shifts.filter(s=>s.fecha>=desde);
-  if(hasta) shifts=shifts.filter(s=>s.fecha<=hasta);
+  if(desde) shifts=shifts.filter(s=>(s.fecha||'').slice(0,10)>=desde);
+  if(hasta) shifts=shifts.filter(s=>(s.fecha||'').slice(0,10)<=hasta);
   if(estado) shifts=shifts.filter(s=>s.estado===estado);
-  if(serv) shifts=shifts.filter(s=>s.servicio===serv);
+  if(serv) shifts=shifts.filter(function(s){ var sv=s.servicio||''; try{ var parsed=JSON.parse(sv); return Array.isArray(parsed)?parsed.some(function(x){return x===serv;}):sv===serv; }catch(e){ return sv===serv; } });
   shifts.sort((a,b)=>b.created_at.localeCompare(a.created_at));
   const pend=shifts.filter(s=>s.estado==='Pendiente').length;
   document.getElementById('val-alerts').innerHTML=pend>0?`<div class="alert a-warn">⚠ ${pend} registro(s) pendiente(s)</div>`:'';
@@ -1168,6 +1168,8 @@ async function renderValidacion(){
   });
   el.innerHTML='<table><tr><th>Fecha</th><th>Empleado</th><th>Servicio</th><th>Horas</th><th>Ajustes</th><th>Incid.</th><th>FIO</th><th>Estado</th><th>Acción</th></tr>'+valRows+'</table>';
 }
+function _mvRefresh(){ if(validatingShiftId) openValidarModal(validatingShiftId); }
+
 async function openValidarModal(shiftId){
   validatingShiftId=shiftId;
   // Force fresh data — never use stale cache for validation review
@@ -1201,7 +1203,10 @@ async function openValidarModal(shiftId){
     try{
       var chk=JSON.parse(s.checklist_items);
       var isFriegueS=s.area==='Friegue'||s.puesto==='Friegue';
-      var chkItems=isFriegueS?CHK_FRIEGUE_ITEMS:CHK_COCINA_ITEMS;
+      var isRecShiftV=s.area==='Recepción';
+      var chkItems;
+      if(isRecShiftV){ var srvV=(s.servicio||'').toLowerCase(); chkItems=srvV==='tarde'?CHK_REC_TARDE_ITEMS:srvV==='noche'?CHK_REC_NOCHE_ITEMS:CHK_REC_MANANA_ITEMS; }
+      else { chkItems=isFriegueS?CHK_FRIEGUE_ITEMS:CHK_COCINA_ITEMS; }
       var chkDone=chk.filter(Boolean).length;
       info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;">';
       info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:#2ec4b6;letter-spacing:.15em;margin-bottom:8px;">CHECKLIST ('+chkDone+'/'+chk.length+')</div>';
@@ -1218,7 +1223,7 @@ async function openValidarModal(shiftId){
   }
 
   // Block 3: Gestiones pendientes declaradas
-  var gestionesIncis = incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; });
+  var gestionesIncis = incis.filter(function(i){ return i.categoria === 'Gestión pendiente' || i.categoria === 'Follow-up / Gestión'; });
   var gestionesList = shiftTareas.concat(gestionesIncis);
   if(gestionesList.length>0){
     gestionesList.forEach(function(g){
@@ -1230,14 +1235,35 @@ async function openValidarModal(shiftId){
       if(g.dept_destino) info += '<div><span style="color:var(--text3)">Departamento destino: </span>'+deptBadge(g.dept_destino)+'</div>';
       if(g.deadline) info += '<div><span style="color:var(--text3)">Deadline: </span>'+fmtDate(g.deadline)+'</div>';
       info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+formatDisplayValue(g.descripcion || g.titulo)+'</strong></div>';
-      info += '</div></div>';
+      info += '</div>';
+      var isGTarea = !!g.dept_destino;
+      if(isGTarea){
+        var normGSt=normalizeTaskState(g.estado);
+        if(canCloseTask(currentUser,g)&&(normGSt===TASK_STATES.ABIERTA||normGSt===TASK_STATES.EN_PROCESO)){
+          info += '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
+          if(normGSt===TASK_STATES.ABIERTA) info += '<button style="background:rgba(245,158,11,.15);border:1px solid var(--amber);color:var(--amber);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceTask(\''+g.id+'\',\'En proceso\').then(_mvRefresh)">▶ En proceso</button>';
+          info += '<button style="background:rgba(249,115,22,.15);border:1px solid #f97316;color:#f97316;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceTask(\''+g.id+'\',\'Cerrada\').then(_mvRefresh)">✓ Cerrar</button>';
+          if(isAdmin(currentUser)) info += '<button style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="cancelGestion(\''+g.id+'\',\'tareas\',_mvRefresh)">✕ Eliminar</button>';
+          info += '</div>';
+        }
+      } else {
+        var normGI=normalizeIncidentState(g.estado);
+        if(canCloseIncident(currentUser,g)){
+          info += '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
+          if(normGI===INCIDENT_STATES.ABIERTA) info += '<button style="background:rgba(245,158,11,.15);border:1px solid var(--amber);color:var(--amber);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+g.id+'\',\'En proceso\').then(_mvRefresh)">▶ En proceso</button>';
+          info += '<button style="background:rgba(249,115,22,.15);border:1px solid #f97316;color:#f97316;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+g.id+'\',\'Cerrada\').then(_mvRefresh)">✓ Cerrar</button>';
+          if(isAdmin(currentUser)) info += '<button style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="cancelGestion(\''+g.id+'\',\'incidencias\',_mvRefresh)">✕ Eliminar</button>';
+          info += '</div>';
+        }
+      }
+      info += '</div>';
     });
   } else {
     info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin gestiones pendientes declaradas</div>';
   }
 
   // Block 4: Incidencia operativa
-  var incisList = incis.filter(function(i){ return i.categoria !== 'Gestión pendiente'; });
+  var incisList = incis.filter(function(i){ return i.categoria !== 'Gestión pendiente' && i.categoria !== 'Follow-up / Gestión'; });
   if(incisList.length>0){
     incisList.forEach(function(inci){
       info += '<div style="background:var(--bg);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:10px;">';
@@ -1259,7 +1285,16 @@ async function openValidarModal(shiftId){
           }
         }catch(e){}
       }
-      info += '</div></div>';
+      info += '</div>';
+      var normI3=normalizeIncidentState(inci.estado);
+      if(canCloseIncident(currentUser,inci)){
+        info += '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
+        if(normI3===INCIDENT_STATES.ABIERTA) info += '<button style="background:rgba(245,158,11,.15);border:1px solid var(--amber);color:var(--amber);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+inci.id+'\',\'En proceso\').then(_mvRefresh)">▶ En proceso</button>';
+        info += '<button style="background:rgba(249,115,22,.15);border:1px solid #f97316;color:#f97316;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="advanceIncident(\''+inci.id+'\',\'Cerrada\').then(_mvRefresh)">✓ Cerrar</button>';
+        if(isAdmin(currentUser)) info += '<button style="background:var(--red-dim);border:1px solid var(--red);color:var(--red);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;" onclick="cancelGestion(\''+inci.id+'\',\'incidencias\',_mvRefresh)">✕ Eliminar</button>';
+        info += '</div>';
+      }
+      info += '</div>';
     });
   } else {
     info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin incidencias operativas declaradas</div>';
@@ -1317,6 +1352,30 @@ async function openValidarModal(shiftId){
   // Reset FIO toggles
   ['fio-si','fio-no'].forEach(function(id){var el=document.getElementById(id);if(el)el.className='tbtn';});
   toggleState.fio=null;
+  // Populate FIO employee list (multi-select checkboxes)
+  var fioListEl=document.getElementById('val-fio-empleados-list');
+  if(fioListEl){
+    var allEmpsForFio=await getDB('employees');
+    var activeEmpsForFio=allEmpsForFio.filter(function(e){return e.estado==='Activo';});
+    fioListEl.innerHTML=activeEmpsForFio.map(function(e){
+      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border);cursor:pointer;">'
+        +'<input type="checkbox" value="'+e.id+'" data-nombre="'+e.nombre+'" style="width:15px;height:15px;accent-color:var(--amber);flex-shrink:0;">'
+        +'<span><strong>'+e.nombre+'</strong> <span style="font-size:10px;color:var(--text3);">'+e.puesto+(e.area?' · '+e.area:'')+'</span></span>'
+        +'</label>';
+    }).join('') || '<span style="color:var(--text3);font-size:12px;">Sin empleados activos</span>';
+    // Pre-select if shift already has error_employee_id
+    if(s.error_employee_id){
+      try{
+        var prevIds=JSON.parse(s.error_employee_id);
+        fioListEl.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+          if(prevIds.indexOf(cb.value)!==-1) cb.checked=true;
+        });
+      }catch(e){
+        var singleCb=fioListEl.querySelector('input[value="'+s.error_employee_id+'"]');
+        if(singleCb) singleCb.checked=true;
+      }
+    }
+  }
   document.getElementById('val-gravedad').value='';
   document.getElementById('val-tipo-error').value='';
   if(document.getElementById('val-num-errores')) document.getElementById('val-num-errores').value='0';
@@ -1357,9 +1416,16 @@ async function doValidacion(newEstado){
   var valGravedad = (document.getElementById('val-gravedad')||{}).value || '';
   var valTipoError = (document.getElementById('val-tipo-error')||{}).value || '';
   var valNumErrores = 0; // field removed
-  var errorEmpEl = document.getElementById('val-error-empleado');
-  var errorEmpId = errorEmpEl ? errorEmpEl.value : '';
-  var errorEmpNombre = errorEmpEl && errorEmpEl.selectedOptions[0] ? errorEmpEl.selectedOptions[0].textContent : '';
+  var fioCheckListEl = document.getElementById('val-fio-empleados-list');
+  var errorEmpIds = [], errorEmpNombres = [];
+  if(fioCheckListEl){
+    fioCheckListEl.querySelectorAll('input[type=checkbox]:checked').forEach(function(cb){
+      errorEmpIds.push(cb.value);
+      errorEmpNombres.push(cb.getAttribute('data-nombre'));
+    });
+  }
+  var errorEmpId = JSON.stringify(errorEmpIds);
+  var errorEmpNombre = errorEmpNombres.join(', ');
 
   // CRITICAL: save all validation fields to Supabase
   var valCosteMerma = parseFloat((document.getElementById('val-coste-total')||{}).value)||0;
