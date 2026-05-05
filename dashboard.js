@@ -43,6 +43,14 @@ function getDashDeptsForUser() {
 }
 
 // ── HELPERS LOCALES ───────────────────────────────────────────
+// Convert UTC ISO timestamp to local HH:MM (avoids UTC+2 = 2h behind problem)
+function _localHora(ts) {
+  if (!ts) return '—';
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) return '—';
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
 function _isFio(s) {
   return s.fio === true || s.fio === 1 || s.fio === 'true' || s.fio === '1';
 }
@@ -258,7 +266,7 @@ async function renderDashboard() {
   _renderAlertas(shifts, mermas, incis, tareasReales);
   _renderIncidencias(incis);
   _renderGestiones(gestiones);
-  _renderMerma(mermas);
+  _renderMerma(allMermas, desde);
   _renderTareas(tareasReales);
   _renderFIO(shifts);
   renderCostTable();
@@ -477,14 +485,15 @@ function _renderIncidencias(incis) {
 
   var isAdminDash = typeof isAdmin === 'function' && isAdmin(currentUser);
   el.innerHTML = '<table>'
-    + '<tr><th>Fecha</th><th>Hora</th><th>Departamento</th><th>Tipo</th><th>Descripción</th><th>Creado por</th><th>Personas involucradas</th><th>Estado</th><th>Acción</th></tr>'
+    + '<tr><th>Fecha</th><th>Hora</th><th>Departamento</th><th>Tipo</th><th>Descripción</th><th>Creado por</th><th>Personas involucradas</th><th>Estado</th><th>Acción tomada</th><th>Acción</th></tr>'
     + filtered.map(function(i) {
-      var hora = (i.created_at || '').slice(11, 16) || '—';
+      var hora = _localHora(i.created_at);
       var dept = i.area || '—';
       var personas = '—';
       try { var arr = JSON.parse(i.staff_implicado_nombres || '[]'); if (arr.length) personas = arr.join(', '); } catch(e) { personas = formatDisplayValue(i.staff_implicado_nombres) || '—'; }
       var normI = normalizeIncidentState(i.estado);
-      var acciones = '';
+      var accionTomada = formatDisplayValue(i.accion_inmediata) || '—';
+      var acciones = '<button class="btn btn-sm" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);" onclick="_dashShowDetail(\'' + i.id + '\',\'incidencias\')">Ver</button> ';
       if (typeof canCloseIncident === 'function' && canCloseIncident(currentUser, i)) {
         if (normI === INCIDENT_STATES.ABIERTA) acciones += '<button class="btn btn-sm" style="background:rgba(245,158,11,.12);border:1px solid var(--amber);color:var(--amber);" onclick="advanceIncident(\'' + i.id + '\',\'En proceso\').then(renderDashboard)">En proceso</button> ';
         acciones += '<button class="btn btn-sm" style="background:rgba(249,115,22,.12);border:1px solid #f97316;color:#f97316;" onclick="advanceIncident(\'' + i.id + '\',\'Cerrada\').then(renderDashboard)">Cerrar</button> ';
@@ -498,11 +507,12 @@ function _renderIncidencias(incis) {
         + '<td style="font-family:var(--font-mono);font-size:11px">' + hora + '</td>'
         + '<td>' + deptBadge(dept) + '</td>'
         + '<td style="font-size:12px">' + formatDisplayValue(i.categoria) + '</td>'
-        + '<td style="max-width:180px;font-size:12px">' + formatDisplayValue(i.descripcion) + '</td>'
+        + '<td style="max-width:160px;font-size:12px">' + formatDisplayValue(i.descripcion) + '</td>'
         + '<td style="font-size:12px">' + formatDisplayValue(i.nombre || i.empleado || i.creado_por) + '</td>'
-        + '<td style="font-size:12px;max-width:140px">' + personas + '</td>'
+        + '<td style="font-size:12px;max-width:120px">' + personas + '</td>'
         + '<td>' + bIncidentEstado(i.estado) + '</td>'
-        + '<td style="white-space:nowrap">' + (acciones || '—') + '</td>'
+        + '<td style="font-size:12px;max-width:140px;color:var(--text3)">' + accionTomada + '</td>'
+        + '<td style="white-space:nowrap">' + acciones + '</td>'
         + '</tr>';
     }).join('')
     + '</table>';
@@ -551,17 +561,20 @@ function _renderGestiones(gestiones) {
 
   var isAdminDash = typeof isAdmin === 'function' && isAdmin(currentUser);
   tableEl.innerHTML = '<table>'
-    + '<tr><th>Fecha</th><th>Hora</th><th>Departamento</th><th>Tipo</th><th>Descripción</th><th>Creado por</th><th>Estado</th><th>Acciones</th></tr>'
+    + '<tr><th>Fecha</th><th>Hora</th><th>Departamento</th><th>Tipo</th><th>Descripción</th><th>Creado por</th><th>Estado</th><th>Acción tomada</th><th>Acción</th></tr>'
     + filtered.map(function(g) {
       var fechaRef = g.fecha || (g.created_at || '').slice(0, 10);
-      var hora = (g.created_at || '').slice(11, 16) || '—';
+      var hora = _localHora(g.created_at);
       var dept = g.dept_destino || g.area || '—';
       var tipo = g.origen || g.categoria || '—';
       var desc = g.descripcion || g.titulo || '—';
       var creadoPor = g.creado_por || g.nombre || '—';
       var vencida = isOverdue(g.deadline);
       var normSt = normGSt(g);
-      var acciones = '';
+      var accionTomada = g._table === 'tareas'
+        ? (formatDisplayValue(g.notas_cierre) || '—')
+        : (formatDisplayValue(g.accion_inmediata) || '—');
+      var acciones = '<button class="btn btn-sm" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);" onclick="_dashShowDetail(\'' + g.id + '\',\'' + g._table + '\')">Ver</button> ';
       if (g._table === 'tareas') {
         if (typeof canCloseTask === 'function' && canCloseTask(currentUser, g) && (normSt === TASK_STATES.ABIERTA || normSt === TASK_STATES.EN_PROCESO)) {
           if (normSt === TASK_STATES.ABIERTA) acciones += '<button class="btn btn-sm" style="background:rgba(245,158,11,.12);border:1px solid var(--amber);color:var(--amber);" onclick="advanceTask(\'' + g.id + '\',\'En proceso\').then(renderDashboard)">En proceso</button> ';
@@ -581,10 +594,11 @@ function _renderGestiones(gestiones) {
         + '<td style="font-family:var(--font-mono);font-size:11px">' + hora + '</td>'
         + '<td>' + deptBadge(dept) + '</td>'
         + '<td><span class="task-origin">' + formatDisplayValue(tipo) + '</span></td>'
-        + '<td style="font-size:12px;max-width:180px">' + formatDisplayValue(desc) + '</td>'
+        + '<td style="font-size:12px;max-width:160px">' + formatDisplayValue(desc) + '</td>'
         + '<td style="font-size:12px">' + formatDisplayValue(creadoPor) + '</td>'
         + '<td>' + (g._table === 'tareas' ? bTaskEstado(g.estado) : bIncidentEstado(g.estado)) + '</td>'
-        + '<td style="white-space:nowrap">' + (acciones || '—') + '</td>'
+        + '<td style="font-size:12px;max-width:140px;color:var(--text3)">' + accionTomada + '</td>'
+        + '<td style="white-space:nowrap">' + acciones + '</td>'
         + '</tr>';
     }).join('')
     + '</table>';
@@ -836,12 +850,24 @@ async function _renderKpiRecepcion(shifts) {
 }
 
 // ── MERMA DETALLE ─────────────────────────────────────────────
-function _renderMerma(mermas) {
+function _renderMerma(allMermas, desde) {
   var kpiEl = document.getElementById('kpi-merma');
   var el = document.getElementById('dash-merma-table');
 
   var causa = (document.getElementById('dm-causa') || {}).value || '';
   var empFilt = (document.getElementById('dm-emp') || {}).value || '';
+
+  // Simple dept filter using area field directly (avoids _dashMatchesDept chain
+  // which can fail for older records that lack the area field)
+  var deptAllowed = _dashCurrentDept === 'FnB'
+    ? ['Cocina', 'Sala', 'Friegue', 'F&B']
+    : [_dashCurrentDept];
+  var mermas = allMermas.filter(function(m) {
+    if (desde && (m.fecha || '') < desde) return false;
+    var mArea = m.area || m.departamento || '';
+    if (!mArea) return true; // unknown area: include so records are not silently lost
+    return deptAllowed.indexOf(mArea) !== -1;
+  });
 
   // Populate employee filter
   var dmEmpEl = document.getElementById('dm-emp');
@@ -1082,4 +1108,65 @@ function _syncInciTiposFilter() {
   if (typeof populateDashInciFilter === 'function') {
     populateDashInciFilter(_dashCurrentDept);
   }
+}
+
+// ── DETALLE DE REGISTRO (modal ligero) ───────────────────────
+async function _dashShowDetail(id, table) {
+  var overlay = document.getElementById('dash-detail-overlay');
+  if (!overlay) return;
+  var body = overlay.querySelector('.dash-detail-body');
+  if (body) body.innerHTML = '<div style="color:var(--text3);font-size:13px">Cargando…</div>';
+  overlay.style.display = 'flex';
+
+  var records = await getDB(table);
+  var rec = records.find(function(r) { return r.id === id; });
+  if (!rec) {
+    if (body) body.innerHTML = '<div style="color:var(--red)">Registro no encontrado.</div>';
+    return;
+  }
+
+  function row(lbl, val) {
+    if (!val || val === '—') return '';
+    return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">'
+      + '<div style="min-width:140px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-family:var(--font-mono);color:var(--text3);padding-top:2px">' + lbl + '</div>'
+      + '<div style="font-size:13px;flex:1">' + val + '</div>'
+      + '</div>';
+  }
+
+  var html = '';
+  html += row('Fecha', fmtDate(rec.fecha));
+  html += row('Hora', _localHora(rec.created_at));
+  html += row('Departamento', rec.area || rec.dept_destino || rec.dept_origen || '—');
+
+  if (table === 'tareas') {
+    html += row('Tipo', rec.origen || '—');
+    html += row('Título', rec.titulo || '—');
+    html += row('Descripción', formatDisplayValue(rec.descripcion));
+    html += row('Prioridad', rec.prioridad || '—');
+    html += row('Deadline', fmtDate(rec.deadline));
+    html += row('Estado', normalizeTaskState(rec.estado));
+    html += row('Creado por', rec.creado_por || '—');
+    html += row('Acción tomada', formatDisplayValue(rec.notas_cierre));
+    html += row('Completada por', rec.completada_por || '—');
+  } else {
+    html += row('Tipo', rec.categoria || '—');
+    html += row('Severidad', rec.severidad || '—');
+    html += row('Descripción', formatDisplayValue(rec.descripcion));
+    html += row('Estado', normalizeIncidentState(rec.estado));
+    html += row('Creado por', rec.nombre || rec.empleado || rec.creado_por || '—');
+    html += row('Acción tomada', formatDisplayValue(rec.accion_inmediata));
+    try {
+      var staff = JSON.parse(rec.staff_implicado_nombres || '[]');
+      if (staff.length) html += row('Personas involucradas', staff.join(', '));
+    } catch(e) {
+      html += row('Personas involucradas', formatDisplayValue(rec.staff_implicado_nombres));
+    }
+  }
+
+  if (body) body.innerHTML = html || '<div style="color:var(--text3);font-size:13px">Sin información adicional.</div>';
+}
+
+function _dashCloseDetail() {
+  var overlay = document.getElementById('dash-detail-overlay');
+  if (overlay) overlay.style.display = 'none';
 }

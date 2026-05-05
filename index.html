@@ -1696,6 +1696,17 @@ tr:hover td{background:rgba(255,255,255,.018);}
   </div>
 </div>
 
+<!-- ══ DASHBOARD DETAIL OVERLAY ══ -->
+<div id="dash-detail-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(3px);z-index:950;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;" onclick="if(event.target===this)_dashCloseDetail()">
+  <div style="background:var(--bg2);border-radius:12px;border:1px solid var(--border);max-width:560px;width:100%;padding:20px;margin-top:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;">Detalle del registro</div>
+      <button onclick="_dashCloseDetail()" style="background:none;border:none;font-size:20px;line-height:1;cursor:pointer;color:var(--text3);padding:0 4px;">✕</button>
+    </div>
+    <div class="dash-detail-body"></div>
+  </div>
+</div>
+
 <!-- ══ MODAL TAREA ══ -->
 <div class="modal-overlay" id="modal-tarea">
   <div class="modal">
