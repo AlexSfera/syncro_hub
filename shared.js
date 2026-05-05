@@ -1459,7 +1459,8 @@ async function doValidacion(newEstado){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// DASHBOARD
+// DASHBOARD — legacy stub; overridden by dashboard.js which loads later.
+// Do NOT add logic here — use dashboard.js instead.
 async function renderDashboard(){
   const periodo=document.getElementById('dash-periodo').value;
   const servFilt=document.getElementById('dash-serv').value;
@@ -1561,7 +1562,6 @@ async function renderDashboard(){
   if(pendH>0) msgs.push({t:'warn',m:`${pendH} turno(s) pendiente(s) de validación`});
   const sinCoste=mermas.filter(m=>!m.coste_unitario||m.coste_unitario===0).length;
   if(sinCoste>0) msgs.push({t:'warn',m:`${sinCoste} línea(s) de merma sin coste`});
-  if(shifts.filter(s=>s.follow_up==='no').length) msgs.push({t:'err',m:`${shifts.filter(s=>s.follow_up==='no').length} turno(s) con follow-up NO`});
   const crit=incis.filter(i=>i.severidad==='Crítica'&&i.estado==='Abierta');
   if(crit.length) msgs.push({t:'err',m:`⛔ ${crit.length} incidencia(s) CRÍTICA(s) sin cerrar`});
   const overdueT=tareas.filter(t=>isOverdue(t.deadline)&&t.estado!=='Verificada').length;

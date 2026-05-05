@@ -385,13 +385,36 @@ function _renderAlertas(shifts, mermas, incis, tareas) {
 
   var msgs = [];
 
-  // Follow-ups pendientes de validación (unificado, con desglose por departamento)
+  // ── Turnos pendientes de validación ──
+  // Fuente: shifts.estado. 'Pendiente' = a revisar por supervisor.
+  // 'En corrección' = devuelto al empleado, aún no revalidado.
   var pendShifts = shifts.filter(function(s) { return s.estado === 'Pendiente'; });
-  if (pendShifts.length > 0) {
+  var corrShifts = shifts.filter(function(s) { return s.estado === 'En corrección'; });
+
+  if (pendShifts.length > 0 || corrShifts.length > 0) {
+    // Desglose por departamento
     var byDept = {};
     pendShifts.forEach(function(s) { var a = s.area || '?'; byDept[a] = (byDept[a] || 0) + 1; });
-    var breakdown = Object.keys(byDept).map(function(k) { return k + ': ' + byDept[k]; }).join(' · ');
-    msgs.push({ t: 'warn', m: pendShifts.length + ' follow-up(s) pendiente(s) de validación — ' + breakdown });
+    var deptBreak = Object.keys(byDept).map(function(k) { return k + ': ' + byDept[k]; }).join(' · ');
+
+    // Subconjunto con información operativa declarada (merma, incidencia u observación)
+    var conInfo = pendShifts.filter(function(s) {
+      return s.merma_declarada === 'si' || s.incidencia_declarada === 'si' || (s.observacion && s.observacion.trim());
+    }).length;
+
+    var html = '<strong>' + pendShifts.length + ' turno(s) pendiente(s) de validación</strong>';
+    if (deptBreak) html += '<div style="font-size:11px;color:var(--text3);margin-top:3px">' + deptBreak + '</div>';
+    if (conInfo > 0) {
+      html += '<div style="font-size:11px;margin-top:3px">'
+        + conInfo + ' de ellos con información operativa declarada'
+        + ' <span title="Turno con merma, incidencia u observación registrada al cierre del turno" style="cursor:help;border-bottom:1px dotted currentColor">ⓘ</span>'
+        + '</div>';
+    }
+    if (corrShifts.length > 0) {
+      html += '<div style="font-size:11px;margin-top:3px;color:inherit;opacity:.8">'
+        + corrShifts.length + ' turno(s) devuelto(s) a corrección — pendiente de reenvío</div>';
+    }
+    msgs.push({ t: 'warn', m: html });
   }
 
   var inciCrit = incis.filter(function(i) { return i.severidad === 'Crítica' && isIncidentOpen(i); });
