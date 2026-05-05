@@ -871,7 +871,7 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <div class="dash-tabs" role="tablist" aria-label="Secciones del dashboard">
         <button class="dash-tab active" role="tab" data-tab="turnos" onclick="_activateDashTab('turnos')">Turnos</button>
         <button class="dash-tab" role="tab" data-tab="incidencias" onclick="_activateDashTab('incidencias')">Incidencias</button>
-        <button class="dash-tab" role="tab" data-tab="gestiones" onclick="_activateDashTab('gestiones')">Gestiones pendientes</button>
+        <button class="dash-tab" role="tab" data-tab="gestiones" onclick="_activateDashTab('gestiones')">Gestiones</button>
         <button class="dash-tab" role="tab" data-tab="fio" onclick="_activateDashTab('fio')">FIO</button>
         <button class="dash-tab" role="tab" data-tab="tareas" onclick="_activateDashTab('tareas')">Tareas</button>
         <button class="dash-tab" role="tab" data-tab="costes" onclick="_activateDashTab('costes')">Costes</button>
@@ -888,11 +888,13 @@ tr:hover td{background:rgba(255,255,255,.018);}
       <!-- Panel: Incidencias -->
       <div class="dash-panel" id="tab-panel-incidencias" role="tabpanel">
         <div class="filter-bar" style="margin-bottom:10px;">
-          <div class="fg"><label>Categoría</label>
+          <div class="fg"><label>Tipo</label>
             <select id="di-cat" onchange="renderDashboard()"><option value="">Todas</option><option>Incidencia operativa</option><option>Reportada por empleado</option></select></div>
+          <div class="fg"><label>Departamento</label>
+            <select id="di-dept" onchange="renderDashboard()"><option value="">Todos</option><option>Cocina</option><option>Sala</option><option>Friegue</option><option>Recepción</option><option>F&amp;B</option></select></div>
           <div class="fg"><label>Severidad</label>
             <select id="di-sev" onchange="renderDashboard()"><option value="">Todas</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
-          <div class="fg"><label>Estado incidencia</label>
+          <div class="fg"><label>Estado</label>
             <select id="di-estado" onchange="renderDashboard()"><option value="">Todas</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Validada</option></select></div>
         </div>
         <div class="kpi-grid" id="kpi-incis"></div>
@@ -910,10 +912,16 @@ tr:hover td{background:rgba(255,255,255,.018);}
         </div>
       </div>
 
-      <!-- Panel: Gestiones pendientes -->
+      <!-- Panel: Gestiones -->
       <div class="dash-panel" id="tab-panel-gestiones" role="tabpanel">
+        <div class="filter-bar" style="margin-bottom:10px;">
+          <div class="fg"><label>Departamento</label>
+            <select id="dg-dept" onchange="renderDashboard()"><option value="">Todos</option><option>Cocina</option><option>Sala</option><option>Friegue</option><option>Recepción</option><option>F&amp;B</option></select></div>
+          <div class="fg"><label>Estado</label>
+            <select id="dg-estado" onchange="renderDashboard()"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Validada</option></select></div>
+        </div>
         <div class="kpi-grid" id="dash-gestiones-kpi"></div>
-        <div class="card"><div class="card-title">GESTIONES PENDIENTES</div><div class="tbl-wrap" id="dash-gestiones-table"></div></div>
+        <div class="card"><div class="card-title">GESTIONES</div><div class="tbl-wrap" id="dash-gestiones-table"></div></div>
       </div>
 
       <!-- Panel: FIO -->
