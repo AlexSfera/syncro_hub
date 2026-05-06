@@ -182,6 +182,7 @@ function genId(){ return Date.now().toString(36)+Math.random().toString(36).slic
 function today(){ return new Date().toISOString().split('T')[0]; }
 function fmtDate(d){ if(!d) return '—'; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 function fmtTs(ts){ if(!ts) return '—'; var d=new Date(ts); return d.toLocaleDateString('es-ES')+' '+d.toTimeString().slice(0,5); }
+function fmtDateTs(fecha,ts){ return fmtDate(fecha)+(ts?' '+new Date(ts).toTimeString().slice(0,5):''); }
 function startOfWeek(){ var d=new Date(); d.setHours(0,0,0,0); var day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1); d.setDate(diff); return d.toISOString().split('T')[0]; }
 function startOfMonth(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01'; }
 function isOverdue(dl){ return dl && dl < today(); }
@@ -466,7 +467,7 @@ async function showScreen(id){
   window.scrollTo(0,0);
   if(id==='turno'){ initTurnoForm(); }
   if(id==='tareas'){ renderTareas(); }
-  if(id==='validacion'){ switchValTab('followup'); }
+  if(id==='validacion'){ initValDeptFilter(); switchValTab('followup'); }
   if(id==='dashboard'){
     // Show dept filter for admin/fb
     var dw=document.getElementById('dash-dept-wrapper');
@@ -1328,6 +1329,32 @@ async function advanceTask(taskId,newEstado){
 
 // ═══════════════════════════════════════════════════════════════════════
 // VALIDACIÓN
+function onValDeptChange(){
+  var dept=(document.getElementById('v-dept')||{}).value||'';
+  var label=document.getElementById('v-servicio-label');
+  var sel=document.getElementById('v-servicio');
+  if(!sel) return;
+  var cocSala='<option value="">Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option><option>Evento</option><option>Otro</option>';
+  var rec='<option value="">Todos</option><option>Mañana</option><option>Tarde</option><option>Noche</option>';
+  var all='<option value="">Todos</option><option>Desayuno</option><option>Comida</option><option>Cena</option><option>Evento</option><option>Otro</option><option>Mañana</option><option>Tarde</option><option>Noche</option>';
+  if(dept==='Recepción'){ if(label) label.textContent='Turno'; sel.innerHTML=rec; }
+  else if(dept==='Cocina'||dept==='Sala'){ if(label) label.textContent='Servicio'; sel.innerHTML=cocSala; }
+  else { if(label) label.textContent='Servicio'; sel.innerHTML=all; }
+}
+
+function initValDeptFilter(){
+  var sel=document.getElementById('v-dept');
+  if(!sel||!currentUser) return;
+  if(currentUser.rol==='chef'){
+    sel.value='Cocina'; sel.disabled=true;
+  } else if(currentUser.rol==='jefe_recepcion'){
+    sel.value='Recepción'; sel.disabled=true;
+  } else {
+    sel.disabled=false;
+  }
+  onValDeptChange();
+}
+
 async function renderValidacion(){
   let shifts=await getDB('shifts');
   // jefe_recepcion: only see Recepción shifts
@@ -1338,10 +1365,16 @@ async function renderValidacion(){
   const hasta=document.getElementById('v-hasta').value;
   const estado=document.getElementById('v-estado').value;
   const serv=document.getElementById('v-servicio').value;
+  const dept=(document.getElementById('v-dept')||{}).value||'';
   if(desde) shifts=shifts.filter(s=>s.fecha>=desde);
   if(hasta) shifts=shifts.filter(s=>s.fecha<=hasta);
   if(estado) shifts=shifts.filter(s=>s.estado===estado);
-  if(serv) shifts=shifts.filter(s=>s.servicio===serv);
+  if(dept) shifts=shifts.filter(s=>s.area===dept);
+  if(serv) shifts=shifts.filter(function(s){
+    if(!s.servicio) return false;
+    if(s.area==='Recepción') return s.servicio===serv;
+    try{ var arr=Array.isArray(s.servicio)?s.servicio:JSON.parse(s.servicio); return Array.isArray(arr)?arr.includes(serv):s.servicio===serv; }catch(e){ return s.servicio===serv; }
+  });
   shifts.sort((a,b)=>b.created_at.localeCompare(a.created_at));
   const pend=shifts.filter(s=>s.estado==='Pendiente').length;
   document.getElementById('val-alerts').innerHTML=pend>0?`<div class="alert a-warn">⚠ ${pend} registro(s) pendiente(s)</div>`:'';
@@ -1351,7 +1384,7 @@ async function renderValidacion(){
   // Build validation table without nested template literals
   var valRows="";
   shifts.forEach(function(s){
-    var sm=mermas.filter(function(m){return m.shift_id===s.id;});
+    var sm=mermas.filter(function(m){return String(m.shift_id)===String(s.id);});
     var si=incis.filter(function(i){return recordMatchesShift(i,s);});
     var mCP=sm.some(function(m){return !m.coste_unitario||m.coste_unitario===0;});
     // For Sala: show ajustes count. For Cocina: show merma count
@@ -1363,6 +1396,14 @@ async function renderValidacion(){
       mCell=sm.length>0?'<span class="badge b-yellow">'+sm.length+'</span>'+(mCP?'<span class="badge b-orange" style="margin-left:4px">€?</span>':''):'<span class="badge b-gray">—</span>';
     }
     var iCell=si.length>0?'<span class="badge b-red">SÍ</span>':'<span class="badge b-gray">—</span>';
+    var mermaCell;
+    if(sm.length>0){
+      var smSinCoste=sm.some(function(m){return !(parseFloat(m.coste_total)>0);});
+      if(smSinCoste){ mermaCell='<span class="badge b-red">⚠️ S/C</span>'; }
+      else{ var smTotal=sm.reduce(function(acc,m){return acc+parseFloat(m.coste_total);},0); mermaCell='<span class="badge b-green">€'+smTotal.toFixed(2)+'</span>'; }
+    } else {
+      mermaCell='<span style="color:var(--text3)">—</span>';
+    }
     var aCell='';
     var sid=s.id;
     // All action buttons in one nowrap flex row
@@ -1381,27 +1422,94 @@ async function renderValidacion(){
     var btnDel = isAdmin(currentUser)
       ? '<button class="vbtn vbtn-del" onclick="deleteShift(\''+sid+'\')">🗑</button>' : '';
     aCell = '<div style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap;">'+btnRevisar+btnVer+btnArevisar+btnReabrir+btnDel+'</div>';
-    valRows+='<tr><td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(s.fecha)+'</td>'
+    valRows+='<tr><td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">'+fmtDateTs(s.fecha,s.created_at)+'</td>'
       +'<td><div style="font-weight:600">'+s.nombre+'</div><div style="font-size:10px;color:var(--text3)">'+s.puesto+'</div></td>'
       +'<td>'+displayServicio(s.servicio)+'</td><td style="font-family:var(--font-mono)">'+s.horas+'h</td>'
       +'<td>'+mCell+'</td><td>'+iCell+'</td>'
+      +'<td style="text-align:center;">'+mermaCell+'</td>'
       +'<td style="text-align:center;">'+(s.fio===true?'<span class="badge b-red">FIO</span>':s.estado!=='Pendiente'?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--text3);">—</span>')+'</td>'
       +'<td>'+bEstado(s.estado)+'</td><td>'+aCell+'</td></tr>';
   });
-  el.innerHTML='<table><tr><th>Fecha</th><th>Empleado</th><th>Servicio</th><th>Horas</th><th>Ajustes</th><th>Incid.</th><th>FIO</th><th>Estado</th><th>Acción</th></tr>'+valRows+'</table>';
+  el.innerHTML='<table><tr><th>Fecha</th><th>Empleado</th><th>Servicio</th><th>Horas</th><th>Ajustes</th><th>Incid.</th><th>Merma</th><th>FIO</th><th>Estado</th><th>Acción</th></tr>'+valRows+'</table>';
 }
+async function valAdvanceGestion(gid,isTask,newState){
+  if(isTask){
+    var tt=await getDB('tareas'); var t=tt.find(function(x){return x.id===gid;}); if(!t) return;
+    await dbUpdate('tareas',gid,{estado:TASK_STATES.EN_PROCESO,updated_at:new Date().toISOString()});
+    invalidateCache('tareas');
+    auditLog('VAL_GESTION_ADVANCE',currentUser.nombre+' → En proceso: '+t.titulo+' (shift '+validatingShiftId+')');
+  } else {
+    await dbUpdate('incidencias',gid,{estado:INCIDENT_STATES.EN_PROCESO});
+    invalidateCache('incidencias');
+    auditLog('VAL_GESTION_ADVANCE',currentUser.nombre+' → En proceso (gestión-inci '+gid+', shift '+validatingShiftId+')');
+  }
+  toast('En proceso','ok'); await openValidarModal(validatingShiftId);
+}
+function valShowCloseGestionForm(gid,isTask){
+  var c=document.getElementById('g-btn-'+gid); if(!c) return;
+  var sid=validatingShiftId;
+  c.innerHTML='<div style="display:flex;flex-direction:column;gap:6px;width:100%;">'
+    +'<label style="font-size:11px;color:var(--text3);">Acción para cerrar <span style="color:var(--red)">*</span></label>'
+    +'<textarea id="gclose-text-'+gid+'" rows="2" placeholder="Describe la acción tomada..." style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;padding:6px 8px;resize:vertical;outline:none;width:100%;box-sizing:border-box;"></textarea>'
+    +'<div style="display:flex;gap:8px;">'
+    +'<button class="vbtn vbtn-warn" onclick="valSaveCloseGestion(\''+gid+'\','+isTask+')">💾 Guardar cierre</button>'
+    +'<button class="vbtn" onclick="openValidarModal(\''+sid+'\')">Cancelar</button>'
+    +'</div></div>';
+}
+async function valSaveCloseGestion(gid,isTask){
+  var txt=((document.getElementById('gclose-text-'+gid)||{}).value||'').trim();
+  if(!txt){toast('El campo "Acción para cerrar" es obligatorio','err');return;}
+  var ts=new Date().toISOString();
+  if(isTask){
+    var tt=await getDB('tareas'); var t=tt.find(function(x){return x.id===gid;}); if(!t) return;
+    await dbUpdate('tareas',gid,{estado:TASK_STATES.CERRADA,notas_cierre:txt,completada_por:currentUser.nombre,completada_ts:ts,updated_at:ts});
+    invalidateCache('tareas');
+    auditLog('VAL_GESTION_CLOSE',currentUser.nombre+' cerró gestión "'+t.titulo+'" — '+txt+' (shift '+validatingShiftId+')');
+  } else {
+    await dbUpdate('incidencias',gid,{estado:INCIDENT_STATES.CERRADA,accion_inmediata:txt});
+    invalidateCache('incidencias');
+    auditLog('VAL_GESTION_CLOSE',currentUser.nombre+' cerró gestión-inci '+gid+' — '+txt+' (shift '+validatingShiftId+')');
+  }
+  toast('Gestión cerrada','ok'); await openValidarModal(validatingShiftId);
+}
+async function valAdvanceInci(iid){
+  await dbUpdate('incidencias',iid,{estado:INCIDENT_STATES.EN_PROCESO});
+  invalidateCache('incidencias');
+  auditLog('VAL_INCI_ADVANCE',currentUser.nombre+' → En proceso: incidencia '+iid+' (shift '+validatingShiftId+')');
+  toast('En proceso','ok'); await openValidarModal(validatingShiftId);
+}
+function valShowCloseInciForm(iid){
+  var c=document.getElementById('i-btn-'+iid); if(!c) return;
+  var sid=validatingShiftId;
+  c.innerHTML='<div style="display:flex;flex-direction:column;gap:6px;width:100%;">'
+    +'<label style="font-size:11px;color:var(--text3);">Acción para cerrar <span style="color:var(--red)">*</span></label>'
+    +'<textarea id="iclose-text-'+iid+'" rows="2" placeholder="Describe la acción tomada..." style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;padding:6px 8px;resize:vertical;outline:none;width:100%;box-sizing:border-box;"></textarea>'
+    +'<div style="display:flex;gap:8px;">'
+    +'<button class="vbtn vbtn-warn" onclick="valSaveCloseInci(\''+iid+'\')">💾 Guardar cierre</button>'
+    +'<button class="vbtn" onclick="openValidarModal(\''+sid+'\')">Cancelar</button>'
+    +'</div></div>';
+}
+async function valSaveCloseInci(iid){
+  var txt=((document.getElementById('iclose-text-'+iid)||{}).value||'').trim();
+  if(!txt){toast('El campo "Acción para cerrar" es obligatorio','err');return;}
+  await dbUpdate('incidencias',iid,{estado:INCIDENT_STATES.CERRADA,accion_inmediata:txt});
+  invalidateCache('incidencias');
+  auditLog('VAL_INCI_CLOSE',currentUser.nombre+' cerró incidencia '+iid+' — '+txt+' (shift '+validatingShiftId+')');
+  toast('Incidencia cerrada','ok'); await openValidarModal(validatingShiftId);
+}
+
 async function openValidarModal(shiftId){
   validatingShiftId=shiftId;
   // Force fresh data — never use stale cache for validation review
   invalidateCache('incidencias'); invalidateCache('tareas'); invalidateCache('merma');
   const s=(await getDB('shifts')).find(x=>x.id===shiftId); if(!s) return;
   if(!canValidateShift(currentUser,s)){ toast('No tienes permiso para validar registros de este departamento.','err'); return; }
-  const mermas=(await getDB('merma')).filter(m=>m.shift_id===shiftId);
+  const mermas=(await getDB('merma')).filter(m=>String(m.shift_id)===String(shiftId));
   const allIncis=await getDB('incidencias');
   const incis=allIncis.filter(function(i){return recordMatchesShift(i,s);});
   const allTareas=await getDB('tareas');
   const shiftTareas=allTareas.filter(function(t){return recordMatchesShift(t,s);});
-  document.getElementById('mv-title').textContent=`${formatDisplayValue(s.nombre)} — ${fmtDate(s.fecha)} — ${formatServiceOrTurn(s.servicio)}`;
+  document.getElementById('mv-title').textContent=`${formatDisplayValue(s.nombre)} — ${fmtDateTs(s.fecha,s.created_at)} — ${formatServiceOrTurn(s.servicio)}`;
   // ── BUILD FULL SHIFT DETAIL FOR SUPERVISOR ──
   var info = '';
 
@@ -1442,17 +1550,31 @@ async function openValidarModal(shiftId){
   // Block 3: Gestiones pendientes declaradas
   var gestionesIncis = incis.filter(function(i){ return i.categoria === 'Gestión pendiente'; });
   var gestionesList = shiftTareas.concat(gestionesIncis);
+  var canActOnStates = isSupervisor(currentUser) || isAdmin(currentUser);
   if(gestionesList.length>0){
     gestionesList.forEach(function(g){
+      var isTask = !!g.dept_destino;
+      var gState = isTask ? normalizeTaskState(g.estado) : normalizeIncidentState(g.estado);
       info += '<div style="background:var(--bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:10px;">';
       info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:8px;">GESTIONES PENDIENTES DECLARADAS</div>';
       info += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
       if(g.tipo_incidencia || g.origen) info += '<div><span style="color:var(--text3)">Tipo: </span><span class="badge b-yellow">'+formatDisplayValue(g.tipo_incidencia || g.origen)+'</span></div>';
-      if(g.estado) info += '<div><span style="color:var(--text3)">Estado: </span>'+ (g.dept_destino ? bTaskEstado(g.estado) : bIncidentEstado(g.estado)) +'</div>';
+      if(g.estado) info += '<div><span style="color:var(--text3)">Estado: </span>'+(isTask ? bTaskEstado(g.estado) : bIncidentEstado(g.estado))+'</div>';
       if(g.dept_destino) info += '<div><span style="color:var(--text3)">Departamento destino: </span>'+deptBadge(g.dept_destino)+'</div>';
       if(g.deadline) info += '<div><span style="color:var(--text3)">Deadline: </span>'+fmtDate(g.deadline)+'</div>';
       info += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span><strong>'+formatDisplayValue(g.descripcion || g.titulo)+'</strong></div>';
-      info += '</div></div>';
+      info += '</div>';
+      if(canActOnStates){
+        var isClosed = isTask ? (gState===TASK_STATES.CERRADA||gState===TASK_STATES.VALIDADA) : (gState===INCIDENT_STATES.CERRADA||gState===INCIDENT_STATES.VALIDADA);
+        if(!isClosed){
+          var isOpen = isTask ? gState===TASK_STATES.ABIERTA : gState===INCIDENT_STATES.ABIERTA;
+          var gBtn = isOpen
+            ? '<button class="vbtn vbtn-primary" onclick="valAdvanceGestion(\''+g.id+'\','+isTask+',\'En proceso\')">▶ En proceso</button>'
+            : '<button class="vbtn vbtn-warn" onclick="valShowCloseGestionForm(\''+g.id+'\','+isTask+')">✓ Cerrar gestión</button>';
+          info += '<div id="g-btn-'+g.id+'" style="margin-top:8px;">'+gBtn+'</div>';
+        }
+      }
+      info += '</div>';
     });
   } else {
     info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin gestiones pendientes declaradas</div>';
@@ -1462,6 +1584,7 @@ async function openValidarModal(shiftId){
   var incisList = incis.filter(function(i){ return i.categoria !== 'Gestión pendiente'; });
   if(incisList.length>0){
     incisList.forEach(function(inci){
+      var iState = normalizeIncidentState(inci.estado);
       info += '<div style="background:var(--bg);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:10px;">';
       info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.15em;margin-bottom:8px;">INCIDENCIA OPERATIVA</div>';
       info += '<div style="font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
@@ -1481,27 +1604,57 @@ async function openValidarModal(shiftId){
           }
         }catch(e){}
       }
-      info += '</div></div>';
+      info += '</div>';
+      if(canActOnStates){
+        var isClosed = iState===INCIDENT_STATES.CERRADA||iState===INCIDENT_STATES.VALIDADA;
+        if(!isClosed){
+          var iBtn = iState===INCIDENT_STATES.ABIERTA
+            ? '<button class="vbtn vbtn-primary" onclick="valAdvanceInci(\''+inci.id+'\')">▶ En proceso</button>'
+            : '<button class="vbtn vbtn-warn" onclick="valShowCloseInciForm(\''+inci.id+'\')">✓ Cerrar incidencia</button>';
+          info += '<div id="i-btn-'+inci.id+'" style="margin-top:8px;">'+iBtn+'</div>';
+        }
+      }
+      info += '</div>';
     });
   } else {
     info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin incidencias operativas declaradas</div>';
   }
 
-  // Block 4: Merma (summary - full with costs below)
+  // Block 5: Merma
   if(mermas.length>0){
+    var mSubtotal=mermas.reduce(function(acc,m){return acc+(parseFloat(m.coste_total)||0);},0);
     info += '<div style="background:var(--bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:10px;">';
     info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:8px;">MERMA ('+mermas.length+' líneas)</div>';
+    info += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+    info += '<tr style="font-size:10px;color:var(--text3);border-bottom:1px solid var(--border);">'
+      +'<th style="text-align:left;padding:3px 6px;font-weight:600">Producto</th>'
+      +'<th style="text-align:right;padding:3px 6px;font-weight:600">Cant.</th>'
+      +'<th style="text-align:left;padding:3px 6px;font-weight:600">Unidad</th>'
+      +'<th style="text-align:left;padding:3px 6px;font-weight:600">Causa</th>'
+      +'<th style="text-align:right;padding:3px 6px;font-weight:600">€/u</th>'
+      +'<th style="text-align:right;padding:3px 6px;font-weight:600">Total</th>'
+      +'</tr>';
     mermas.forEach(function(m){
-      info += '<div style="font-size:13px;display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">';
-      info += '<strong>'+m.producto+'</strong>';
-      info += '<span style="color:var(--text2)">'+m.cantidad+' '+m.unidad+'</span>';
-      info += '<span class="badge b-yellow">'+m.causa+'</span>';
-      if(m.obs) info += '<span style="color:var(--text3);font-size:11px;">'+m.obs+'</span>';
-      info += '</div>';
+      var cu=parseFloat(m.coste_unitario)||0;
+      var ct=parseFloat(m.coste_total)||0;
+      info += '<tr style="border-bottom:1px solid var(--border);">'
+        +'<td style="padding:5px 6px;font-weight:600">'+formatDisplayValue(m.producto)+'</td>'
+        +'<td style="padding:5px 6px;text-align:right;font-family:var(--font-mono)">'+m.cantidad+'</td>'
+        +'<td style="padding:5px 6px">'+formatDisplayValue(m.unidad)+'</td>'
+        +'<td style="padding:5px 6px"><span class="badge b-yellow">'+formatDisplayValue(m.causa)+'</span></td>'
+        +'<td style="padding:5px 6px;text-align:right;font-family:var(--font-mono)">'+(cu>0?cu.toFixed(2)+'€':'<span style="color:var(--red)">—</span>')+'</td>'
+        +'<td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--orange)">'+(ct>0?ct.toFixed(2)+'€':'<span style="color:var(--red)">S/C</span>')+'</td>'
+        +'</tr>';
     });
+    info += '</table>';
+    info += '<div style="text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--orange);margin-top:8px;padding-top:6px;border-top:1px solid var(--border);">'
+      +'SUBTOTAL: '+(mSubtotal>0?mSubtotal.toFixed(2)+'€':'Pendiente costes')+'</div>';
     info += '</div>';
   } else {
-    info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin merma declarada</div>';
+    var sinMermaMsg = s.sinmerma===true
+      ? 'Sin merma declarada <em>(confirmado por empleado)</em>'
+      : 'Sin merma declarada';
+    info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">'+sinMermaMsg+'</div>';
   }
 
   document.getElementById('mv-info').innerHTML=info;
@@ -1513,7 +1666,9 @@ async function openValidarModal(shiftId){
     const tot=mermas.reduce((a,m)=>a+(m.coste_unitario||0)*m.cantidad,0);
     costesHtml+=`<div class="mcoste-total"><span>TOTAL MERMA</span><span id="mtot-gen">${tot>0?tot.toFixed(2)+'€':'Pendiente'}</span></div>`;
   }
-  document.getElementById('mv-costes').innerHTML=costesHtml;
+  var mvCostes=document.getElementById('mv-costes');
+  mvCostes.style.border=''; mvCostes.style.borderRadius=''; mvCostes.style.padding='';
+  mvCostes.innerHTML=costesHtml;
   document.getElementById('val-comentario').value='';
   // Restore action buttons (may have been hidden by detail view)
   document.querySelectorAll('.modal-footer .btn-warn, .modal-footer .btn-danger, .modal-footer .btn-success').forEach(function(b){
@@ -1544,7 +1699,7 @@ async function openValidarModal(shiftId){
   if(document.getElementById('val-num-errores')) document.getElementById('val-num-errores').value='0';
   document.getElementById('modal-validar').classList.add('open');
 }
-async function updMcoste(mid,cant){ const v=parseFloat(document.getElementById('mcoste-'+mid).value)||0; const t=v*parseFloat(cant); document.getElementById('mtot-'+mid).textContent=t>0?t.toFixed(2)+'€':'—'; const m=(await getDB('merma')).filter(m=>m.shift_id===validatingShiftId); let total=0; m.forEach(x=>{ const inp=document.getElementById('mcoste-'+x.id); total+=(inp?parseFloat(inp.value)||0:x.coste_unitario||0)*x.cantidad; }); const el=document.getElementById('mtot-gen'); if(el) el.textContent=total>0?total.toFixed(2)+'€':'Pendiente'; }
+async function updMcoste(mid,cant){ const v=parseFloat(document.getElementById('mcoste-'+mid).value)||0; const t=v*parseFloat(cant); document.getElementById('mtot-'+mid).textContent=t>0?t.toFixed(2)+'€':'—'; const m=(await getDB('merma')).filter(m=>String(m.shift_id)===String(validatingShiftId)); let total=0; m.forEach(x=>{ const inp=document.getElementById('mcoste-'+x.id); total+=(inp?parseFloat(inp.value)||0:x.coste_unitario||0)*x.cantidad; }); const el=document.getElementById('mtot-gen'); if(el) el.textContent=total>0?total.toFixed(2)+'€':'Pendiente'; }
 async function doValidacion(newEstado){
   if(!validatingShiftId) return;
   const comentario=document.getElementById('val-comentario').value.trim();
@@ -1552,14 +1707,21 @@ async function doValidacion(newEstado){
   // ── Merma cost check — block validation if any merma line has no cost ──
   const mermas=await getDB('merma');
   if(newEstado==='Validado'){
-    var shiftMermas=mermas.filter(function(m){return m.shift_id===validatingShiftId;});
+    var shiftMermas=mermas.filter(function(m){return String(m.shift_id)===String(validatingShiftId);});
     if(shiftMermas.length>0){
       var sinCoste=shiftMermas.filter(function(m){
         var inp=document.getElementById('mcoste-'+m.id);
         return !inp || !(parseFloat(inp.value)>0);
       });
       if(sinCoste.length>0){
-        toast('Introduce el coste de merma antes de validar — '+sinCoste.length+' línea(s) sin precio','err');
+        toast('⚠️ Debes completar el coste de merma antes de validar. Hay '+sinCoste.length+' línea(s) sin coste asignado.','err');
+        var costes=document.getElementById('mv-costes');
+        if(costes){
+          costes.style.border='2px solid var(--red)';
+          costes.style.borderRadius='8px';
+          costes.style.padding='8px';
+          costes.scrollIntoView({behavior:'smooth',block:'nearest'});
+        }
         return;
       }
     }
@@ -1567,7 +1729,7 @@ async function doValidacion(newEstado){
   // Guardar costes merma
   for(var _mi=0;_mi<mermas.length;_mi++){
     var _m=mermas[_mi];
-    if(_m.shift_id!==validatingShiftId) continue;
+    if(String(_m.shift_id)!==String(validatingShiftId)) continue;
     var _inp=document.getElementById('mcoste-'+_m.id);
     if(_inp){var _cu=parseFloat(_inp.value)||0; await dbUpdate('merma',_m.id,{coste_unitario:_cu,coste_total:_cu*_m.cantidad});}
   }
