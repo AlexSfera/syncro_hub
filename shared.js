@@ -155,6 +155,7 @@ let mermaRows   = [];
 let sinMermaFlag= false;
 let editingShiftId    = null;
 let validatingShiftId = null;
+let _validatingMermas = [];
 let _editEmpId        = null;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -501,6 +502,11 @@ async function populateDashEmpDropdowns(){
 
 // ═══════════════════════════════════════════════════════════════════════
 // TOGGLES
+function onFioNingunoToggle(){
+  if((document.getElementById('val-emp-ninguno')||{}).checked){
+    document.querySelectorAll('.val-emp-cb').forEach(function(cb){cb.checked=false;});
+  }
+}
 function setT(name,val){
   toggleState[name]=val;
   const maps={
@@ -1504,7 +1510,9 @@ async function openValidarModal(shiftId){
   invalidateCache('incidencias'); invalidateCache('tareas'); invalidateCache('merma');
   const s=(await getDB('shifts')).find(x=>x.id===shiftId); if(!s) return;
   if(!canValidateShift(currentUser,s)){ toast('No tienes permiso para validar registros de este departamento.','err'); return; }
-  const mermas=(await getDB('merma')).filter(m=>String(m.shift_id)===String(shiftId));
+  const allMerma=await dbGetAll('merma');
+  const mermas=allMerma.filter(m=>String(m.shift_id)===String(shiftId));
+  _validatingMermas=mermas;
   const allIncis=await getDB('incidencias');
   const incis=allIncis.filter(function(i){return recordMatchesShift(i,s);});
   const allTareas=await getDB('tareas');
@@ -1620,75 +1628,64 @@ async function openValidarModal(shiftId){
     info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">Sin incidencias operativas declaradas</div>';
   }
 
-  // Block 5: Merma
+  // Block 5: Merma (editable)
+  info += '<div id="mv-merma-block" style="background:var(--bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:10px;">';
+  info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:10px;">MERMA</div>';
   if(mermas.length>0){
-    var mSubtotal=mermas.reduce(function(acc,m){return acc+(parseFloat(m.coste_total)||0);},0);
-    info += '<div style="background:var(--bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:10px;">';
-    info += '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--amber);letter-spacing:.15em;margin-bottom:8px;">MERMA ('+mermas.length+' líneas)</div>';
-    info += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-    info += '<tr style="font-size:10px;color:var(--text3);border-bottom:1px solid var(--border);">'
-      +'<th style="text-align:left;padding:3px 6px;font-weight:600">Producto</th>'
-      +'<th style="text-align:right;padding:3px 6px;font-weight:600">Cant.</th>'
-      +'<th style="text-align:left;padding:3px 6px;font-weight:600">Unidad</th>'
-      +'<th style="text-align:left;padding:3px 6px;font-weight:600">Causa</th>'
-      +'<th style="text-align:right;padding:3px 6px;font-weight:600">€/u</th>'
-      +'<th style="text-align:right;padding:3px 6px;font-weight:600">Total</th>'
-      +'</tr>';
     mermas.forEach(function(m){
       var cu=parseFloat(m.coste_unitario)||0;
-      var ct=parseFloat(m.coste_total)||0;
-      info += '<tr style="border-bottom:1px solid var(--border);">'
-        +'<td style="padding:5px 6px;font-weight:600">'+formatDisplayValue(m.producto)+'</td>'
-        +'<td style="padding:5px 6px;text-align:right;font-family:var(--font-mono)">'+m.cantidad+'</td>'
-        +'<td style="padding:5px 6px">'+formatDisplayValue(m.unidad)+'</td>'
-        +'<td style="padding:5px 6px"><span class="badge b-yellow">'+formatDisplayValue(m.causa)+'</span></td>'
-        +'<td style="padding:5px 6px;text-align:right;font-family:var(--font-mono)">'+(cu>0?cu.toFixed(2)+'€':'<span style="color:var(--red)">—</span>')+'</td>'
-        +'<td style="padding:5px 6px;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--orange)">'+(ct>0?ct.toFixed(2)+'€':'<span style="color:var(--red)">S/C</span>')+'</td>'
-        +'</tr>';
+      var initTot=cu>0?(cu*parseFloat(m.cantidad)).toFixed(2)+'€':'—';
+      info += '<div class="mcoste-row '+(cu>0?'filled':'')+'" style="margin-bottom:8px;">';
+      info += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:center;">';
+      info += '<div><div style="font-weight:600;font-size:13px;">'+formatDisplayValue(m.producto)+'</div>'
+        +'<div style="font-size:11px;color:var(--text3)">'+m.cantidad+' '+formatDisplayValue(m.unidad)+' · '+formatDisplayValue(m.causa)+'</div></div>';
+      info += '<div><label style="font-size:9px;display:block;color:var(--text3);margin-bottom:2px;">€/unidad</label>'
+        +'<input type="number" id="mcoste-'+m.id+'" value="'+(cu||'')+'" min="0" step="0.01" placeholder="0.00"'
+        +' oninput="updMcoste(\''+m.id+'\',\''+m.cantidad+'\')"'
+        +' style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px 7px;width:100%;outline:none;box-sizing:border-box;"></div>';
+      info += '<div><label style="font-size:9px;display:block;color:var(--text3);margin-bottom:2px;">Total €</label>'
+        +'<div id="mtot-'+m.id+'" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--orange);padding:5px 0;">'+initTot+'</div></div>';
+      info += '</div></div>';
     });
-    info += '</table>';
-    info += '<div style="text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--orange);margin-top:8px;padding-top:6px;border-top:1px solid var(--border);">'
-      +'SUBTOTAL: '+(mSubtotal>0?mSubtotal.toFixed(2)+'€':'Pendiente costes')+'</div>';
-    info += '</div>';
+    var initTotal=mermas.reduce(function(a,m){return a+(parseFloat(m.coste_unitario)||0)*parseFloat(m.cantidad);},0);
+    info += '<div class="mcoste-total" style="margin-top:8px;"><span>TOTAL MERMA</span><span id="mtot-gen">'+(initTotal>0?initTotal.toFixed(2)+'€':'Pendiente')+'</span></div>';
   } else {
-    var sinMermaMsg = s.sinmerma===true
+    var sinMermaMsg=s.sinmerma===true
       ? 'Sin merma declarada <em>(confirmado por empleado)</em>'
       : 'Sin merma declarada';
-    info += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text3);">'+sinMermaMsg+'</div>';
+    info += '<div style="font-size:12px;color:var(--text3);">'+sinMermaMsg+'</div>';
   }
+  info += '</div>';
 
   document.getElementById('mv-info').innerHTML=info;
-  // Costes merma
-  let costesHtml='';
-  if(mermas.length>0){
-    costesHtml=`<div style="font-size:10px;font-weight:700;color:var(--orange);font-family:var(--font-mono);letter-spacing:.15em;margin-bottom:8px;">COSTES DE MERMA</div>`;
-    mermas.forEach(m=>{ costesHtml+=`<div class="mcoste-row ${m.coste_unitario>0?'filled':''}"><div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:center;"><div><div style="font-weight:600">${m.producto}</div><div style="font-size:11px;color:var(--text3)">${m.cantidad} ${m.unidad} · ${m.causa}</div></div><div><label style="font-size:9px">€/unidad</label><input type="number" id="mcoste-${m.id}" value="${m.coste_unitario||''}" min="0" step="0.01" placeholder="0.00" oninput="updMcoste('${m.id}','${m.cantidad}')" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px 7px;width:100%;outline:none;"></div><div><label style="font-size:9px">Total €</label><div id="mtot-${m.id}" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--orange);padding:5px 0;">${m.coste_unitario>0?(m.coste_unitario*m.cantidad).toFixed(2)+'€':'—'}</div></div></div></div>`; });
-    const tot=mermas.reduce((a,m)=>a+(m.coste_unitario||0)*m.cantidad,0);
-    costesHtml+=`<div class="mcoste-total"><span>TOTAL MERMA</span><span id="mtot-gen">${tot>0?tot.toFixed(2)+'€':'Pendiente'}</span></div>`;
-  }
+  // mv-costes is now unused for merma — clear it
   var mvCostes=document.getElementById('mv-costes');
   mvCostes.style.border=''; mvCostes.style.borderRadius=''; mvCostes.style.padding='';
-  mvCostes.innerHTML=costesHtml;
+  mvCostes.innerHTML='';
   document.getElementById('val-comentario').value='';
   // Restore action buttons (may have been hidden by detail view)
   document.querySelectorAll('.modal-footer .btn-warn, .modal-footer .btn-danger, .modal-footer .btn-success').forEach(function(b){
     b.style.display='';
   });
-  // Populate error employee selector
-  var errorEmpSel = document.getElementById('val-error-empleado');
-  if(errorEmpSel){
-    errorEmpSel.innerHTML='<option value="">— Sin error / Sin responsable —</option>';
+  // Populate error employee checkbox list
+  var empList=document.getElementById('val-error-empleado-list');
+  if(empList){
+    empList.innerHTML='<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);">'
+      +'<input type="checkbox" id="val-emp-ninguno" onchange="onFioNingunoToggle()" style="accent-color:#8b5cf6;width:14px;height:14px;flex-shrink:0;">'
+      +'<span style="color:var(--text3)">— Sin error / Sin responsable —</span></label>';
     getDB('employees').then(function(emps){
       emps.filter(function(e){return e.estado==='Activo';}).forEach(function(e){
-        var o=document.createElement('option');
-        o.value=e.id; o.textContent=e.nombre+' ('+e.puesto+(e.area?' · '+e.area:'')+')';
-        o.style.background='#ffffff'; o.style.color='#111827';
-        if(s && e.id===s.employee_id) o.selected=true;
-        errorEmpSel.appendChild(o);
+        var lbl=document.createElement('label');
+        lbl.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;font-size:13px;';
+        var cb=document.createElement('input');
+        cb.type='checkbox'; cb.value=e.id; cb.dataset.nombre=e.nombre;
+        cb.style.cssText='accent-color:#8b5cf6;width:14px;height:14px;flex-shrink:0;';
+        cb.className='val-emp-cb';
+        cb.addEventListener('change',function(){ if(this.checked){var n=document.getElementById('val-emp-ninguno');if(n)n.checked=false;} });
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' '+e.nombre+' ('+e.puesto+(e.area?' · '+e.area:'')+')'));
+        empList.appendChild(lbl);
       });
-      if(typeof _initEmpSearchSelect === 'function') {
-        _initEmpSearchSelect('val-error-empleado', 'Buscar empleado responsable del error...');
-      }
     });
   }
   // Reset FIO toggles
@@ -1699,40 +1696,41 @@ async function openValidarModal(shiftId){
   if(document.getElementById('val-num-errores')) document.getElementById('val-num-errores').value='0';
   document.getElementById('modal-validar').classList.add('open');
 }
-async function updMcoste(mid,cant){ const v=parseFloat(document.getElementById('mcoste-'+mid).value)||0; const t=v*parseFloat(cant); document.getElementById('mtot-'+mid).textContent=t>0?t.toFixed(2)+'€':'—'; const m=(await getDB('merma')).filter(m=>String(m.shift_id)===String(validatingShiftId)); let total=0; m.forEach(x=>{ const inp=document.getElementById('mcoste-'+x.id); total+=(inp?parseFloat(inp.value)||0:x.coste_unitario||0)*x.cantidad; }); const el=document.getElementById('mtot-gen'); if(el) el.textContent=total>0?total.toFixed(2)+'€':'Pendiente'; }
+function updMcoste(mid,cant){ var v=parseFloat(document.getElementById('mcoste-'+mid).value)||0; var t=v*parseFloat(cant); document.getElementById('mtot-'+mid).textContent=t>0?t.toFixed(2)+'€':'—'; var total=0; _validatingMermas.forEach(function(x){ var inp=document.getElementById('mcoste-'+x.id); total+=(inp?parseFloat(inp.value)||0:parseFloat(x.coste_unitario)||0)*parseFloat(x.cantidad); }); var el=document.getElementById('mtot-gen'); if(el) el.textContent=total>0?total.toFixed(2)+'€':'Pendiente'; }
 async function doValidacion(newEstado){
   if(!validatingShiftId) return;
   const comentario=document.getElementById('val-comentario').value.trim();
   if(newEstado==='En corrección'&&!comentario){toast('Escribe qué debe corregir el empleado','err');return;}
   // ── Merma cost check — block validation if any merma line has no cost ──
-  const mermas=await getDB('merma');
-  if(newEstado==='Validado'){
-    var shiftMermas=mermas.filter(function(m){return String(m.shift_id)===String(validatingShiftId);});
-    if(shiftMermas.length>0){
-      var sinCoste=shiftMermas.filter(function(m){
+  if(newEstado==='Validado' && _validatingMermas.length>0){
+    var sinCoste=_validatingMermas.filter(function(m){
+      var inp=document.getElementById('mcoste-'+m.id);
+      return !inp || !(parseFloat(inp.value)>0);
+    });
+    if(sinCoste.length>0){
+      sinCoste.forEach(function(m){
         var inp=document.getElementById('mcoste-'+m.id);
-        return !inp || !(parseFloat(inp.value)>0);
+        if(inp) inp.style.border='2px solid var(--red)';
       });
-      if(sinCoste.length>0){
-        toast('⚠️ Debes completar el coste de merma antes de validar. Hay '+sinCoste.length+' línea(s) sin coste asignado.','err');
-        var costes=document.getElementById('mv-costes');
-        if(costes){
-          costes.style.border='2px solid var(--red)';
-          costes.style.borderRadius='8px';
-          costes.style.padding='8px';
-          costes.scrollIntoView({behavior:'smooth',block:'nearest'});
-        }
-        return;
-      }
+      var mermaBlock=document.getElementById('mv-merma-block');
+      if(mermaBlock) mermaBlock.scrollIntoView({behavior:'smooth',block:'nearest'});
+      toast('⚠️ Completa el coste de todas las líneas de merma antes de validar.','err');
+      return;
     }
   }
   // Guardar costes merma
-  for(var _mi=0;_mi<mermas.length;_mi++){
-    var _m=mermas[_mi];
-    if(String(_m.shift_id)!==String(validatingShiftId)) continue;
+  var _mermaTotalGuardado=0;
+  for(var _mi=0;_mi<_validatingMermas.length;_mi++){
+    var _m=_validatingMermas[_mi];
     var _inp=document.getElementById('mcoste-'+_m.id);
-    if(_inp){var _cu=parseFloat(_inp.value)||0; await dbUpdate('merma',_m.id,{coste_unitario:_cu,coste_total:_cu*_m.cantidad});}
+    if(_inp){
+      var _cu=parseFloat(_inp.value)||0;
+      var _ct=_cu*parseFloat(_m.cantidad);
+      await dbUpdate('merma',_m.id,{coste_unitario:_cu,coste_total:_ct});
+      _mermaTotalGuardado+=_ct;
+    }
   }
+  if(_validatingMermas.length>0) await auditLog('MERMA_VALORADA','shift_id: '+validatingShiftId+', total: '+_mermaTotalGuardado.toFixed(2)+'€');
   invalidateCache('merma');
   // Actualizar shift
   const shifts=await getDB('shifts');
@@ -1740,10 +1738,10 @@ async function doValidacion(newEstado){
   var fio = toggleState.fio === 'si';
   var valGravedad = (document.getElementById('val-gravedad')||{}).value || '';
   var valTipoError = (document.getElementById('val-tipo-error')||{}).value || '';
-  var valNumErrores = 0; // field removed
-  var errorEmpEl = document.getElementById('val-error-empleado');
-  var errorEmpId = errorEmpEl ? errorEmpEl.value : '';
-  var errorEmpNombre = errorEmpEl && errorEmpEl.selectedOptions[0] ? errorEmpEl.selectedOptions[0].textContent : '';
+  var checkedEmps=Array.from(document.querySelectorAll('.val-emp-cb:checked'));
+  var errorEmpId=checkedEmps.length>0?JSON.stringify(checkedEmps.map(function(cb){return cb.value;})):'';
+  var errorEmpNombre=checkedEmps.length>0?JSON.stringify(checkedEmps.map(function(cb){return cb.dataset.nombre;})):'';
+  var valNumErrores=checkedEmps.length;
 
   // CRITICAL: save all validation fields to Supabase
   var valCosteMerma = parseFloat((document.getElementById('val-coste-total')||{}).value)||0;

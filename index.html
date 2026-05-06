@@ -1602,10 +1602,13 @@ tr:hover td{background:rgba(255,255,255,.018);}
           </div>
         </div>
         <div class="fg">
-          <label>Empleado responsable del error</label>
-          <select id="val-error-empleado">
-            <option value="">— Sin error / Sin responsable —</option>
-          </select>
+          <label>Empleado(s) responsable(s) del error</label>
+          <div id="val-error-empleado-list" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;max-height:150px;overflow-y:auto;padding:4px 0;">
+            <label style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);">
+              <input type="checkbox" id="val-emp-ninguno" onchange="onFioNingunoToggle()" style="accent-color:#8b5cf6;width:14px;height:14px;flex-shrink:0;">
+              <span style="color:var(--text3)">— Sin error / Sin responsable —</span>
+            </label>
+          </div>
         </div>
         <div class="fg">
           <label>Concepto FIO</label>
