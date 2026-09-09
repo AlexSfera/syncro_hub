@@ -83,6 +83,7 @@ test('temporary PINs are exact, non-trivial six-digit values and technical email
 test('server authorization preserves admin, adjunto, F&B and department boundaries', () => {
   const employeeSala = { rol: 'empleado', area: 'Sala' };
   const employeeCocina = { rol: 'empleado', area: 'Cocina' };
+  const employeeRecepcion = { rol: 'empleado', area: 'Recepción' };
   const adminTarget = { rol: 'admin', area: 'Administración' };
   assert.equal(canCreateEmployee({ id: 'a', rol: 'admin' }, adminTarget), true);
   assert.equal(canCreateEmployee({ id: 'd', rol: 'adjunto' }, adminTarget), false);
@@ -90,6 +91,14 @@ test('server authorization preserves admin, adjunto, F&B and department boundari
   assert.equal(canCreateEmployee({ id: 'f', rol: 'fb' }, { rol: 'empleado', area: 'Recepción' }), false);
   assert.equal(canCreateEmployee({ id: 'j', rol: 'jefe', area: 'Sala' }, employeeSala), true);
   assert.equal(canCreateEmployee({ id: 'j', rol: 'jefe', area: 'Sala' }, employeeCocina), false);
+  assert.equal(canCreateEmployee(
+    { id: 'jr', rol: 'jefe', area: 'Recepción', puesto: 'Jefe de Recepción' },
+    employeeRecepcion
+  ), true);
+  assert.equal(canCreateEmployee(
+    { id: 'jr', rol: 'jefe', area: 'Recepción', puesto: 'Jefe de Recepción' },
+    employeeSala
+  ), false);
   assert.equal(canResetEmployeePin({ id: 'd', rol: 'adjunto' }, employeeSala), true);
   assert.equal(canResetEmployeePin({ id: 'd', rol: 'adjunto' }, { rol: 'jefe', area: 'Sala' }), false);
   assert.equal(canEditEmployee({ id: 'j', rol: 'jefe', area: 'Sala' }, employeeSala), true);
@@ -330,7 +339,7 @@ test('a SYNCROLAB trainer supervisor cannot provision across laboratory subdepar
   assert.equal(res.status, 403);
 });
 
-test('provisioning stores no plaintext PIN and omits an emailed PIN from the response', async () => {
+test('a reception head provisions a lower-role employee by email without storing plaintext PIN', async () => {
   process.env.RESEND_API_KEY = 'resend-test-key';
   let employeeInsert;
   let authCreate;
@@ -353,8 +362,8 @@ test('provisioning stores no plaintext PIN and omits an emailed PIN from the res
     }
     if (url.includes('employees?id=eq.admin1')) {
       return json([{
-        id: 'admin1', nombre: 'Admin', area: 'Administración', puesto: 'Administrador',
-        rol: 'admin', responsable: 1, validador: 1, estado: 'Activo'
+        id: 'admin1', nombre: 'Jefe Recepción', area: 'Recepción', puesto: 'Jefe de Recepción',
+        rol: 'jefe', responsable: 1, validador: 1, estado: 'Activo'
       }]);
     }
     if (url.includes('/rpc/syncro_auth_reserve_bucket')) return json(0);
@@ -396,7 +405,7 @@ test('provisioning stores no plaintext PIN and omits an emailed PIN from the res
       'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7'
     },
     body: JSON.stringify({
-      nombre: 'Ana', puesto: 'Camarera', area: 'Administración', rol: 'empleado',
+      nombre: 'Ana', puesto: 'Recepcionista', area: 'Administración', rol: 'empleado',
       email: 'ana@example.test', obs: '', estado: 'Activo', coste: 14,
       responsable: 0, validador: 0, pin: '999999'
     })
@@ -406,7 +415,7 @@ test('provisioning stores no plaintext PIN and omits an emailed PIN from the res
   assert.equal(body.delivery, 'email');
   assert.equal('temporary_pin' in body, false);
   assert.equal(employeeInsert.pin, null);
-  assert.equal(employeeInsert.area, 'Sala');
+  assert.equal(employeeInsert.area, 'Recepción');
   assert.equal(fingerprintChecks, 2);
   assert.match(authCreate.password, /^\d{6}$/);
   assert.notEqual(authCreate.password, '999999');

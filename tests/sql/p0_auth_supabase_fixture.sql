@@ -15,7 +15,7 @@ create table public.employees (
   validador integer not null default 0,
   obs text not null default '',
   coste numeric not null default 0,
-  pin text,
+  pin text not null,
   fecha_alta date,
   created_at timestamptz not null default now()
 );
