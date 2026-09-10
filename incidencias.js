@@ -55,6 +55,28 @@ function isIncidentVisibleToColleagues(incident){
   return value===true || value===1 || value==='1' || String(value).toLowerCase()==='true';
 }
 
+// Un empleado puede ver sus propias incidencias y las que otro empleado haya
+// compartido expresamente con compañeros de su mismo departamento.
+function canEmployeeViewIncident(user, incident){
+  if(!user || !incident) return false;
+  var isOwner = incident.employee_id
+    ? incident.employee_id === user.id
+    : !!user.nombre && incident.nombre === user.nombre;
+  if(isOwner) return true;
+  if(!isIncidentVisibleToColleagues(incident)) return false;
+
+  var userDept = (typeof _deptCatalogo === 'function' ? _deptCatalogo(user) : '')
+    || user.area || '';
+  var incidentDept = (typeof getRecordDepartment === 'function')
+    ? getRecordDepartment(incident)
+    : (incident.departamento || incident.area || '');
+  var normalize = typeof normalizeDeptName === 'function'
+    ? normalizeDeptName
+    : function(value){ return String(value||'').trim().toLowerCase(); };
+
+  return !!userDept && normalize(incidentDept) === normalize(userDept);
+}
+
 // Distingue incidencia operativa de gestión pendiente (usado por dashboard)
 function _isOperationalIncident(i) {
   var cat = normalizeDeptName(i && i.categoria);

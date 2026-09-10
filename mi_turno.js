@@ -33,7 +33,7 @@ async function renderFollowupList() {
   if(btnNew)     btnNew.style.display    = isSupervisorUser ? '' : 'none';
   if(subtitleEl) subtitleEl.textContent  = isSupervisorUser
     ? 'Gestiones pendientes, tareas e incidencias operativas del departamento.'
-    : 'Gestiones pendientes y tareas visibles para tu departamento.';
+    : 'Gestiones, tareas e incidencias compartidas con tu departamento.';
 
   var allIncis = [], allTareas = [], allShifts = [], allGestiones = [], allAjustes = [];
   try { allIncis     = await getDB('incidencias'); } catch(e){}
@@ -78,19 +78,17 @@ async function renderFollowupList() {
     return esDeptDestino || esDeptOrigen || esCreador;
   });
 
-  // ── INCIDENCIAS: empleado ve solo las suyas y solo hasta que se cierren ──
+  // ── INCIDENCIAS: propias y compartidas con el departamento ──
   var incidencias;
   if(isAdmin(currentUser) || isSupervisorUser){
     incidencias = allIncis.filter(function(i){
       return isIncidentOpen(i) && sameDept(i);
     });
   } else {
-    // Empleado: solo las suyas propias, y solo si no están cerradas
     incidencias = allIncis.filter(function(i){
-      var esSuya = i.employee_id === currentUser.id || i.nombre === currentUser.nombre;
-      var abierta = normalizeIncidentState(i.estado) === INCIDENT_STATES.ABIERTA
-                 || normalizeIncidentState(i.estado) === INCIDENT_STATES.EN_PROCESO;
-      return esSuya && abierta;
+      return isIncidentOpen(i)
+        && typeof canEmployeeViewIncident === 'function'
+        && canEmployeeViewIncident(currentUser, i);
     });
   }
 
@@ -144,7 +142,7 @@ async function renderFollowupList() {
           + '<td style="font-size:12px;max-width:200px;">'+formatDisplayValue(i.descripcion).slice(0,70)+(i.descripcion&&i.descripcion.length>70?'...':'')+'</td>'
           + '<td style="font-size:12px;">'+formatDisplayValue(i.nombre)+'</td>'
           + '<td style="font-size:11px;color:var(--text3);">'+fechaStr+'</td>'
-          + '<td>'+(typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
+          + '<td>'+(isSupervisorUser && typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
           + '<td style="font-size:12px;max-width:160px;color:var(--text3);">'+accion+'</td>'
           + '</tr>';
       }).join('') + '</table>';
@@ -211,9 +209,9 @@ async function renderFollowupList() {
       + '</div>';
   }
 
-  if(isSupervisorUser){
+  if(isSupervisorUser || incidencias.length){
     html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">'
-      + '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.12em;margin-bottom:6px;">INCIDENCIAS OPERATIVAS ('+incidencias.length+') — Solo supervisores</div>'
+      + '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.12em;margin-bottom:6px;">INCIDENCIAS OPERATIVAS ('+incidencias.length+')'+(isSupervisorUser?'':' — Propias y compartidas')+'</div>'
       + buildIncidentRows(incidencias)
       + '</div>';
   }

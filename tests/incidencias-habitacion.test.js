@@ -38,6 +38,24 @@ test('normaliza la habitación y conserva la visibilidad elegida por el empleado
   assert.equal(context.isIncidentVisibleToColleagues({ visible_companeros: false }), false);
 });
 
+test('un empleado ve solo incidencias propias o compartidas de su departamento', () => {
+  const context = loadScripts();
+  const rebecca = { id: 'emp-rebecca', nombre: 'Rebecca', area: 'Recepción' };
+
+  assert.equal(context.canEmployeeViewIncident(rebecca, {
+    employee_id: 'emp-marina', departamento: 'Recepción', visible_companeros: true,
+  }), true);
+  assert.equal(context.canEmployeeViewIncident(rebecca, {
+    employee_id: 'emp-marina', departamento: 'Recepción', visible_companeros: false,
+  }), false);
+  assert.equal(context.canEmployeeViewIncident(rebecca, {
+    employee_id: 'emp-marina', departamento: 'Sala', visible_companeros: true,
+  }), false);
+  assert.equal(context.canEmployeeViewIncident(rebecca, {
+    employee_id: 'emp-rebecca', departamento: 'Recepción', visible_companeros: false,
+  }), true);
+});
+
 test('prepara tipos únicos para el filtro de incidencias', () => {
   const context = loadScripts();
   const tipos = context.getIncidentTypesForFilter([
@@ -57,6 +75,16 @@ test('el render final de incidencias conserva el filtro por tipo', () => {
   assert.match(source, /getIncidentTypesForFilter\(list\)/);
   assert.match(source, /Filtrar por tipo de incidencia/);
   assert.match(source, /setIncidenciasScreenTipo\(this\.value\)/);
+  assert.match(source, /canEmployeeViewIncident\(currentUser, i\)/);
+  assert.doesNotMatch(source, /Las incidencias que reportes serán visibles solo por tu jefe/);
+});
+
+test('Mi Turno muestra al empleado sus incidencias propias y compartidas sin acciones de jefe', () => {
+  const source = readFileSync(new URL('../adjuntos.js', import.meta.url), 'utf8');
+
+  assert.match(source, /if\(isSupervisorUser \|\| incidencias\.length\)/);
+  assert.match(source, /isSupervisorUser && typeof bIncidentEstadoClick/);
+  assert.match(source, /Propias y compartidas/);
 });
 
 test('la habitación se elige del catálogo y permite dejarla sin asignar', () => {

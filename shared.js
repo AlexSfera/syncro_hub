@@ -4961,27 +4961,20 @@ async function renderIncidenciasScreen(){
   var isSup    = typeof isSupervisor === 'function' && isSupervisor(currentUser);
   var canSeeList = isAdminU || isSup;
 
-  // ── Empleado: solo crear, sin lista ────────────────────────────────
-  if(!canSeeList){
-    el.innerHTML = '<div class="page-header"><div class="page-title">⚠ Incidencias</div>'
-      + '<div class="page-sub">Reporta una incidencia del turno. Tu jefe la revisará.</div></div>'
-      + '<div class="card" style="text-align:center;padding:32px;">'
-      + '<p style="color:var(--text2);font-size:13px;margin-bottom:18px;">'
-      + 'Las incidencias que reportes serán visibles solo por tu jefe de departamento.'
-      + '</p>'
-      + '<button class="btn btn-primary" style="font-size:14px;padding:12px 24px;" onclick="openNewIncidenciaStandalone()">+ Nueva incidencia</button>'
-      + '</div>';
-    return;
-  }
-
-  // ── Jefe / Admin: lista completa ───────────────────────────────────
+  // Admin y jefes ven su alcance completo. Los empleados ven sus propias
+  // incidencias y las compartidas expresamente dentro de su departamento.
   var verTodos = isAdminU;
   var all = [];
   try { all = await getDB('incidencias'); } catch(e){}
   // FIX-INCI-FILTER: usar canViewDepartment para que jefes SYNCROLAB vean subdepartamentos
-  var list = verTodos ? all : all.filter(function(i){
-    return canViewDepartment(currentUser, i.departamento||i.area||'');
-  });
+  var list = verTodos
+    ? all
+    : isSup
+      ? all.filter(function(i){ return canViewDepartment(currentUser, i.departamento||i.area||''); })
+      : all.filter(function(i){
+          return typeof canEmployeeViewIncident === 'function'
+            && canEmployeeViewIncident(currentUser, i);
+        });
   list = list.filter(function(i){
     var s = normalizeIncidentState(i.estado);
     return s !== INCIDENT_STATES.CERRADA;
@@ -5007,7 +5000,7 @@ async function renderIncidenciasScreen(){
         + '<div class="task-meta">'
         +   '<span class="dept-badge">'+formatDisplayValue(i.departamento||i.area)+'</span>'
         +   '<span class="task-origin">tipo: '+formatDisplayValue(i.tipo_incidencia||i.categoria)+'</span>'
-        +   bIncidentEstadoClick(i.estado, i.id)
+        +   (canSeeList ? bIncidentEstadoClick(i.estado, i.id) : bIncidentEstado(i.estado))
         + '</div>'
         + '<div class="task-title">'+formatDisplayValue(i.descripcion)+'</div>'
         + '<div class="task-footer">'
@@ -5021,7 +5014,7 @@ async function renderIncidenciasScreen(){
 
   el.innerHTML = '<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">'
     + '<div><div class="page-title">⚠ Incidencias pendientes</div>'
-    + '<div class="page-sub">'+(verTodos?'Todos los departamentos':'Departamento: '+dept)+' · '+listFiltrada.length+(listFiltrada.length!==list.length?' de '+list.length:'')+' activas</div></div>'
+    + '<div class="page-sub">'+(verTodos?'Todos los departamentos':isSup?'Departamento: '+dept:'Propias y compartidas con tu departamento')+' · '+listFiltrada.length+(listFiltrada.length!==list.length?' de '+list.length:'')+' activas</div></div>'
     + '<button class="btn btn-primary" onclick="openNewIncidenciaStandalone()">+ Nueva incidencia</button>'
     + '</div>'
     + '<div class="filter-bar" style="margin-bottom:14px;">'

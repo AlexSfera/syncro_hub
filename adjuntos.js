@@ -792,28 +792,23 @@ function canViewIncidencia(user, inci, empMap){
     var isSup    = typeof isSupervisor === 'function' && isSupervisor(currentUser);
     var canSeeList = isAdminU || isSup;
 
-    // Empleado: solo crear, sin lista
-    if(!canSeeList){
-      el.innerHTML = '<div class="page-header"><div class="page-title">⚠ Incidencias</div>'
-        + '<div class="page-sub">Reporta una incidencia del turno. Tu jefe la revisará.</div></div>'
-        + '<div class="card" style="text-align:center;padding:32px;">'
-        + '<p style="color:var(--text2);font-size:13px;margin-bottom:18px;">'
-        + 'Las incidencias que reportes serán visibles solo por tu jefe de departamento.</p>'
-        + '<button class="btn btn-primary" style="font-size:14px;padding:12px 24px;" onclick="openNewIncidenciaStandalone()">+ Nueva incidencia</button>'
-        + '</div>';
-      return;
-    }
-
-    // Jefe / Admin: lista con visibilidad expandida
+    // Empleado: lista limitada a incidencias propias o compartidas.
+    // Admin y jefes ven su alcance completo. Los empleados ven sus propias
+    // incidencias y las compartidas expresamente dentro de su departamento.
     var verTodos = isAdminU;
     var all = [];
     try { all = await getDB('incidencias'); } catch(e){}
     var empMap = await _adjGetEmployeeMap();
 
     // FIX: usar canViewIncidencia (dept + staff_implicado) en vez de === directo
-    var list = verTodos ? all : all.filter(function(i){
-      return canViewIncidencia(currentUser, i, empMap);
-    });
+    var list = verTodos
+      ? all
+      : isSup
+        ? all.filter(function(i){ return canViewIncidencia(currentUser, i, empMap); })
+        : all.filter(function(i){
+            return typeof canEmployeeViewIncident === 'function'
+              && canEmployeeViewIncident(currentUser, i);
+          });
 
     list = list.filter(function(i){
       var s = normalizeIncidentState(i.estado);
@@ -845,7 +840,7 @@ function canViewIncidencia(user, inci, empMap){
           + '<div class="task-meta">'
           +   '<span class="dept-badge">'+deptLabel+'</span>'
           +   '<span class="task-origin">tipo: '+formatDisplayValue(i.tipo_incidencia||i.categoria)+'</span>'
-          +   bIncidentEstadoClick(i.estado, i.id)
+          +   (canSeeList ? bIncidentEstadoClick(i.estado, i.id) : bIncidentEstado(i.estado))
           + '</div>'
           + '<div class="task-title">'+formatDisplayValue(i.descripcion)+'</div>'
           + '<div class="task-footer">'
@@ -858,7 +853,11 @@ function canViewIncidencia(user, inci, empMap){
     }
 
     // Mostrar depts supervisados en el subtítulo
-    var deptLabel = verTodos ? 'Todos los departamentos' : 'Departamentos: ' + (getSupervisorDepartments(currentUser)||[dept]).join(', ');
+    var deptLabel = verTodos
+      ? 'Todos los departamentos'
+      : isSup
+        ? 'Departamentos: ' + (getSupervisorDepartments(currentUser)||[dept]).join(', ')
+        : 'Propias y compartidas con tu departamento';
 
     el.innerHTML = '<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">'
       + '<div><div class="page-title">⚠ Incidencias pendientes</div>'
@@ -909,7 +908,7 @@ function _adjGetStaffDeptsSync(inci, empMap){
     if(btnNew)     btnNew.style.display   = isSupervisorUser ? '' : 'none';
     if(subtitleEl) subtitleEl.textContent  = isSupervisorUser
       ? 'Gestiones pendientes, tareas e incidencias operativas del departamento.'
-      : 'Gestiones pendientes y tareas visibles para tu departamento.';
+      : 'Gestiones, tareas e incidencias compartidas con tu departamento.';
 
     var allIncis = [], allTareas = [], allShifts = [], allGestiones = [], allAjustes = [];
     try { allIncis     = await getDB('incidencias'); } catch(e){}
@@ -964,13 +963,9 @@ function _adjGetStaffDeptsSync(inci, empMap){
       });
     } else {
       incidencias = allIncis.filter(function(i){
-        var esSuya = i.employee_id === currentUser.id || i.nombre === currentUser.nombre;
-        var esVisibleParaMi = typeof isIncidentVisibleToColleagues === 'function'
-          && isIncidentVisibleToColleagues(i)
-          && normalizeDeptName(i.departamento||i.area||'') === normalizeDeptName(dept);
-        var abierta = normalizeIncidentState(i.estado) === INCIDENT_STATES.ABIERTA
-                   || normalizeIncidentState(i.estado) === INCIDENT_STATES.EN_PROCESO;
-        return (esSuya || esVisibleParaMi) && abierta;
+        return isIncidentOpen(i)
+          && typeof canEmployeeViewIncident === 'function'
+          && canEmployeeViewIncident(currentUser, i);
       });
     }
 
@@ -1022,7 +1017,7 @@ function _adjGetStaffDeptsSync(inci, empMap){
             + '<td style="font-size:12px;">'+formatDisplayValue(i.nombre)+'</td>'
             + '<td>'+deptInfo+'</td>'
             + '<td style="font-size:11px;color:var(--text3);">'+fechaStr+'</td>'
-            + '<td>'+(typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
+            + '<td>'+(isSupervisorUser && typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
             + '<td style="font-size:12px;max-width:160px;color:var(--text3);">'+accion+'</td>'
             + '</tr>';
         }).join('') + '</table>';
@@ -1083,9 +1078,9 @@ function _adjGetStaffDeptsSync(inci, empMap){
         + ajustesHtml + '</div>';
     }
 
-    if(isSupervisorUser){
+    if(isSupervisorUser || incidencias.length){
       html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">'
-        + '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.12em;margin-bottom:6px;">INCIDENCIAS OPERATIVAS ('+incidencias.length+') — Solo supervisores</div>'
+        + '<div style="font-family:var(--font-mono);font-size:9px;font-weight:700;color:var(--red);letter-spacing:.12em;margin-bottom:6px;">INCIDENCIAS OPERATIVAS ('+incidencias.length+')'+(isSupervisorUser?'':' — Propias y compartidas')+'</div>'
         + buildIncidentRows(incidencias) + '</div>';
     }
 

@@ -58,7 +58,7 @@ El empleado **NO puede cambiar estado** — solo registra.
 
 ## 4. Visibilidad de incidencias y staff implicado
 
-`adjuntos.js` extiende la visibilidad: una incidencia también es visible para empleados del departamento de los `staff_implicado_ids`, no solo del departamento creador. Si `visible_companeros=true`, los compañeros del mismo departamento la ven en Mi Turno mientras permanezca activa. La opción es voluntaria y las incidencias históricas permanecen privadas por defecto.
+`adjuntos.js` extiende la visibilidad: una incidencia también es visible para empleados del departamento de los `staff_implicado_ids`, no solo del departamento creador. Si `visible_companeros=true`, los compañeros del mismo departamento la ven en Incidencias y en Mi Turno mientras permanezca activa. La opción es voluntaria y las incidencias históricas permanecen privadas por defecto.
 
 ---
 
