@@ -23,7 +23,7 @@ Una **tarea** es una acción concreta y asignable, con deadline y responsable, q
 | `creado_por` | TEXT | ✅ | Nombre del creador |
 | `prioridad` | TEXT | ✅ | `'Baja'` · `'Media'` · `'Alta'` |
 | `estado` | TEXT | ✅ | Ver estados abajo |
-| `deadline` | TEXT | ✅ | YYYY-MM-DD (mañana → +7 días) |
+| `deadline` | TEXT | ✅ | YYYY-MM-DD (hoy → +7 días) |
 | `origen` | TEXT | — | `'manual'` o contexto de creación |
 | `adjuntos` | JSONB | — | Array de URLs (via `adjuntos.js`) |
 | `completada_por` | TEXT | — | Quien cerró la tarea |
@@ -83,7 +83,7 @@ Vencida no es un estado BD — se calcula en frontend (`isOverdue`: deadline pas
 
 ## 5. Deadline
 
-- Selector calendario: mínimo = mañana, máximo = +7 días (`getMinTaskDeadline`, `getMaxTaskDeadline`)
+- Selector calendario: mínimo = hoy, máximo = +7 días (`getMinTaskDeadline`, `getMaxTaskDeadline`)
 - `validateTaskDeadline()` rechaza fechas fuera del rango
 - Si deadline pasado sin cerrar → badge "Vencida" en UI (calculado, no escrito en BD)
 

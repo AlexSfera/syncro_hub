@@ -17,13 +17,13 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── DEADLINE / NORMALIZACIÓN / ESTADO ─────────────────────────────────
-function getMinTaskDeadline(){ var d=getDateOnly(new Date()); d.setDate(d.getDate()+1); return toYMD(d); }
+function getMinTaskDeadline(){ return toYMD(getDateOnly(new Date())); }
 function getMaxTaskDeadline(){ var d=getDateOnly(new Date()); d.setDate(d.getDate()+7); return toYMD(d); }
 
 function validateTaskDeadline(deadline){
   if(!deadline) return {ok:false, msg:'El deadline es obligatorio.'};
   if(deadline<getMinTaskDeadline() || deadline>getMaxTaskDeadline()){
-    return {ok:false, msg:'El deadline debe estar entre mañana y los próximos 7 días.'};
+    return {ok:false, msg:'El deadline debe estar entre hoy y los próximos 7 días.'};
   }
   return {ok:true};
 }
