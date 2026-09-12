@@ -22,7 +22,7 @@ export default async function handler(req) {
     if (!session || session.forcePinChange) return jsonResponse({ error: 'Unauthorized' }, 401);
     const upload = normalizeUploadRequest(await readJson(req, 2048));
     if (!upload) return jsonResponse({ error: 'Invalid attachment' }, 400);
-    if (!await requireManageableRecord(token, upload, session.profile)) return jsonResponse({ error: 'Forbidden' }, 403);
+    if (!await requireManageableRecord(token, upload, session.profile, 'add')) return jsonResponse({ error: 'Forbidden' }, 403);
     const signed = await createSignedUpload(upload.path);
     const rawUrl = signed?.url || signed?.signedURL || signed?.signedUrl || null;
     return jsonResponse({ path: upload.path, token: signed?.token || null, url: absoluteStorageUrl(rawUrl) });

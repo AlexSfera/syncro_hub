@@ -36,7 +36,11 @@ export default async function handler(req) {
     const payload = await readJson(req, 8192);
     const target = normalizeAttachmentTarget(payload.table, payload.record_id);
     if (!target) return jsonResponse({ error: 'Invalid attachment' }, 400);
-    if (!await requireManageableRecord(token, target, session.profile)) {
+    if (payload.action !== 'add' && payload.action !== 'remove') {
+      return jsonResponse({ error: 'Invalid action' }, 400);
+    }
+    const operation = payload.action === 'add' ? 'add' : 'manage';
+    if (!await requireManageableRecord(token, target, session.profile, operation)) {
       return jsonResponse({ error: 'Forbidden' }, 403);
     }
 
@@ -66,8 +70,6 @@ export default async function handler(req) {
       const path = normalizeAttachmentPath(payload.path, target);
       if (!path) return jsonResponse({ error: 'Invalid attachment' }, 400);
       next = next.filter(item => item && item.path !== path);
-    } else {
-      return jsonResponse({ error: 'Invalid action' }, 400);
     }
 
     const updated = await adminRequest(

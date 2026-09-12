@@ -241,6 +241,13 @@ function adjuntoCollectFiles(inputId){
   return arr;
 }
 
+function adjuntoClearInput(inputId){
+  var input = document.getElementById(inputId);
+  if(input) input.value = '';
+  var pending = document.getElementById(inputId + '-pending');
+  if(pending) pending.innerHTML = '';
+}
+
 // ── UI: VISOR DE ADJUNTOS ─────────────────────────────────────────────
 
 function adjuntoRenderViewer(adjuntos, table, recordId, editable){
@@ -448,7 +455,10 @@ function _adjInjectInputs(){
     _origOpen.apply(this, arguments);
     setTimeout(function(){
       var m = document.getElementById('modal-new-gestion');
-      if(m){ _adjInjectInto(m.querySelector('.modal-b'), 'adj-new-gestion-container', 'adj-new-gestion-input', ''); }
+      if(m){
+        _adjInjectInto(m.querySelector('.modal-b'), 'adj-new-gestion-container', 'adj-new-gestion-input', '');
+        adjuntoClearInput('adj-new-gestion-input');
+      }
     }, 50);
   };
 })();
@@ -570,9 +580,10 @@ if(document.readyState === 'complete' || document.readyState === 'interactive'){
     window._adjLastInserted = null;
     await _orig.apply(this, arguments);
     var last = window._adjLastInserted;
-    if(files.length && last && last.table === 'gestiones'){
-      try { await adjuntoUploadBatch(files, 'gestiones', last.id); }
+    if(last && last.table === 'gestiones'){
+      try { if(files.length) await adjuntoUploadBatch(files, 'gestiones', last.id); }
       catch(e){ console.error(e); toast('La gestión se guardó, pero el adjunto no: '+e.message,'err'); }
+      finally { adjuntoClearInput('adj-new-gestion-input'); }
     }
   };
 })();

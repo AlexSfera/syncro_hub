@@ -130,13 +130,17 @@ test('attachment metadata is restricted to the selected parent record', () => {
   }, target, { nombre: 'Responsable' }), null);
 });
 
-test('only management roles can mutate attachment metadata', () => {
+test('gestion authors can add evidence while management retains broader attachment control', () => {
   const employee = { id: 'emp1', rol: 'empleado', area: 'Sala', puesto: 'Camarero' };
   const manager = { id: 'manager1', rol: 'jefe', area: 'Sala', puesto: 'Jefe de Sala' };
   assert.equal(canManageRecordAttachments(employee,
+    { table: 'gestiones' }, { employee_id: 'emp1', departamento: 'Sala' }, 'add'), true);
+  assert.equal(canManageRecordAttachments(employee,
     { table: 'gestiones' }, { employee_id: 'emp1', departamento: 'Sala' }), false);
   assert.equal(canManageRecordAttachments(employee,
-    { table: 'tareas' }, { employee_id: 'emp1', dept_destino: 'Sala' }), false);
+    { table: 'gestiones' }, { employee_id: 'other', departamento: 'Sala' }, 'add'), false);
+  assert.equal(canManageRecordAttachments(employee,
+    { table: 'tareas' }, { employee_id: 'emp1', dept_destino: 'Sala' }, 'add'), false);
   assert.equal(canManageRecordAttachments(employee,
     { table: 'incidencias' }, { employee_id: 'other', departamento: 'Sala' }), false);
   assert.equal(canManageRecordAttachments(manager,
@@ -207,9 +211,52 @@ test('management endpoints return absolute signed Storage URLs after checking th
   assert.equal(recordChecks.some(call => call.url.includes('updated_at')), false);
 });
 
-test('employees cannot mutate attachments, including their own records', async () => {
+test('employees can add attachments to their own gestiones but not to tareas', async () => {
   const calls = mockAuthenticatedStorage();
   const accessToken = token();
+  const gestionUploadReq = new Request('https://syncro.example/api/attachments/sign-upload', {
+    method: 'POST',
+    headers: { origin: 'https://syncro.example', authorization: 'Bearer ' + accessToken },
+    body: JSON.stringify({
+      table: 'gestiones', record_id: 'gestion1', name: 'captura.png',
+      type: 'image/png', size: 1024
+    })
+  });
+  assert.equal((await signUploadHandler(gestionUploadReq)).status, 200);
+
+  const gestionMetadataReq = new Request('https://syncro.example/api/attachments/metadata', {
+    method: 'POST',
+    headers: { origin: 'https://syncro.example', authorization: 'Bearer ' + accessToken },
+    body: JSON.stringify({
+      action: 'add', table: 'gestiones', record_id: 'gestion1',
+      attachments: [{
+        name: 'captura.png', path: 'gestiones/gestion1/file.png',
+        type: 'image/png', size: 1024
+      }]
+    })
+  });
+  assert.equal((await metadataHandler(gestionMetadataReq)).status, 200);
+
+  const gestionDownloadReq = new Request('https://syncro.example/api/attachments/sign-download', {
+    method: 'POST',
+    headers: { origin: 'https://syncro.example', authorization: 'Bearer ' + accessToken },
+    body: JSON.stringify({
+      table: 'gestiones', record_id: 'gestion1',
+      path: 'gestiones/gestion1/file.png'
+    })
+  });
+  assert.equal((await signDownloadHandler(gestionDownloadReq)).status, 200);
+
+  const gestionDeleteReq = new Request('https://syncro.example/api/attachments/object', {
+    method: 'DELETE',
+    headers: { origin: 'https://syncro.example', authorization: 'Bearer ' + accessToken },
+    body: JSON.stringify({
+      table: 'gestiones', record_id: 'gestion1',
+      path: 'gestiones/gestion1/file.png'
+    })
+  });
+  assert.equal((await objectHandler(gestionDeleteReq)).status, 403);
+
   const uploadReq = new Request('https://syncro.example/api/attachments/sign-upload', {
     method: 'POST',
     headers: { origin: 'https://syncro.example', authorization: 'Bearer ' + accessToken },
@@ -229,7 +276,7 @@ test('employees cannot mutate attachments, including their own records', async (
     })
   });
   assert.equal((await metadataHandler(metadataReq)).status, 403);
-  assert.equal(calls.some(call => call.url.includes('/storage/v1/object/upload/sign/')), false);
+  assert.equal(calls.some(call => call.url.includes('/storage/v1/object/upload/sign/')), true);
 });
 
 test('attachment deletion succeeds when the secondary audit write fails', async () => {

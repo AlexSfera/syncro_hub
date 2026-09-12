@@ -77,4 +77,6 @@ test('gestion modal renders attachments through authenticated metadata APIs', as
   assert.match(attachments, /adjuntoGetFromRecord\('tareas', taskId\)/);
   assert.doesNotMatch(attachments, /dbUpdate\(table, recordId, \{ adjuntos:/);
   assert.match(attachments, /result !== null && row && row\.id/);
+  assert.match(attachments, /function adjuntoClearInput\(inputId\)/);
+  assert.match(attachments, /openNewGestionStandalone[\s\S]*adjuntoClearInput\('adj-new-gestion-input'\)/);
 });
