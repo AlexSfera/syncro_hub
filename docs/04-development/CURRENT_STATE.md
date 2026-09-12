@@ -46,7 +46,7 @@ Cuando no exista evidencia suficiente se utilizará:
 | Integración de correo | EXISTE, funcionamiento no verificado |
 | Documentación funcional | EXISTE, en proceso de consolidación |
 | Documentación arquitectónica | EXISTE parcialmente y requiere validación |
-| `AGENTS.md` para Codex | NO INICIADO |
+| `AGENTS.md` para Codex | EXISTE |
 | `CLAUDE.md` para Claude | NO INICIADO |
 
 ## 4. Inventario preliminar de módulos
