@@ -42,6 +42,211 @@ function getFioPenalizacion(puntos){
   return 1.00; // ≥ 15 o L4
 }
 
+function _incEscHtml(value){
+  return String(value == null ? '' : value)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function _incMonthLabel(ym){
+  var months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var parts = String(ym||'').split('-');
+  return (months[parseInt(parts[1],10)-1]||parts[1]||'')+' '+(parts[0]||'');
+}
+
+function _incMoney(value){
+  return (parseFloat(value||0)).toLocaleString('es-ES',{
+    minimumFractionDigits:2, maximumFractionDigits:2
+  })+'€';
+}
+
+function _incDate(value){
+  var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value||''));
+  return match ? match[3]+'/'+match[2]+'/'+match[1] : '[NO DATA]';
+}
+
+var _incReceptionReviewState = { ym:'', rows:[], permissions:{} };
+var _incReceptionLiquidationDraft = null;
+
+async function _incReceptionApi(method, payload, ym){
+  if(!window.SyncroAuth || !window.SyncroAuth.enabled){
+    throw new Error('La sesión segura no está disponible.');
+  }
+  var token = await window.SyncroAuth.getAccessToken(false);
+  var url = '/api/reception-incentives';
+  if(method==='GET') url += '?mes='+encodeURIComponent(ym||'');
+  var response = await syncroSupabaseFetch(url,{
+    method:method,
+    credentials:'include',
+    headers:Object.assign(
+      {Authorization:'Bearer '+token},
+      method==='POST' ? {'Content-Type':'application/json'} : {}
+    ),
+    body:method==='POST' ? JSON.stringify(payload||{}) : undefined
+  });
+  var data = null;
+  try { data = await response.json(); } catch(_error) {}
+  if(!response.ok) throw new Error((data&&data.error)||'No se pudo completar la operación.');
+  return data||{};
+}
+
+function _incSetReceptionReviewData(data, ym){
+  _incReceptionReviewState = {
+    ym:ym,
+    rows:Array.isArray(data&&data.rows)?data.rows:[],
+    permissions:(data&&data.permissions)||{}
+  };
+}
+
+function _incReceptionCalculationRowsHtml(rows){
+  return (rows||[]).map(function(row){
+    var penalty = parseFloat(row.penalty_percent||0)>0
+      ? '<span class="badge b-red">−'+Math.round(parseFloat(row.penalty_percent)*100)+'%</span>'
+      : '—';
+    return '<tr>'
+      +'<td><strong>'+_incEscHtml(row.employee_name)+'</strong></td>'
+      +'<td style="font-family:var(--font-mono);">'+_incMoney(row.sales_net)+'</td>'
+      +'<td style="font-family:var(--font-mono);">'+_incMoney(row.incentive_gross)+'</td>'
+      +'<td style="text-align:center;">'+parseFloat(row.fio_points||0).toFixed(1)+'pts '+penalty+'</td>'
+      +'<td style="font-family:var(--font-mono);font-weight:700;color:'+(parseFloat(row.incentive_final||0)>0?'var(--green)':'var(--text3)')+';">'+_incMoney(row.incentive_final)+'</td>'
+      +'<td style="text-align:center;"><button class="btn btn-xs" style="background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue);" '
+        +'onclick=\'incRevisarRecepcion('+JSON.stringify(row.employee_id)+')\'>◎ Revisar</button></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function _incReceptionReviewHtml(row, ym){
+  var sales = Array.isArray(row&&row.sales)?row.sales:[];
+  var detailRows = sales.map(function(sale){
+    var closeStatus = sale.closure_status
+      ? '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'+_incEscHtml(sale.closure_status)+'</div>'
+      : '';
+    var typeDetail = sale.service_detail
+      ? '<div style="font-size:10px;color:var(--text3);">'+_incEscHtml(sale.service_detail)+'</div>'
+      : '';
+    var comment = sale.comment
+      ? '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'+_incEscHtml(sale.comment)+'</div>'
+      : '';
+    return '<tr>'
+      +'<td style="white-space:nowrap;">'+_incDate(sale.date)+'</td>'
+      +'<td>'+_incEscHtml(sale.closure_service||'[NO DATA]')+closeStatus+'</td>'
+      +'<td style="font-family:var(--font-mono);">'+_incEscHtml(sale.invoice_reference||'[NO DATA]')+'</td>'
+      +'<td>'+_incEscHtml(sale.type_label||sale.type||'[NO DATA]')+typeDetail+comment+'</td>'
+      +'<td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(sale.gross)+'</td>'
+      +'<td style="text-align:center;font-family:var(--font-mono);">'+parseFloat(sale.vat_percent||0).toFixed(0)+'%</td>'
+      +'<td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(sale.net)+'</td>'
+      +'<td style="text-align:right;font-family:var(--font-mono);color:var(--green);">'+_incMoney(sale.incentive)+'</td>'
+      +'</tr>';
+  }).join('');
+  if(!detailRows){
+    detailRows = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text3);">Sin ventas cross-sell registradas en los cierres de este mes.</td></tr>';
+  }
+  var penalty = parseFloat((row&&row.penalty_amount)||0);
+  var penaltyDisplay = penalty>0 ? '−'+_incMoney(penalty) : '—';
+  return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:1050px;width:96%;max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.5);">'
+    +'<div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px;">'
+      +'<div><div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.15em;margin-bottom:5px;">REVISIÓN DEL CÁLCULO</div>'
+      +'<div style="font-size:17px;font-weight:700;">'+_incEscHtml((row&&row.employee_name)||'')+' · '+_incEscHtml(_incMonthLabel(ym))+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:4px;">Origen: ventas cross-sell registradas en los cierres de turno.</div></div>'
+      +'<button class="btn btn-secondary" onclick="incCerrarRevisionRecepcion()">Cerrar</button>'
+    +'</div>'
+    +'<div class="tbl-wrap"><table style="min-width:900px;"><tr><th>Fecha</th><th>Cierre / turno</th><th>Nº factura / ref. MEWS</th><th>Venta</th><th style="text-align:right;">Bruto</th><th>IVA</th><th style="text-align:right;">Neto</th><th style="text-align:right;">10%</th></tr>'
+      +detailRows+'</table></div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-top:16px;"><table style="width:auto;min-width:360px;">'
+      +'<tr><td style="color:var(--text3);">Ventas netas</td><td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(row&&row.sales_net)+'</td></tr>'
+      +'<tr><td style="color:var(--text3);">Incentivo bruto (10%)</td><td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(row&&row.incentive_gross)+'</td></tr>'
+      +'<tr><td style="color:var(--text3);">FIO ('+parseFloat((row&&row.fio_points)||0).toFixed(1)+' pts)</td><td style="text-align:right;font-family:var(--font-mono);color:'+(penalty>0?'var(--red)':'var(--text3)')+';">'+penaltyDisplay+'</td></tr>'
+      +'<tr style="border-top:2px solid var(--border);font-weight:700;"><td>INCENTIVO FINAL</td><td style="text-align:right;font-family:var(--font-mono);font-size:16px;color:'+(parseFloat((row&&row.incentive_final)||0)>0?'var(--green)':'var(--text3)')+';">'+_incMoney(row&&row.incentive_final)+'</td></tr>'
+    +'</table></div>'
+  +'</div>';
+}
+
+function incRevisarRecepcion(employeeId){
+  var row = (_incReceptionReviewState.rows||[]).find(function(item){ return item.employee_id===employeeId; });
+  if(!row){ toast('No se encontró el cálculo de este empleado.','err'); return; }
+  var existing = document.getElementById('inc-reception-review-overlay');
+  if(existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'inc-reception-review-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;';
+  overlay.innerHTML = _incReceptionReviewHtml(row,_incReceptionReviewState.ym);
+  overlay.addEventListener('click',function(event){ if(event.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+window.incRevisarRecepcion = incRevisarRecepcion;
+
+function incCerrarRevisionRecepcion(){
+  var overlay = document.getElementById('inc-reception-review-overlay');
+  if(overlay) overlay.remove();
+}
+window.incCerrarRevisionRecepcion = incCerrarRevisionRecepcion;
+
+function incAbrirLiquidacionRecepcion(employeeId){
+  var row = (_incReceptionReviewState.rows||[]).find(function(item){ return item.employee_id===employeeId; });
+  if(!row){ toast('No se encontró el incentivo de este empleado.','err'); return; }
+  incLiquidarMes(row.employee_id,row.employee_name,_incReceptionReviewState.ym,
+    row.incentive_gross,row.penalty_amount,row.incentive_final);
+}
+window.incAbrirLiquidacionRecepcion = incAbrirLiquidacionRecepcion;
+
+function _incReceptionLiquidationHtml(data, ym){
+  var rows = Array.isArray(data&&data.rows)?data.rows:[];
+  var canLiquidate = !!(data&&data.permissions&&data.permissions.can_liquidate);
+  var eligible = rows.filter(function(row){ return parseFloat(row.incentive_final||0)>0; });
+  var liquidated = eligible.filter(function(row){ return row.liquidated; });
+  var pendingTotal = eligible.filter(function(row){ return !row.liquidated; })
+    .reduce(function(total,row){ return total+parseFloat(row.incentive_final||0); },0);
+  var body = rows.map(function(row){
+    var amount = parseFloat(row.incentive_final||0);
+    var penaltyAmount = parseFloat(row.penalty_amount||0);
+    var status;
+    var action;
+    if(row.liquidated){
+      status = '<span class="badge b-green">✓ LIQUIDADO</span>';
+      action = '<span style="font-size:11px;color:var(--text3);">'
+        +_incDate(row.liquidation&&row.liquidation.liquidado_at)+'</span>';
+    } else if(amount>0){
+      status = '<span class="badge b-yellow">PENDIENTE</span>';
+      action = canLiquidate
+        ? '<button class="btn btn-xs" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green);" onclick=\'incAbrirLiquidacionRecepcion('+JSON.stringify(row.employee_id)+')\'>✓ Marcar liquidado</button>'
+        : '<span style="font-size:11px;color:var(--text3);">Revisión Dirección</span>';
+    } else {
+      status = '<span class="badge b-gray">0 € · NO LIQUIDABLE</span>';
+      action = '<span style="font-size:11px;color:var(--text3);">Sin pago</span>';
+    }
+    return '<tr>'
+      +'<td><strong>'+_incEscHtml(row.employee_name)+'</strong></td>'
+      +'<td style="text-align:center;font-family:var(--font-mono);">'+parseInt(row.sales_count||0,10)+'</td>'
+      +'<td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(row.sales_net)+'</td>'
+      +'<td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(row.incentive_gross)+'</td>'
+      +'<td style="text-align:right;font-family:var(--font-mono);color:'+(penaltyAmount>0?'var(--red)':'var(--text3)')+';">'+(penaltyAmount>0?'−'+_incMoney(penaltyAmount):'—')+'</td>'
+      +'<td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:'+(amount>0?'var(--green)':'var(--text3)')+';">'+_incMoney(amount)+'</td>'
+      +'<td style="text-align:center;">'+status+'</td>'
+      +'<td style="text-align:right;">'+action+'</td>'
+      +'</tr>';
+  }).join('');
+  return '<div class="card">'
+    +'<div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">Recepción Hotel · Liquidación mensual</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">'+rows.length+' empleados · '+liquidated.length+'/'+eligible.length+' importes liquidables pagados · Pendiente: <b style="color:var(--amber);">'+_incMoney(pendingTotal)+'</b></div>'
+    +'<div class="tbl-wrap"><table style="min-width:900px;"><tr><th>Empleado</th><th>Ventas</th><th style="text-align:right;">Neto</th><th style="text-align:right;">Bruto incentivo</th><th style="text-align:right;">FIO</th><th style="text-align:right;">Final</th><th>Estado</th><th style="text-align:right;">Acción</th></tr>'
+      +(body||'<tr><td colspan="8" style="text-align:center;color:var(--text3);">No hay empleados activos de Recepción Hotel.</td></tr>')
+    +'</table></div></div>';
+}
+
+async function incRenderRecepcionLiquidaciones(el, ym){
+  if(!el) return;
+  el.innerHTML = '<div class="card"><p style="color:var(--text3);padding:16px 0;">Cargando incentivos de Recepción Hotel…</p></div>';
+  try {
+    var data = await _incReceptionApi('GET',null,ym);
+    _incSetReceptionReviewData(data,ym);
+    el.innerHTML = _incReceptionLiquidationHtml(data,ym);
+  } catch(error){
+    el.innerHTML = '<div class="card"><p style="color:var(--red);padding:16px 0;">'+_incEscHtml(error.message||'No se pudieron cargar los incentivos de Recepción Hotel.')+'</p></div>';
+  }
+}
+window.incRenderRecepcionLiquidaciones = incRenderRecepcionLiquidaciones;
+
 // ── RENDER PRINCIPAL ────────────────────────────────────────────────
 
 var _incentivosSelectedMonth = '';
@@ -646,77 +851,27 @@ async function calcularIncentivosGestor(){
 
   // ── RECEPCIÓN ────────────────────────────────────────────────────
   if(dept === 'Recepción'){
-    var empsRec = allEmps.filter(function(e){
-      return e.estado==='Activo' && e.area==='Recepción';
-    });
-
-    function _ivaFactor(tipo){ return tipo === 'syncrolab' ? 1.21 : 1.10; }
-    var recVentasRes = empsRec.length ? await syncroSupabaseFetch(
-      SUPABASE_URL+'/rest/v1/recepcion_ventas'
-        +'?fecha=gte.'+range.inicio+'&fecha=lte.'+range.fin
-        +'&select=empleado_id,importe,tipo_venta',
-      {headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}
-    ) : null;
-    var recVentasData = (recVentasRes && recVentasRes.ok) ? await recVentasRes.json() : [];
-
-    var empIdsRec = empsRec.map(function(e){ return e.id; }).join(',');
-    var fioResRec = empIdsRec ? await syncroSupabaseFetch(
-      SUPABASE_URL+'/rest/v1/fio?employee_id=in.('+empIdsRec+')'
-        +'&incentive_month=eq.'+ym+'&status=in.(Validado,Cerrado,Disputado)&saldado=is.false&select=employee_id,applied_points',
-      {headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}
-    ) : null;
-    var fioDataRec = (fioResRec && fioResRec.ok) ? await fioResRec.json() : [];
-
-    var liqRecRes = empIdsRec ? await syncroSupabaseFetch(
-      SUPABASE_URL+'/rest/v1/incentivos_liquidaciones?empleado_id=in.('+empIdsRec+')&mes=eq.'+ym+'&select=empleado_id,incentivo_final,liquidado_at',
-      {headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}
-    ) : null;
-    var liqRecData = (liqRecRes && liqRecRes.ok) ? await liqRecRes.json() : [];
-
-    todos = empsRec.map(function(e){
-      var misVentas  = (recVentasData||[]).filter(function(v){ return v.empleado_id===e.id; });
-      var incBruto   = misVentas.reduce(function(s,v){
-        return s + (parseFloat(v.importe||0) / _ivaFactor(v.tipo_venta)) * 0.10;
-      },0);
-      var misFio     = (fioDataRec||[]).filter(function(f){ return f.employee_id===e.id; });
-      var ptosFio    = misFio.reduce(function(s,f){ return s+parseFloat(f.applied_points||0); },0);
-      var penPct     = getFioPenalizacion(ptosFio);
-      var incFinal   = Math.max(0, incBruto*(1-penPct));
-      var liq        = (liqRecData||[]).find(function(l){ return l.empleado_id===e.id; });
-      return { emp:e, dept:'Recepción', ventasMes:incBruto/0.10||0, semanasOk:'—', semanasTotales:'—',
-               bonusBruto:incBruto, ptosFio:ptosFio, penPct:penPct, bonusFinal:incFinal,
-               liquidado:!!liq, liquidado_at:liq?liq.liquidado_at:null };
-    });
-
-    var totalBonuses = todos.reduce(function(s,r){ return s+r.bonusFinal; },0);
-    var isAdminG = canActAsAdmin(currentUser);
-    var rows = todos.map(function(r){
-      var penBadge = r.penPct>0 ? '<span class="badge b-red">−'+Math.round(r.penPct*100)+'%</span>' : '—';
-      var liqCell = r.liquidado
-        ? '<span style="color:var(--green);font-size:11px;font-weight:600;">✅ '+new Date(r.liquidado_at).toLocaleDateString('es-ES')+'</span>'
-        : (isAdminG && r.bonusFinal>0
-          ? '<button class="btn btn-xs" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green);" '
-            +'onclick="incLiquidarMes(\''+r.emp.id+'\',\''+r.emp.nombre+'\',\''+ym+'\','+r.bonusBruto+','+(r.penPct*r.bonusBruto)+','+r.bonusFinal+')">💰 Liquidar</button>'
-          : '<span style="color:var(--text3);font-size:11px;">Pendiente</span>');
-      return '<tr>'
-        +'<td><strong>'+r.emp.nombre+'</strong></td>'
-        +'<td style="font-family:var(--font-mono);">'+r.ventasMes.toLocaleString('es-ES',{minimumFractionDigits:2})+'€</td>'
-        +'<td style="font-family:var(--font-mono);">'+r.bonusBruto.toFixed(2)+'€</td>'
-        +'<td style="text-align:center;">'+r.ptosFio.toFixed(1)+'pts '+penBadge+'</td>'
-        +'<td style="font-family:var(--font-mono);font-weight:700;color:'+(r.bonusFinal>0?'var(--green)':'var(--text3)')+';">'+r.bonusFinal.toFixed(2)+'€</td>'
-        +'<td>'+liqCell+'</td>'
-        +'</tr>';
-    }).join('');
+    var receptionData;
+    try {
+      receptionData = await _incReceptionApi('GET',null,ym);
+    } catch(error){
+      el.innerHTML = '<div class="card"><p style="color:var(--red);padding:16px 0;">'+_incEscHtml(error.message||'No se pudieron calcular los incentivos de Recepción Hotel.')+'</p></div>';
+      return;
+    }
+    _incSetReceptionReviewData(receptionData,ym);
+    todos = Array.isArray(receptionData.rows)?receptionData.rows:[];
+    var totalBonuses = todos.reduce(function(total,row){ return total+parseFloat(row.incentive_final||0); },0);
+    var rows = _incReceptionCalculationRowsHtml(todos);
 
     el.innerHTML = '<h3 style="margin:0 0 14px;font-size:15px;">Recepción Hotel · '+mesLabel+'</h3>'
       +'<div class="tbl-wrap"><table>'
-      +'<tr><th>Empleado</th><th>Ventas cross-sell</th><th>Incentivo bruto (10%)</th><th>FIO</th><th>Incentivo final</th><th>Liquidación</th></tr>'
+      +'<tr><th>Empleado</th><th>Ventas cross-sell</th><th>Incentivo bruto (10%)</th><th>FIO</th><th>Incentivo final</th><th>Revisión</th></tr>'
       +(rows||'<tr><td colspan="6" style="color:var(--text3);text-align:center;">Sin empleados activos</td></tr>')
       +'<tr style="border-top:2px solid var(--border);font-weight:700;">'
       +'<td colspan="4">TOTAL A PAGAR</td>'
-      +'<td colspan="2" style="font-family:var(--font-mono);font-size:15px;color:var(--amber);">'+totalBonuses.toFixed(2)+'€</td>'
+      +'<td colspan="2" style="font-family:var(--font-mono);font-size:15px;color:var(--amber);">'+_incMoney(totalBonuses)+'</td>'
       +'</tr></table></div>'
-      +'<p style="font-size:11px;color:var(--text3);margin-top:12px;">Comisión: 10% sobre importe neto (sin IVA) de ventas cross-sell declaradas en turno.</p>';
+      +'<p style="font-size:11px;color:var(--text3);margin-top:12px;">Comisión: 10% sobre importe neto (sin IVA) de ventas cross-sell registradas en cierres de turno.</p>';
     return;
   }
 
@@ -1175,7 +1330,7 @@ window.incToggleRegla = incToggleRegla;
 
 // ═══════════════════════════════════════════════════════════════════════
 // LIQUIDACIÓN MENSUAL RECEPCIÓN
-// Solo admin. Mes completo. Salda FIO del mes (no los borra).
+// Solo admin/adjunto. El servidor recalcula desde cierres y salda FIO.
 // ═══════════════════════════════════════════════════════════════════════
 
 async function incLiquidarMes(empId, empNombre, ym, incBruto, penEur, incFinal){
@@ -1188,88 +1343,71 @@ async function incLiquidarMes(empId, empNombre, ym, incBruto, penEur, incFinal){
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   var parts = ym.split('-');
   var mesLabel = meses[parseInt(parts[1])-1]+' '+parts[0];
+  _incReceptionLiquidationDraft = {
+    employee_id:empId, employee_name:empNombre, ym:ym,
+    incentive_gross:parseFloat(incBruto)||0,
+    penalty_amount:parseFloat(penEur)||0,
+    incentive_final:parseFloat(incFinal)||0
+  };
 
   // Modal de confirmación
   var modal = document.createElement('div');
   modal.id = 'liq-modal-overlay';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
   modal.innerHTML = '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.5);">'
-    +'<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--green);letter-spacing:.15em;margin-bottom:12px;">LIQUIDAR INCENTIVO</div>'
-    +'<div style="font-size:15px;font-weight:700;margin-bottom:16px;">'+empNombre+' · '+mesLabel+'</div>'
+    +'<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--green);letter-spacing:.15em;margin-bottom:12px;">LIQUIDAR INCENTIVO · RECEPCIÓN HOTEL</div>'
+    +'<div style="font-size:15px;font-weight:700;margin-bottom:16px;">'+_incEscHtml(empNombre)+' · '+_incEscHtml(mesLabel)+'</div>'
     +'<table style="width:100%;margin-bottom:16px;font-size:13px;">'
-    +'<tr><td style="color:var(--text3);">Incentivo bruto</td><td style="font-family:var(--font-mono);text-align:right;">'+(incBruto||0).toFixed(2)+'€</td></tr>'
-    +'<tr><td style="color:var(--text3);">Penalización FIO</td><td style="font-family:var(--font-mono);text-align:right;color:var(--red);">−'+(penEur||0).toFixed(2)+'€</td></tr>'
+    +'<tr><td style="color:var(--text3);">Incentivo bruto</td><td style="font-family:var(--font-mono);text-align:right;">'+_incMoney(incBruto)+'</td></tr>'
+    +'<tr><td style="color:var(--text3);">Penalización FIO</td><td style="font-family:var(--font-mono);text-align:right;color:'+(parseFloat(penEur||0)>0?'var(--red)':'var(--text3)')+';">'+(parseFloat(penEur||0)>0?'−'+_incMoney(penEur):'—')+'</td></tr>'
     +'<tr style="border-top:2px solid var(--border);font-weight:700;">'
     +'<td>INCENTIVO FINAL</td>'
-    +'<td style="font-family:var(--font-mono);text-align:right;font-size:16px;color:var(--green);">'+(incFinal||0).toFixed(2)+'€</td>'
+    +'<td style="font-family:var(--font-mono);text-align:right;font-size:16px;color:var(--green);">'+_incMoney(incFinal)+'</td>'
     +'</tr></table>'
     +'<div class="fg" style="margin-bottom:16px;">'
     +'<label style="font-size:11px;">Notas (opcional)</label>'
     +'<input type="text" id="liq-notas" placeholder="Ej: Pagado por transferencia" style="width:100%;">'
     +'</div>'
     +'<div style="background:var(--amber-dim);border:1px solid var(--amber);border-radius:6px;padding:10px;margin-bottom:16px;font-size:12px;color:var(--amber);">'
-    +'⚠ Esta acción marcará los FIO del mes como saldados. No se puede deshacer.'
+    +'El importe se recalculará en el servidor desde los cierres antes de guardar la liquidación.'
     +'</div>'
+    +'<div id="liq-error" style="color:var(--red);font-size:12px;min-height:16px;margin-bottom:8px;"></div>'
     +'<div style="display:flex;gap:10px;justify-content:flex-end;">'
     +'<button class="btn btn-secondary" onclick="document.getElementById(\'liq-modal-overlay\').remove()">Cancelar</button>'
-    +'<button class="btn" style="background:var(--green);color:#fff;" onclick="_confirmarLiquidacion(\''+empId+'\',\''+empNombre+'\',\''+ym+'\','+incBruto+','+penEur+','+incFinal+')">✅ Confirmar liquidación</button>'
+    +'<button id="liq-submit" class="btn" style="background:var(--green);color:#fff;" onclick="_confirmarLiquidacion()">✅ Confirmar liquidación</button>'
     +'</div>'
     +'</div>';
   document.body.appendChild(modal);
 }
 window.incLiquidarMes = incLiquidarMes;
 
-async function _confirmarLiquidacion(empId, empNombre, ym, incBruto, penEur, incFinal){
+async function _confirmarLiquidacion(){
+  var draft = _incReceptionLiquidationDraft;
+  if(!draft){ toast('No se encontró la liquidación pendiente.','err'); return; }
   var notas = (document.getElementById('liq-notas')||{}).value || '';
   var overlay = document.getElementById('liq-modal-overlay');
-  if(overlay) overlay.remove();
-
-  // 1. Insertar en incentivos_liquidaciones
-  var liqRow = {
-    id:               genId(),
-    empleado_id:      empId,
-    empleado_nombre:  empNombre,
-    mes:              ym,
-    incentivo_bruto:  parseFloat(incBruto)||0,
-    penalizacion_fio: parseFloat(penEur)||0,
-    incentivo_final:  parseFloat(incFinal)||0,
-    liquidado_por:    currentUser.nombre,
-    liquidado_at:     localTs(),
-    notas:            notas||null
-  };
-  var ok = await dbInsert('incentivos_liquidaciones', liqRow);
-  if(!ok){
-    toast('Error al registrar la liquidación. Inténtalo de nuevo.','err');
-    return;
-  }
-
-  // 2. Marcar FIO del mes como saldados (no se borran)
-  var fioRes = await syncroSupabaseFetch(
-    SUPABASE_URL+'/rest/v1/fio?employee_id=eq.'+encodeURIComponent(empId)
-      +'&incentive_month=eq.'+ym
-      +'&status=in.(Validado,Cerrado,Disputado)',
-    {headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'}}
-  );
-  var fios = fioRes.ok ? await fioRes.json() : [];
-  for(var i=0; i<fios.length; i++){
-    await syncroSupabaseFetch(SUPABASE_URL+'/rest/v1/fio?id=eq.'+fios[i].id, {
-      method:'PATCH',
-      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ saldado: true })
+  var submit = document.getElementById('liq-submit');
+  var errorEl = document.getElementById('liq-error');
+  if(submit){ submit.disabled=true; submit.textContent='Guardando…'; }
+  if(errorEl) errorEl.textContent='';
+  try {
+    var result = await _incReceptionApi('POST',{
+      action:'liquidate', employee_id:draft.employee_id, mes:draft.ym, notas:notas
     });
+    if(overlay) overlay.remove();
+    _incReceptionLiquidationDraft = null;
+    var savedAmount = result&&result.record ? result.record.incentivo_final : draft.incentive_final;
+    toast((result&&result.already_liquidated?'Ya estaba liquidado: ':'✅ Liquidación registrada — ')
+      +draft.employee_name+' · '+_incMonthLabel(draft.ym)+' · '+_incMoney(savedAmount),'ok');
+    if(typeof _hkSemesterState!=='undefined' && _hkSemesterState.department==='Recepción Hotel'
+       && document.getElementById('liquidaciones-departamento-content')){
+      await renderLiquidacionesPorDepartamento(document.getElementById('liquidaciones-departamento-content'));
+    } else {
+      await calcularIncentivosGestor();
+    }
+  } catch(error){
+    if(errorEl) errorEl.textContent=error.message||'No se pudo registrar la liquidación.';
+    if(submit){ submit.disabled=false; submit.textContent='✅ Confirmar liquidación'; }
   }
-
-  // 3. Audit + cache + feedback
-  await auditLog('INC_LIQUIDACION',
-    currentUser.nombre+' liquidó incentivo '+empNombre+' · '+ym+' · '+parseFloat(incFinal).toFixed(2)+'€');
-  invalidateCache('incentivos_liquidaciones');
-
-  var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  var mesLabel = meses[parseInt(ym.split('-')[1])-1]+' '+ym.split('-')[0];
-  toast('✅ Liquidación registrada — '+empNombre+' · '+mesLabel+' · '+parseFloat(incFinal).toFixed(2)+'€','ok');
-
-  // 4. Refrescar vista
-  await calcularIncentivosGestor();
 }
 window._confirmarLiquidacion = _confirmarLiquidacion;

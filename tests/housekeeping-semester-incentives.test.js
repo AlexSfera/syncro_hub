@@ -117,14 +117,15 @@ test('la liquidación de Housekeeping muestra datos calculados sin entrada manua
   assert.doesNotMatch(historical, /Marcar liquidado/);
 });
 
-test('hay una sola pantalla de Liquidación con Entrenadores y Housekeeping', async () => {
+test('hay una sola pantalla de Liquidación con Recepción Hotel, Entrenadores y Housekeeping', async () => {
   const source = await readFile(new URL('../housekeeping_incentivos.js', import.meta.url), 'utf8');
   const shared = await readFile(new URL('../shared.js', import.meta.url), 'utf8');
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const informes = await readFile(new URL('../informes.js', import.meta.url), 'utf8');
   const migration = await readFile(new URL('../supabase/migrations/20260904084500_unify_housekeeping_absence_periods.sql', import.meta.url), 'utf8');
   assert.match(source, /renderLiquidacionesPorDepartamento/);
-  assert.match(source, /Entrenadores se liquida por mes; Housekeeping, por semestre/);
+  assert.match(source, /Recepción Hotel y Entrenadores se liquidan por mes; Housekeeping, por semestre/);
+  assert.match(source, /option value="Recepción Hotel"/);
   assert.match(source, /department: 'Entrenadores'/);
   assert.match(shared, /id:'liquidaciones', label:'💳 Liquidación'/);
   assert.doesNotMatch(shared, /liquidacionEntr/);

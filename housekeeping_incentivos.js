@@ -3,7 +3,13 @@
 // Liquidación unificada por departamento. Las bajas se introducen en Informes.
 // ═══════════════════════════════════════════════════════════════════════
 
-var _hkSemesterState = { period: null, data: null, view: 'department-liquidation', department: 'Entrenadores' };
+var _hkSemesterState = {
+  period: null,
+  receptionMonth: '',
+  data: null,
+  view: 'department-liquidation',
+  department: 'Entrenadores'
+};
 
 function _hkEscHtml(value) {
   return String(value == null ? '' : value)
@@ -154,20 +160,25 @@ function _hkTrainerPeriodOptions(selected) {
 function _hkLiquidationsDepartmentHtml() {
   var department = _hkSemesterState.department || 'Entrenadores';
   var isTrainers = department==='Entrenadores';
+  var isReception = department==='Recepción Hotel';
+  var isMonthly = isTrainers || isReception;
   var period = isTrainers
     ? ((typeof _liqEntrMonth!=='undefined'&&_liqEntrMonth)||'')
-    : (_hkSemesterState.period || _hkDefaultPeriod());
-  var periodOptions = isTrainers ? _hkTrainerPeriodOptions(period) : _hkPeriodOptions(period);
+    : isReception
+      ? (_hkSemesterState.receptionMonth||'')
+      : (_hkSemesterState.period || _hkDefaultPeriod());
+  var periodOptions = isMonthly ? _hkTrainerPeriodOptions(period) : _hkPeriodOptions(period);
   return '<div class="card" style="margin-bottom:16px;">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">'
       +'<div><div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;">Liquidación por departamento</div>'
-      +'<div style="font-size:13px;color:var(--text2);margin-top:5px;">Entrenadores se liquida por mes; Housekeeping, por semestre.</div></div>'
+      +'<div style="font-size:13px;color:var(--text2);margin-top:5px;">Recepción Hotel y Entrenadores se liquidan por mes; Housekeeping, por semestre.</div></div>'
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">'
         +'<div class="fg" style="min-width:230px;margin:0;"><label>Departamento</label><select onchange="hkSelectLiquidationDepartment(this.value)">'
           +'<option value="Housekeeping"'+(department==='Housekeeping'?' selected':'')+'>🧹 Housekeeping</option>'
+          +'<option value="Recepción Hotel"'+(department==='Recepción Hotel'?' selected':'')+'>🏨 Recepción Hotel</option>'
           +'<option value="Entrenadores"'+(department==='Entrenadores'?' selected':'')+'>🏋 Entrenadores</option>'
         +'</select></div>'
-        +'<div class="fg" style="min-width:220px;margin:0;"><label>Período '+(isTrainers?'mensual':'semestral')+'</label><select onchange="hkChangeLiquidationPeriod(this.value)">'+periodOptions+'</select></div>'
+        +'<div class="fg" style="min-width:220px;margin:0;"><label>Período '+(isMonthly?'mensual':'semestral')+'</label><select onchange="hkChangeLiquidationPeriod(this.value)">'+periodOptions+'</select></div>'
       +'</div>'
     +'</div>'
     +'</div>'
@@ -188,6 +199,13 @@ async function renderLiquidacionesPorDepartamento(el) {
       _liqEntrMonth = (monthOptions[0]&&monthOptions[0].value)||'';
     }
   }
+  if(department==='Recepción Hotel' && !_hkSemesterState.receptionMonth) {
+    var receptionOptions = typeof getMonthOptions==='function' ? getMonthOptions(18) : [];
+    _hkSemesterState.receptionMonth =
+      (typeof _incentivosSelectedMonth!=='undefined'&&_incentivosSelectedMonth)
+      || (receptionOptions[0]&&receptionOptions[0].value)
+      || '';
+  }
   el.innerHTML = _hkLiquidationsDepartmentHtml();
   var details = document.getElementById('liquidaciones-departamento-details');
   if(!details) return;
@@ -202,6 +220,14 @@ async function renderLiquidacionesPorDepartamento(el) {
     if(typeof _liqEntrLoadTabla==='function') await _liqEntrLoadTabla();
     return;
   }
+  if(department==='Recepción Hotel') {
+    if(typeof incRenderRecepcionLiquidaciones!=='function') {
+      details.innerHTML = '<div class="card"><p style="color:var(--red);padding:16px 0;">El módulo de Recepción Hotel no está disponible.</p></div>';
+      return;
+    }
+    await incRenderRecepcionLiquidaciones(details,_hkSemesterState.receptionMonth);
+    return;
+  }
   var period = _hkSemesterState.period || _hkDefaultPeriod();
   try {
     var data = await _hkLoad(period);
@@ -213,7 +239,7 @@ async function renderLiquidacionesPorDepartamento(el) {
 window.renderLiquidacionesPorDepartamento = renderLiquidacionesPorDepartamento;
 
 function hkSelectLiquidationDepartment(department) {
-  if(department!=='Housekeeping'&&department!=='Entrenadores') return;
+  if(department!=='Housekeeping'&&department!=='Recepción Hotel'&&department!=='Entrenadores') return;
   _hkSemesterState.department = department;
   renderLiquidacionesPorDepartamento(document.getElementById('liquidaciones-departamento-content'));
 }
@@ -223,6 +249,8 @@ function hkChangeLiquidationPeriod(period) {
   if(_hkSemesterState.department==='Entrenadores') {
     if(typeof _liqEntrMonth!=='undefined') _liqEntrMonth = period;
     if(typeof _mrEntrMonth!=='undefined') _mrEntrMonth = period;
+  } else if(_hkSemesterState.department==='Recepción Hotel') {
+    _hkSemesterState.receptionMonth = period;
   } else {
     _hkSemesterState.period = period;
   }
