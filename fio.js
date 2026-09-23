@@ -36,7 +36,7 @@ function canCreateFIO(u){
 function canValidateFIO(u){
   if(!u) return false;
   if(typeof canActAsAdmin === 'function' && canActAsAdmin(u)) return true;
-  if(['fb','jefe_recepcion','chef','supervisor'].indexOf(u.rol) >= 0) return true;
+  if(['fb','jefe_recepcion','chef','supervisor','gobernante','subgobernante'].indexOf(u.rol) >= 0) return true;
   return false;
 }
 function canValidateCritical(u){
@@ -389,7 +389,7 @@ async function openNewFIOModal(opts){
     + '<div class="fg"><label>Impacto principal *</label>'
     + '<select id="nfo-impact">'
     + '<option value="">— Seleccionar —</option>'
-    + ['Cliente','Caja','Venta','Equipo','Operación','Reputación','Ninguno'].map(function(i){
+    + ['Cliente','Operación','Equipo','Seguridad','Calidad','Coste','Reputación','Caja','Venta','Ninguno'].map(function(i){
         return '<option value="'+i+'">'+i+'</option>';
       }).join('')
     + '</select></div>'
@@ -627,6 +627,7 @@ async function validateFIO(fid, newStatus){
   var f = all.find(function(x){ return x.id === fid; });
   if(!f){ toast('FIO no encontrado','err'); return; }
   if(!canValidateFIO(currentUser)){ toast('Sin permisos','err'); return; }
+  if(!_fioCanViewDept(currentUser, f.departamento)){ toast('FIO fuera de tu departamento','err'); return; }
 
   var L = FIO_LEVELS[f.level_code] || FIO_LEVELS.L0;
   if((L.code === 'L4' || L.code === 'L5') && !canValidateCritical(currentUser) && newStatus === 'Validado'){

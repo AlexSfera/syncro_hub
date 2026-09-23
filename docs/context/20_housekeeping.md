@@ -1,6 +1,6 @@
 # 20 — Módulo Housekeeping
 
-**Actualizado:** 2026-07-31 — verificado contra `housekeeping.js` (115 KB, 1753 líneas) y esquema Supabase
+**Actualizado:** 2026-09-23 — revisión UX Housekeeping y catálogo FIO agrupado
 **Módulo JS:** `housekeeping.js` (55+ funciones)
 **Estado:** FASE 1 implementada y activa. FASE 2 (MEWS) no implementada.
 
@@ -43,7 +43,7 @@ Gestión completa de limpieza del hotel: planificación diaria, ejecución con c
 ### Funciones de permiso
 
 ```javascript
-hkIsHK(user)          → area.toLowerCase() === 'hk' || 'housekeeping'
+hkIsHK(user)          → area.toLowerCase() === 'hk' || 'housekeeping' || 'limpieza'
 hkIsGobernanta(user)  → admin || gobernante || subgobernante || (jefe_departamento + HK) || (jefe + HK)
 hkCanRevisar(user)    → hkIsGobernanta(user)
 hkCanPlanificar(user) → hkIsGobernanta(user)
@@ -84,7 +84,7 @@ HK_TIPO_LIMPIEZA_LABEL = {
 HK_TIPO_TIEMPO = {  // minutos por defecto
   repaso:15, repaso_sabanas:30,
   salida_syncro:35, salida_premium:45, salida_fly:55,
-  inspeccion:1, destripe:0
+  inspeccion:1, destripe:3
 };
 ```
 
@@ -134,12 +134,32 @@ pendiente → en_proceso → pausada → en_proceso → finalizado → revisado
 ### Mi Ruta (empleado HK)
 Dos tabs: **Habitaciones** y **Zonas**. Muestra tarjetas de asignaciones con estado, tipo, tiempo estimado. Click → abre modal de ejecución.
 
+Es la pantalla inicial de todos los perfiles Housekeeping. Gobernanta dispone aquí de accesos directos a Planificación e Inspecciones. El personal operativo no recibe el checklist de gestión.
+
 ### Planificación (Gobernanta)
 - Selector de fecha (máx 7 días) y turno (Mañana/Tarde)
-- Botón "Auto-generar zonas" (`hkAutogenPlan`): crea asignaciones para todas las zonas activas del día de la semana seleccionado
-- Modal de asignación: seleccionar empleado + tipo limpieza + habitaciones (grid con checkboxes agrupados por planta) o zona pública
-- Resumen de carga estimada por empleado
+- Botón "Cargar plantilla del día" (`hkAutogenPlan`): crea el plan si falta y carga zonas activas del día y tareas periódicas vencidas sin duplicar
+- Modal de asignación: seleccionar empleado + tipo limpieza + habitaciones (grid agrupado por planta), varias zonas públicas o varias tareas periódicas
+- Resumen de carga por empleado con objetivo de 480 minutos, porcentaje, asignaciones y desviación
 - Borrar asignación solo si estado = `pendiente`
+
+Una habitación admite una limpieza y una inspección en el mismo plan, pero no dos limpiezas ni dos inspecciones.
+
+### Inspecciones (Gobernanta)
+
+- Filtros por trabajo, estado e incidencia registrada.
+- Las habitaciones finalizadas se abren para inspección.
+- Zonas y tareas periódicas sin incidencia se pueden aprobar directamente.
+- Los trabajos con incidencia se abren para revisar su detalle antes de aprobar o reabrir.
+
+### Checklist de Gobernanta
+
+15 controles agrupados en Planificación, Control de habitaciones y MEWS, Equipo e incidencias y Material. No se muestra al personal operativo.
+
+### Sesión y permisos
+
+- Cierre automático tras 40 minutos sin actividad, incluida la restauración de una sesión ya caducada.
+- Los perfiles Housekeeping no administradores no ven la pestaña Cierre Caja en Validación.
 
 ### Panel Supervisor Zonas Públicas (`renderHKZonasPublicas`)
 4 bloques:

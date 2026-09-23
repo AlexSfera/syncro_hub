@@ -38,9 +38,9 @@
   }
   // Otras pantallas HK
   var screens = [
-    {id:'hk-plan',     title:'📅 Planificación HK',          sub:'Planificar habitaciones y zonas'},
+    {id:'hk-plan',     title:'📅 Planificación HK',          sub:'Asignar habitaciones, zonas y tareas · equilibrar jornada'},
     {id:'hk-config',   title:'⚙ Configuración HK',           sub:'Habitaciones, zonas y tipos de limpieza'},
-    {id:'hk-revision', title:'✅ Revisión HK',                sub:'Marcar como revisado · reabrir asignaciones'},
+    {id:'hk-revision', title:'🔍 Inspecciones HK',            sub:'Inspeccionar habitaciones · aprobar zonas · gestionar incidencias'},
     {id:'hk-dash',     title:'📊 Dashboard HK',               sub:'KPIs del equipo'},
     {id:'hk-zonas',    title:'🧽 Zonas públicas',             sub:'Estado y ejecución ad-hoc'}
   ];
@@ -133,8 +133,9 @@ const HK_TIPO_LIMPIEZA_LABEL = {
 const HK_TIPO_TIEMPO = {
   repaso:15, repaso_sabanas:30,
   salida_syncro:35, salida_premium:45, salida_fly:55,
-  inspeccion:1, destripe:0
+  inspeccion:1, destripe:3
 };
+const HK_JORNADA_OBJETIVO_MIN = 480;
 const HK_ESTADO_LABEL = {
   pendiente:'Pendiente',
   en_proceso:'En proceso',
@@ -155,7 +156,7 @@ const HK_ESTADO_COLOR = {
 function hkIsHK(user){
   if(!user) return false;
   var area = (user.area||'').toLowerCase();
-  return area === 'hk' || area === 'housekeeping';
+  return area === 'hk' || area === 'housekeeping' || area === 'limpieza';
 }
 function hkIsGobernanta(user){
   if(!user) return false;
@@ -301,6 +302,13 @@ async function renderHKMiRuta(){
 
   // ── Tabs ──────────────────────────────────────────────────────────
   wrap.innerHTML = '';
+  if(isGob){
+    var quick = document.createElement('div');
+    quick.className = 'hk-quick-actions';
+    quick.innerHTML = '<button class="tbtn" style="background:var(--orange);color:white;" onclick="showScreen(\'hk-plan\')">📅 Planificar jornada</button>'
+      + '<button class="tbtn" onclick="showScreen(\'hk-revision\')">🔍 Inspecciones pendientes</button>';
+    wrap.appendChild(quick);
+  }
   var tabBar = document.createElement('div');
   tabBar.style.cssText = 'display:flex;gap:6px;margin-bottom:16px;';
 
@@ -533,6 +541,11 @@ async function hkOpenExec(asigId){
   var asigs = await getDB('housekeeping_assignments');
   var a = asigs.find(x=>x.id===asigId);
   if(!a){ toast('Asignación no encontrada','error'); return; }
+  var incidencia = null;
+  if(a.incidencia_id){
+    var incidencias = await getDB('incidencias');
+    incidencia = incidencias.find(function(item){ return item.id===a.incidencia_id; }) || null;
+  }
 
   document.getElementById('hk-exec-title').textContent = a.objeto_nombre;
   var sub = (a.tipo_limpieza ? (HK_TIPO_LIMPIEZA_LABEL[a.tipo_limpieza]||a.tipo_limpieza) : (a.tipo_objeto==='zona_publica'?'Zona pública':''))
@@ -550,6 +563,13 @@ async function hkOpenExec(asigId){
   if(a.total_pausa_min) info += `<div style="margin-top:4px;">Pausa acumulada: <b>${a.total_pausa_min} min</b></div>`;
   if(a.tiempo_real_min) info += `<div style="margin-top:4px;">Tiempo real: <b>${hkFmtDuration(a.tiempo_real_min)}</b></div>`;
   if(a.re_trabajo_count) info += `<div style="margin-top:6px;color:#ef4444;font-size:12px;">🔁 Re-trabajo: ${a.re_trabajo_count}×</div>`;
+  if(incidencia){
+    info += `<div style="margin-top:10px;padding:10px;background:#ef444411;border:1px solid #ef4444;border-radius:8px;">
+      <div style="font-size:10px;color:#ef4444;font-family:var(--font-mono);font-weight:700;letter-spacing:.08em;">⚠ INCIDENCIA REGISTRADA · ${formatDisplayValue(incidencia.estado||'Abierta')}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-top:5px;">${formatDisplayValue(incidencia.tipo_incidencia||incidencia.categoria||'Incidencia')}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:3px;">${formatDisplayValue(incidencia.descripcion)}</div>
+    </div>`;
+  }
   document.getElementById('hk-exec-info').innerHTML = info;
 
   document.getElementById('hk-exec-notas').value = a.notas || '';
@@ -576,7 +596,8 @@ async function hkOpenExec(asigId){
     actions.innerHTML += `<button class="tbtn" style="background:#3b82f6;color:white;font-size:14px;padding:14px;" onclick="hkAction('start')">▶ Reanudar tras corrección</button>`;
   }
   if(a.estado === 'finalizado' && gob){
-    actions.innerHTML += `<button class="tbtn" style="background:#059669;color:white;font-size:14px;padding:14px;" onclick="hkAction('revisar')">✓ Marcar como Revisado</button>`;
+    var aprobarLabel = a.tipo_objeto==='habitacion' ? '🔍 Inspección correcta' : (a.incidencia_id ? '✓ Aprobar tras revisión' : '✓ Aprobar trabajo');
+    actions.innerHTML += `<button class="tbtn" style="background:#059669;color:white;font-size:14px;padding:14px;" onclick="hkAction('revisar')">${aprobarLabel}</button>`;
     actions.innerHTML += `<button class="tbtn" style="background:#ef4444;color:white;font-size:14px;padding:14px;" onclick="hkAction('reabrir')">↺ Reabrir (requiere corrección)</button>`;
   }
   if(a.estado === 'revisado' && currentUser.rol === 'admin'){
@@ -889,10 +910,14 @@ async function renderHKPlanificacion(){
   // Empleados HK
   var empsHK = empleados.filter(function(e){
     if(e.estado && e.estado !== 'Activo') return false;
-    return (e.area||'').toLowerCase().match(/(hk|housekeeping)/);
+    return (e.area||'').toLowerCase().match(/(hk|housekeeping|limpieza)/);
   });
 
   var html = `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;color:var(--text2);font-size:12px;line-height:1.5;">
+      <strong style="color:var(--text);">Plantilla diaria de asignación</strong><br>
+      1. Selecciona fecha y turno. 2. Carga las tareas del día. 3. Asigna habitaciones, zonas y periódicas a cada camarera. 4. Comprueba que la carga se aproxima a 8 horas antes de cerrar la planificación.
+    </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
       <div class="fg" style="margin:0;flex:1;min-width:140px;">
         <label style="margin-bottom:2px;">Fecha</label>
@@ -913,8 +938,10 @@ async function renderHKPlanificacion(){
     html += `
       <div style="background:var(--bg3);border:1px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;">
         <div style="font-size:14px;color:var(--text2);margin-bottom:12px;">No hay plan para ${fmtDate(_hkPlanFecha)} · ${_hkPlanTurno}</div>
-        <button class="tbtn" style="background:var(--orange);color:white;" onclick="hkCreatePlan()">+ Crear plan</button>
-        <button class="tbtn" style="margin-left:8px;" onclick="hkAutogenPlan()">🤖 Autogenerar zonas del día</button>
+        <div class="hk-quick-actions" style="justify-content:center;margin-bottom:0;">
+          <button class="tbtn" style="background:var(--orange);color:white;" onclick="hkCreatePlan()">+ Crear planificación</button>
+          <button class="tbtn" onclick="hkAutogenPlan()">↻ Cargar plantilla del día</button>
+        </div>
       </div>
     `;
     content.innerHTML = html;
@@ -923,28 +950,35 @@ async function renderHKPlanificacion(){
 
   // Resumen cargas
   html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;">';
-  html += '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.1em;margin-bottom:8px;">CARGA POR EMPLEADO (estimado)</div>';
-  html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;"><div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.1em;">CARGA POR EMPLEADA</div><div style="font-size:11px;color:var(--text3);">Objetivo de referencia: 8h</div></div>';
+  html += '<div class="hk-load-grid">';
   if(!empsHK.length){
     html += '<div style="color:var(--text3);font-size:12px;">No hay empleados HK</div>';
   }
   empsHK.forEach(function(e){
     var min = cargas[e.id]||0;
-    var color = min === 0 ? '#9ca3af' : (min > 450 ? '#ef4444' : (min > 360 ? '#f59e0b' : '#10b981'));
-    html += `<div style="background:var(--bg2);border:1px solid ${color};padding:6px 10px;border-radius:8px;font-size:11px;">
-      <span style="font-weight:700;color:var(--text);">${e.nombre}</span>
-      <span style="color:${color};margin-left:6px;font-family:var(--font-mono);">${hkFmtDuration(min)}</span>
+    var restante = HK_JORNADA_OBJETIVO_MIN - min;
+    var pctCarga = Math.min(100, Math.round(min * 100 / HK_JORNADA_OBJETIVO_MIN));
+    var color = min === 0 ? '#9ca3af' : (min > HK_JORNADA_OBJETIVO_MIN ? '#ef4444' : (min >= 420 ? '#10b981' : '#f59e0b'));
+    var nAsig = asigsPlan.filter(function(a){ return a.employee_id===e.id; }).length;
+    html += `<div class="hk-load-card" style="border-color:${color};">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+        <span style="font-weight:700;color:var(--text);font-size:12px;">${e.nombre}</span>
+        <span style="color:${color};font-family:var(--font-mono);font-size:11px;">${hkFmtDuration(min)} / 8h</span>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px;">${nAsig} asignaciones · ${restante>=0?hkFmtDuration(restante)+' disponibles':hkFmtDuration(Math.abs(restante))+' de sobrecarga'}</div>
+      <div class="hk-load-track"><div class="hk-load-fill" style="width:${pctCarga}%;background:${color};"></div></div>
     </div>`;
   });
   html += '</div></div>';
 
   // Lista de asignaciones
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+  html += '<div class="hk-action-bar">';
   html += '<div style="font-family:var(--font-mono);font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.1em;">ASIGNACIONES ('+asigsPlan.length+')</div>';
-  html += '<div style="display:flex;gap:6px;">';
-  html += '<button class="tbtn" onclick="hkOpenAsignar(\'habitacion\')">+ Habitación</button>';
-  html += '<button class="tbtn" onclick="hkOpenAsignar(\'zona_publica\')">+ Zona</button>';
-  html += '<button class="tbtn" onclick="hkOpenAsignar(\'tarea_periodica\')">+ Periódica</button>';
+  html += '<div class="hk-action-buttons">';
+  html += '<button class="tbtn" onclick="hkOpenAsignar(\'habitacion\')">+ Habitaciones</button>';
+  html += '<button class="tbtn" onclick="hkOpenAsignar(\'zona_publica\')">+ Zonas</button>';
+  html += '<button class="tbtn" onclick="hkOpenAsignar(\'tarea_periodica\')">+ Tareas periódicas</button>';
   html += '</div></div>';
 
   if(!asigsPlan.length){
@@ -975,7 +1009,8 @@ async function renderHKPlanificacion(){
   content.innerHTML = html;
 }
 
-async function hkCreatePlan(){
+async function hkCreatePlan(options){
+  options = options || {};
   if(!hkCanPlanificar(currentUser)){ toast('Sin permisos','error'); return; }
   var plan = {
     id: hkGenId('hkpl'),
@@ -986,21 +1021,22 @@ async function hkCreatePlan(){
     estado: 'activo'
   };
   var res = await dbInsert('housekeeping_plans', plan);
-  if(!res){ toast('Error al crear plan','error'); return; }
+  if(!res){ toast('Error al crear plan','error'); return null; }
   invalidateCache('housekeeping_plans');
-  toast('Plan creado','ok');
-  renderHKPlanificacion();
+  if(!options.silent){
+    toast('Plan creado','ok');
+    renderHKPlanificacion();
+  }
+  return plan;
 }
 
 async function hkAutogenPlan(){
-  // Crear plan si no existe + auto-añadir zonas públicas que tocan ese día
+  // Crear plan si no existe + cargar zonas del día y periódicas vencidas.
   if(!hkCanPlanificar(currentUser)){ toast('Sin permisos','error'); return; }
   var plans = await getDB('housekeeping_plans');
   var plan = plans.find(p=>p.fecha===_hkPlanFecha && p.turno===_hkPlanTurno);
   if(!plan){
-    await hkCreatePlan();
-    plans = await getDB('housekeeping_plans');
-    plan = plans.find(p=>p.fecha===_hkPlanFecha && p.turno===_hkPlanTurno);
+    plan = await hkCreatePlan({silent:true});
     if(!plan){ return; }
   }
 
@@ -1008,15 +1044,26 @@ async function hkAutogenPlan(){
   var d = new Date(_hkPlanFecha+'T00:00:00');
   var dow = HK_DIAS[d.getDay()];
 
-  var zonas = await getDB('housekeeping_public_areas');
+  var [zonas, periodicas, asigs] = await Promise.all([
+    getDB('housekeeping_public_areas'),
+    getDB('housekeeping_periodic_tasks'),
+    getDB('housekeeping_assignments')
+  ]);
+  var existentes = new Set(asigs.filter(function(a){ return a.plan_id===plan.id; }).map(function(a){ return a.tipo_objeto+'|'+a.objeto_id; }));
   var zonasHoy = zonas.filter(function(z){
     if(!z.activa) return false;
     var dm = hkParseDiasMin(z.dias_minutos);
-    return dm[dow] && Number(dm[dow])>0;
+    return dm[dow] && Number(dm[dow])>0 && !existentes.has('zona_publica|'+z.id);
   });
+  var periodicasHoy = periodicas.filter(function(p){
+    if(!p.activa || existentes.has('tarea_periodica|'+p.id)) return false;
+    var proxima = String(p.proxima_ejecucion_ts||'').slice(0,10);
+    return !!proxima && proxima <= _hkPlanFecha;
+  }).sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||'','es'); });
 
-  if(!zonasHoy.length){ toast('No hay zonas activas para '+dow,'warn'); return; }
-  if(!confirm('Se crearán '+zonasHoy.length+' asignaciones de zonas para '+dow+'. Empleado quedará como SIN ASIGNAR (se asignará después). ¿Continuar?')) return;
+  var totalPlantilla = zonasHoy.length + periodicasHoy.length;
+  if(!totalPlantilla){ toast('La plantilla del día ya está cargada','info'); return; }
+  if(!confirm('Se añadirán '+zonasHoy.length+' zonas y '+periodicasHoy.length+' tareas periódicas vencidas. Quedarán sin asignar para repartirlas entre el equipo. ¿Continuar?')) return;
 
   // Crear asignaciones sin empleado asignado (employee_id = '__SIN_ASIGNAR__')
   var ts = localTs();
@@ -1038,8 +1085,24 @@ async function hkAutogenPlan(){
     };
     await dbInsert('housekeeping_assignments', row);
   }
+  for(var j=0;j<periodicasHoy.length;j++){
+    var p = periodicasHoy[j];
+    await dbInsert('housekeeping_assignments', {
+      id: hkGenId('hkas'),
+      plan_id: plan.id,
+      ad_hoc: 0,
+      employee_id: '__SIN_ASIGNAR__',
+      employee_nombre: 'Sin asignar',
+      tipo_objeto: 'tarea_periodica',
+      objeto_id: p.id,
+      objeto_nombre: p.nombre,
+      tiempo_estimado_min: Number(p.tiempo_estimado_min)||60,
+      prioridad: 'normal',
+      estado: 'pendiente'
+    });
+  }
   invalidateCache('housekeeping_assignments');
-  toast(zonasHoy.length+' zonas añadidas','ok');
+  toast(totalPlantilla+' tareas cargadas en la plantilla','ok');
   renderHKPlanificacion();
 }
 
@@ -1071,15 +1134,21 @@ async function hkOpenAsignar(tipo){
   var empleados= results[3];
   var asigs    = results[4];
 
-  // Habitaciones ya asignadas en este plan
-  var habsYa = new Set(
-    asigs.filter(function(a){ return a.plan_id===plan.id && a.tipo_objeto==='habitacion'; })
-         .map(function(a){ return a.objeto_id; })
-  );
+  // Asignaciones ya existentes. Una habitación puede tener una limpieza y una
+  // inspección el mismo día, pero no dos limpiezas ni dos inspecciones.
+  var habTiposYa = {};
+  asigs.filter(function(a){ return a.plan_id===plan.id && a.tipo_objeto==='habitacion'; })
+    .forEach(function(a){
+      if(!habTiposYa[a.objeto_id]) habTiposYa[a.objeto_id]=[];
+      habTiposYa[a.objeto_id].push(a.tipo_limpieza||'limpieza');
+    });
+  var objetosYa = new Set(asigs.filter(function(a){
+    return a.plan_id===plan.id && (a.tipo_objeto==='zona_publica' || a.tipo_objeto==='tarea_periodica');
+  }).map(function(a){ return a.tipo_objeto+'|'+a.objeto_id; }));
 
   _hkAsigEmps = empleados.filter(function(e){
     if(e.estado && e.estado !== 'Activo') return false;
-    return (e.area||'').toLowerCase().match(/(hk|housekeeping)/);
+    return (e.area||'').toLowerCase().match(/(hk|housekeeping|limpieza)/);
   });
   _hkAsigRooms = rooms.filter(function(r){ return r.activa; })
     .sort(function(a,b){
@@ -1088,10 +1157,11 @@ async function hkOpenAsignar(tipo){
     });
   _hkAsigZonas    = zonas.filter(function(z){ return z.activa; })
     .sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||'','es'); });
-  _hkAsigPeriodic = periodic.filter(function(p){ return p.activa; });
+  _hkAsigPeriodic = periodic.filter(function(p){ return p.activa; })
+    .sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||'','es'); });
 
   var titulo = tipo==='habitacion' ? 'Asignar habitaciones' :
-               tipo==='zona_publica' ? 'Asignar zona pública' : 'Asignar tarea periódica';
+               tipo==='zona_publica' ? 'Asignar zonas públicas' : 'Asignar tareas periódicas';
 
   // Garantizar que el modal existe en body con sus elementos internos
   if(!document.getElementById('hk-asig-title')){
@@ -1116,7 +1186,8 @@ async function hkOpenAsignar(tipo){
   document.getElementById('hk-asig-title').textContent = titulo;
 
   var form = document.getElementById('hk-asig-form');
-  form._habsYa = habsYa;
+  form._habTiposYa = habTiposYa;
+  form._objetosYa = objetosYa;
 
   // ── Empleado (común) ─────────────────────────────────────────────
   var empDiv = document.createElement('div');
@@ -1152,7 +1223,7 @@ async function hkOpenAsignar(tipo){
       ['salida_premium', "Salida Premium · 45 min"],
       ['salida_fly',     "Salida FLY · 55 min"],
       ['inspeccion',     "Inspección · 1 min"],
-      ['destripe',       "Destripe · variable"]
+      ['destripe',       "Destripe · 3 min"]
     ].forEach(function(pair){
       var opt = document.createElement('option');
       opt.value = pair[0]; opt.textContent = pair[1];
@@ -1210,49 +1281,9 @@ async function hkOpenAsignar(tipo){
 
     hkRenderHabCheckboxes();
 
-  // ── ZONA PÚBLICA ─────────────────────────────────────────────────
-  } else if(tipo === 'zona_publica'){
-    var dow = HK_DIAS[new Date(_hkPlanFecha+'T00:00:00').getDay()];
-    var zonaDiv = document.createElement('div');
-    zonaDiv.className = 'fg';
-    zonaDiv.innerHTML = '<label>Zona pública</label>';
-    var zonaSel = document.createElement('select');
-    zonaSel.id = 'hk-asig-obj';
-    _hkAsigZonas.forEach(function(z){
-      var dm = hkParseDiasMin(z.dias_minutos);
-      var minHoy = dm[dow] || 0;
-      var opt = document.createElement('option');
-      opt.value = z.id;
-      opt.setAttribute('data-nombre', z.nombre);
-      opt.setAttribute('data-min', String(minHoy || z.tiempo_estimado_min || 15));
-      opt.textContent = z.nombre + (minHoy ? ' · '+minHoy+'min' : ' · no toca hoy');
-      zonaSel.appendChild(opt);
-    });
-    zonaSel.addEventListener('change', hkRecalcEst);
-    zonaDiv.appendChild(zonaSel);
-    form.appendChild(zonaDiv);
-    _hkAddEstPrio(form);
-
-  // ── TAREA PERIÓDICA ───────────────────────────────────────────────
-  } else if(tipo === 'tarea_periodica'){
-    var perDiv = document.createElement('div');
-    perDiv.className = 'fg';
-    perDiv.innerHTML = '<label>Tarea periódica</label>';
-    var perSel = document.createElement('select');
-    perSel.id = 'hk-asig-obj';
-    _hkAsigPeriodic.forEach(function(p){
-      var t = p.tiempo_estimado_min || 60;
-      var opt = document.createElement('option');
-      opt.value = p.id;
-      opt.setAttribute('data-nombre', p.nombre);
-      opt.setAttribute('data-min', String(t));
-      opt.textContent = p.nombre + ' · ' + (p.tiempo_referencia || t+' min');
-      perSel.appendChild(opt);
-    });
-    perSel.addEventListener('change', hkRecalcEst);
-    perDiv.appendChild(perSel);
-    form.appendChild(perDiv);
-    _hkAddEstPrio(form);
+  // ── ZONAS Y TAREAS PERIÓDICAS: mismo patrón multiselección ─────────
+  } else if(tipo === 'zona_publica' || tipo === 'tarea_periodica'){
+    _hkRenderObjectSelector(form, tipo);
   }
 
   document.getElementById('modal-hk-asignar').style.display = 'flex';
@@ -1262,17 +1293,97 @@ async function hkOpenAsignar(tipo){
   }
 }
 
-// Helper: añade campos Tiempo estimado + Prioridad al form
-function _hkAddEstPrio(form){
-  var estDiv = document.createElement('div');
-  estDiv.className = 'fg';
-  estDiv.innerHTML = '<label>Tiempo estimado (min)</label><input type="number" id="hk-asig-est" min="0" max="600" value="15">';
-  form.appendChild(estDiv);
+function _hkAddPriority(form){
   var prioDiv = document.createElement('div');
   prioDiv.className = 'fg';
   prioDiv.innerHTML = '<label>Prioridad</label><select id="hk-asig-prio"><option value="normal">Normal</option><option value="alta">Alta</option></select>';
   form.appendChild(prioDiv);
-  hkRecalcEst();
+}
+
+function _hkRenderObjectSelector(form, tipo){
+  var isZona = tipo === 'zona_publica';
+  var dow = HK_DIAS[new Date(_hkPlanFecha+'T00:00:00').getDay()];
+  var source = isZona ? _hkAsigZonas : _hkAsigPeriodic;
+  var ya = form._objetosYa || new Set();
+
+  var section = document.createElement('div');
+  section.className = 'fg';
+  section.innerHTML = '<label>'+(isZona?'Zonas públicas':'Tareas periódicas')+'</label>'
+    + '<input id="hk-asig-object-search" type="search" placeholder="Buscar '+(isZona?'zona':'tarea')+'…" oninput="hkFilterObjectChoices(this.value)" style="margin-bottom:8px;">'
+    + '<div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:6px;">'
+    + '<button type="button" class="tbtn" style="font-size:11px;padding:5px 9px;" onclick="hkSelAllObjects(true)">Todas visibles</button>'
+    + '<button type="button" class="tbtn" style="font-size:11px;padding:5px 9px;" onclick="hkSelAllObjects(false)">Ninguna</button>'
+    + '</div>';
+  var grid = document.createElement('div');
+  grid.id = 'hk-asig-object-grid';
+  grid.className = 'hk-choice-grid';
+
+  source.forEach(function(obj){
+    var minutes = 0;
+    var meta = '';
+    if(isZona){
+      var dm = hkParseDiasMin(obj.dias_minutos);
+      minutes = Number(dm[dow]) || Number(obj.tiempo_estimado_min) || 15;
+      meta = (dm[dow] ? 'Toca hoy' : 'Fuera de plantilla') + ' · ' + minutes + ' min';
+    } else {
+      minutes = Number(obj.tiempo_estimado_min) || 60;
+      meta = (obj.categoria ? obj.categoria+' · ' : '') + (obj.tiempo_referencia || minutes+' min');
+    }
+    var disabled = ya.has(tipo+'|'+obj.id);
+    var label = document.createElement('label');
+    label.className = 'hk-choice' + (disabled?' is-disabled':'');
+    label.setAttribute('data-search', ((obj.nombre||'')+' '+meta).toLowerCase());
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'hk-asig-object-cb';
+    cb.disabled = disabled;
+    cb.setAttribute('data-object-id', obj.id);
+    cb.setAttribute('data-object-name', obj.nombre||'');
+    cb.setAttribute('data-object-min', String(minutes));
+    cb.addEventListener('change', function(){
+      label.classList.toggle('is-selected', cb.checked);
+      hkUpdateObjectResumen();
+    });
+    var copy = document.createElement('span');
+    copy.innerHTML = '<strong style="display:block;color:var(--text);font-size:12px;line-height:1.3;">'+(obj.nombre||'')+'</strong>'
+      + '<span style="display:block;color:var(--text3);font-size:10px;margin-top:3px;">'+(disabled?'Ya asignada':meta)+'</span>';
+    label.appendChild(cb);
+    label.appendChild(copy);
+    grid.appendChild(label);
+  });
+  section.appendChild(grid);
+  var resumen = document.createElement('div');
+  resumen.id = 'hk-asig-object-summary';
+  resumen.style.cssText = 'margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--font-mono);';
+  resumen.textContent = 'Ninguna seleccionada';
+  section.appendChild(resumen);
+  form.appendChild(section);
+  _hkAddPriority(form);
+}
+
+function hkFilterObjectChoices(query){
+  var q = String(query||'').trim().toLowerCase();
+  document.querySelectorAll('#hk-asig-object-grid .hk-choice').forEach(function(label){
+    label.style.display = !q || (label.getAttribute('data-search')||'').indexOf(q)>=0 ? '' : 'none';
+  });
+}
+
+function hkSelAllObjects(selected){
+  document.querySelectorAll('#hk-asig-object-grid .hk-choice').forEach(function(label){
+    if(label.style.display==='none') return;
+    var cb = label.querySelector('input[type=checkbox]');
+    if(!cb || cb.disabled) return;
+    cb.checked = selected;
+    label.classList.toggle('is-selected', selected);
+  });
+  hkUpdateObjectResumen();
+}
+
+function hkUpdateObjectResumen(){
+  var chosen = Array.from(document.querySelectorAll('#hk-asig-object-grid .hk-asig-object-cb:checked'));
+  var minutes = chosen.reduce(function(total, cb){ return total + (Number(cb.getAttribute('data-object-min'))||0); }, 0);
+  var el = document.getElementById('hk-asig-object-summary');
+  if(el) el.textContent = chosen.length ? chosen.length+' '+(chosen.length===1?'seleccionada':'seleccionadas')+' · '+hkFmtDuration(minutes)+' estimado total' : 'Ninguna seleccionada';
 }
 
 // Tipos de habitación permitidos por tipo de limpieza
@@ -1289,12 +1400,13 @@ function hkRenderHabCheckboxes(){
   var grid = document.getElementById('hk-asig-hab-grid');
   if(!grid) return;
   var form = document.getElementById('hk-asig-form');
-  var habsYa = (form && form._habsYa) ? form._habsYa : new Set();
+  var habTiposYa = (form && form._habTiposYa) ? form._habTiposYa : {};
   var TIPO_COLOR = {SYNCRO:'#3b82f6',PREMIUM:'#8b5cf6',PANORAMIC:'#a855f7',FLY:'#06b6d4',QUEEN:'#f59e0b'};
 
   // Filtrar habitaciones por tipo permitido según limpieza seleccionada
   var tlimpSel = document.getElementById('hk-asig-tlimp');
-  var tiposPermitidos = HK_TLIMP_TIPOS_PERMITIDOS[tlimpSel ? tlimpSel.value : ''] || null;
+  var tipoSeleccionado = tlimpSel ? tlimpSel.value : '';
+  var tiposPermitidos = HK_TLIMP_TIPOS_PERMITIDOS[tipoSeleccionado] || null;
   var roomsFiltradas = tiposPermitidos
     ? _hkAsigRooms.filter(function(r){ return tiposPermitidos.indexOf(r.tipo) >= 0; })
     : _hkAsigRooms;
@@ -1315,7 +1427,11 @@ function hkRenderHabCheckboxes(){
     grid.appendChild(sep);
 
     porPlanta[planta].forEach(function(r){
-      var yaAsig = habsYa.has(r.id);
+      var existentes = habTiposYa[r.id] || [];
+      var yaAsig = existentes.some(function(tipoExistente){
+        if(tipoExistente === tipoSeleccionado) return true;
+        return tipoExistente !== 'inspeccion' && tipoSeleccionado !== 'inspeccion';
+      });
       var col = TIPO_COLOR[r.tipo] || '#9ca3af';
       var lbl = document.createElement('label');
       lbl.style.cssText = 'display:flex;flex-direction:column;align-items:center;background:var(--bg3);border:2px solid var(--border);border-radius:8px;padding:6px 4px;font-size:11px;gap:2px;cursor:'+(yaAsig?'not-allowed':'pointer')+';'+(yaAsig?'opacity:.35;':'')+'transition:border-color .12s;';
@@ -1432,26 +1548,31 @@ async function hkGuardarAsig(){
     return;
   }
 
-  // ── ZONA / TAREA PERIÓDICA: asignación única ─────────────────────
-  var objSel = document.getElementById('hk-asig-obj');
-  var row = {
-    id: hkGenId('hkas'),
-    plan_id: plan.id,
-    ad_hoc: 0,
-    employee_id: empId,
-    employee_nombre: empNombre,
-    tipo_objeto: _hkAsignarTipo,
-    objeto_id: objSel.value,
-    objeto_nombre: objSel.selectedOptions[0].getAttribute('data-nombre') || objSel.selectedOptions[0].textContent,
-    tiempo_estimado_min: parseInt((document.getElementById('hk-asig-est')||{value:'0'}).value)||0,
-    prioridad: prio,
-    estado: 'pendiente'
-  };
-  var res = await dbInsert('housekeeping_assignments', row);
-  if(!res){ toast('Error al guardar','error'); return; }
+  // ── ZONAS / TAREAS PERIÓDICAS: una asignación por selección ──────
+  var selected = Array.from(document.querySelectorAll('#hk-asig-object-grid .hk-asig-object-cb:checked'));
+  if(!selected.length){ toast('Selecciona al menos una tarea','warn'); return; }
+  var genericErrors = 0;
+  for(var j=0;j<selected.length;j++){
+    var objectCb = selected[j];
+    var genericRow = {
+      id: hkGenId('hkas'),
+      plan_id: plan.id,
+      ad_hoc: 0,
+      employee_id: empId,
+      employee_nombre: empNombre,
+      tipo_objeto: _hkAsignarTipo,
+      objeto_id: objectCb.getAttribute('data-object-id'),
+      objeto_nombre: objectCb.getAttribute('data-object-name'),
+      tiempo_estimado_min: Number(objectCb.getAttribute('data-object-min'))||0,
+      prioridad: prio,
+      estado: 'pendiente'
+    };
+    var genericRes = await dbInsert('housekeeping_assignments', genericRow);
+    if(!genericRes) genericErrors++;
+  }
   invalidateCache('housekeeping_assignments');
   document.getElementById('modal-hk-asignar').style.display = 'none';
-  toast('Asignación creada','ok');
+  toast(genericErrors===0 ? selected.length+' tareas asignadas' : genericErrors+' errores de '+selected.length, genericErrors===0?'ok':'warn');
   renderHKPlanificacion();
 }
 
@@ -1933,8 +2054,36 @@ async function hkAdHocZona(zonaId, zonaNombre, tEst){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// REVISIÓN — Gobernanta revisa todo
+// INSPECCIONES — Gobernanta inspecciona habitaciones y aprueba otros trabajos
 // ═══════════════════════════════════════════════════════════════════════
+var _hkRevisionTipo = '';
+var _hkRevisionEstado = 'finalizado';
+var _hkRevisionIncidencia = '';
+
+function hkRevisionSetFilter(key, value){
+  if(key==='tipo') _hkRevisionTipo=value;
+  if(key==='estado') _hkRevisionEstado=value;
+  if(key==='incidencia') _hkRevisionIncidencia=value;
+  renderHKRevision();
+}
+
+async function hkReviewAssignment(asigId){
+  if(!hkCanRevisar(currentUser)){ toast('Sin permisos','error'); return; }
+  var asigs = await getDB('housekeeping_assignments');
+  var a = asigs.find(function(item){ return item.id===asigId; });
+  if(!a || a.estado!=='finalizado'){ toast('La tarea ya no está pendiente de revisión','warn'); renderHKRevision(); return; }
+  await dbUpdate('housekeeping_assignments', asigId, {
+    estado:'revisado',
+    revisado_por:currentUser.id,
+    revisado_nombre:currentUser.nombre,
+    revisado_ts:localTs()
+  });
+  invalidateCache('housekeeping_assignments');
+  await auditLog(a.tipo_objeto==='habitacion'?'hk_inspeccionar':'hk_aprobar', {asig_id:a.id,objeto:a.objeto_nombre});
+  toast(a.tipo_objeto==='habitacion'?'Habitación inspeccionada':'Trabajo aprobado','ok');
+  renderHKRevision();
+}
+
 async function renderHKRevision(){
   var content = document.getElementById('hk-revision-content');
   if(!content) return;
@@ -1951,7 +2100,7 @@ async function renderHKRevision(){
   ]);
   // Incidencias HK de hoy
   var hkIncisHoy = allIncis.filter(function(i){
-    return (i.departamento||i.area||'') === 'Housekeeping'
+    return /^(housekeeping|limpieza|hk)$/i.test(i.departamento||i.area||'')
       && (i.created_at||'').slice(0,10) === today();
   });
   var hoy = today();
@@ -1976,7 +2125,7 @@ async function renderHKRevision(){
 
   var html = '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">';
   html += `<div style="flex:1;min-width:120px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
-    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">PENDIENTES REVISIÓN</div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">PENDIENTES INSPECCIÓN</div>
     <div style="font-size:22px;font-weight:700;color:#10b981;">${totalFin}</div>
   </div>`;
   html += `<div style="flex:1;min-width:120px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
@@ -1989,36 +2138,55 @@ async function renderHKRevision(){
   </div>`;
   html += '</div>';
 
-  if(!lista.length){
-    html += '<div style="background:var(--bg3);border:1px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;color:var(--text3);">No hay asignaciones hoy</div>';
+  html += '<div class="hk-filter-bar">'
+    + '<div class="fg" style="margin:0;"><label>Trabajo</label><select onchange="hkRevisionSetFilter(\'tipo\',this.value)">'
+    + '<option value=""'+(_hkRevisionTipo===''?' selected':'')+'>Todos</option>'
+    + '<option value="habitacion"'+(_hkRevisionTipo==='habitacion'?' selected':'')+'>Habitaciones</option>'
+    + '<option value="zona_publica"'+(_hkRevisionTipo==='zona_publica'?' selected':'')+'>Zonas públicas</option>'
+    + '<option value="tarea_periodica"'+(_hkRevisionTipo==='tarea_periodica'?' selected':'')+'>Tareas periódicas</option></select></div>'
+    + '<div class="fg" style="margin:0;"><label>Estado</label><select onchange="hkRevisionSetFilter(\'estado\',this.value)">'
+    + '<option value=""'+(_hkRevisionEstado===''?' selected':'')+'>Todos</option>'
+    + '<option value="finalizado"'+(_hkRevisionEstado==='finalizado'?' selected':'')+'>Pendiente de inspección</option>'
+    + '<option value="requiere_correccion"'+(_hkRevisionEstado==='requiere_correccion'?' selected':'')+'>Requiere corrección</option>'
+    + '<option value="en_proceso"'+(_hkRevisionEstado==='en_proceso'?' selected':'')+'>En proceso</option>'
+    + '<option value="pendiente"'+(_hkRevisionEstado==='pendiente'?' selected':'')+'>Pendiente</option>'
+    + '<option value="revisado"'+(_hkRevisionEstado==='revisado'?' selected':'')+'>Inspeccionado / aprobado</option></select></div>'
+    + '<div class="fg" style="margin:0;"><label>Incidencia registrada</label><select onchange="hkRevisionSetFilter(\'incidencia\',this.value)">'
+    + '<option value=""'+(_hkRevisionIncidencia===''?' selected':'')+'>Todas</option>'
+    + '<option value="con"'+(_hkRevisionIncidencia==='con'?' selected':'')+'>Con incidencia</option>'
+    + '<option value="sin"'+(_hkRevisionIncidencia==='sin'?' selected':'')+'>Sin incidencia</option></select></div>'
+    + '</div>';
+
+  var filtrada = lista.filter(function(a){
+    if(_hkRevisionTipo && a.tipo_objeto!==_hkRevisionTipo) return false;
+    if(_hkRevisionEstado && a.estado!==_hkRevisionEstado) return false;
+    if(_hkRevisionIncidencia==='con' && !a.incidencia_id) return false;
+    if(_hkRevisionIncidencia==='sin' && a.incidencia_id) return false;
+    return true;
+  });
+
+  if(!filtrada.length){
+    html += '<div style="background:var(--bg3);border:1px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;color:var(--text3);">No hay trabajos con estos filtros</div>';
   } else {
-    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
-    lista.forEach(function(a){
+    html += '<div class="hk-review-grid hk-review-head"><div>Trabajo</div><div>Empleada</div><div>Tiempo</div><div>Incidencia registrada</div><div>Acción</div></div>';
+    filtrada.forEach(function(a){
       var color = HK_ESTADO_COLOR[a.estado]||'#9ca3af';
       var icon = a.tipo_objeto === 'habitacion' ? '🚪' : (a.tipo_objeto === 'zona_publica' ? '🧽' : '🔧');
       var realMin = a.tiempo_real_min ? hkFmtDuration(a.tiempo_real_min) : '';
       var estMin = a.tiempo_estimado_min ? hkFmtDuration(a.tiempo_estimado_min) : '';
-      var dev = '';
-      if(a.tiempo_real_min && a.tiempo_estimado_min){
-        var d = a.tiempo_real_min - a.tiempo_estimado_min;
-        var dColor = d>0?'#ef4444':'#10b981';
-        dev = ` <span style="color:${dColor};font-family:var(--font-mono);font-size:11px;">${d>0?'+':''}${d}m</span>`;
-      }
-      html += `
-        <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid ${color};border-radius:8px;padding:10px;cursor:pointer;" onclick="hkOpenExec('${a.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="font-size:13px;font-weight:600;color:var(--text);">${icon} ${a.objeto_nombre}</div>
-            ${hkBadge(HK_ESTADO_LABEL[a.estado]||a.estado, color)}
-          </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px;">
-            ${a.employee_nombre} · est. ${estMin} ${realMin?'· real '+realMin:''} ${dev}
-            ${(a.re_trabajo_count||0)>0?' · 🔁 '+a.re_trabajo_count+'×':''}
-            ${a.incidencia_id?'<span style="color:#ef4444;font-weight:700;"> · ⚠ incidencia</span>':''}
-          </div>
-        </div>
-      `;
+      var action = '<button class="tbtn" onclick="hkOpenExec(\''+a.id+'\')">Ver detalle</button>';
+      if(a.estado==='finalizado' && a.tipo_objeto==='habitacion') action = '<button class="tbtn" style="background:#059669;color:white;" onclick="hkOpenExec(\''+a.id+'\')">🔍 Inspeccionar</button>';
+      if(a.estado==='finalizado' && a.tipo_objeto!=='habitacion' && !a.incidencia_id) action = '<button class="tbtn" style="background:#059669;color:white;" onclick="hkReviewAssignment(\''+a.id+'\')">✓ Aprobar</button>';
+      if(a.estado==='finalizado' && a.tipo_objeto!=='habitacion' && a.incidencia_id) action = '<button class="tbtn" style="background:#ef4444;color:white;" onclick="hkOpenExec(\''+a.id+'\')">⚠ Revisar incidencia</button>';
+      var tipoLabel = a.tipo_limpieza ? (HK_TIPO_LIMPIEZA_LABEL[a.tipo_limpieza]||a.tipo_limpieza) : (a.tipo_objeto==='zona_publica'?'Zona pública':'Tarea periódica');
+      html += '<div class="hk-review-grid hk-review-row" style="--hk-status:'+color+';">'
+        + '<div><span class="hk-review-cell-label">Trabajo</span><div style="font-size:13px;font-weight:700;color:var(--text);">'+icon+' '+a.objeto_nombre+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px;">'+tipoLabel+((a.re_trabajo_count||0)>0?' · 🔁 '+a.re_trabajo_count+'×':'')+'</div></div>'
+        + '<div><span class="hk-review-cell-label">Empleada</span><span style="font-size:12px;color:var(--text2);">'+(a.employee_nombre||'Sin asignar')+'</span></div>'
+        + '<div><span class="hk-review-cell-label">Tiempo</span><div style="font-size:11px;color:var(--text2);">'+(realMin||'—')+'</div><div style="font-size:9px;color:var(--text3);">Est. '+(estMin||'—')+'</div></div>'
+        + '<div><span class="hk-review-cell-label">Incidencia registrada</span>'+(a.incidencia_id?'<span style="color:#ef4444;font-weight:700;font-size:11px;">⚠ Sí</span>':'<span style="color:#10b981;font-weight:700;font-size:11px;">No</span>')+'</div>'
+        + '<div><span class="hk-review-cell-label">Acción</span>'+action+'<div style="margin-top:4px;">'+hkBadge(HK_ESTADO_LABEL[a.estado]||a.estado,color)+'</div></div>'
+        + '</div>';
     });
-    html += '</div>';
   }
 
   // ── Incidencias HK del día ─────────────────────────────────────────

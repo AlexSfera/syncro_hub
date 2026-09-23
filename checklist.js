@@ -84,6 +84,33 @@ var CHK_SALA_SECTIONS = [{title:'PREPARACION DEL SERVICIO',count:6},{title:'DURA
 var CHK_FNB_ITEMS = ['Registro de ventas del servicio completado','Caja cuadrada y cerrada correctamente','Stock de bebidas revisado','Pedidos pendientes anotados','Incidencias con clientes registradas','Sala recogida y en orden','Personal de sala informado de novedades','Reservas del siguiente servicio revisadas'];
 var CHK_FNB_SECTIONS = [{title:'CONTROL ADMINISTRATIVO',count:4},{title:'OPERACIONES SALA Y SERVICIO',count:4}];
 
+// ── DATOS CHECKLIST HOUSEKEEPING · GOBERNANTA ──
+// El personal operativo trabaja desde Mi Ruta; este control diario es exclusivo
+// de Gobernanta/Subgobernanta y se guarda junto al cierre de su turno.
+var CHK_HK_GOB_SECTIONS = [
+  {title:'PLANIFICACIÓN',count:4},
+  {title:'CONTROL DE HABITACIONES Y MEWS',count:5},
+  {title:'EQUIPO E INCIDENCIAS',count:4},
+  {title:'MATERIAL',count:2}
+];
+var CHK_HK_GOB_ITEMS = [
+  'Repartir las tareas del día siguiente',
+  'Revisar peticiones en reservas',
+  'Revisar próximas llegadas',
+  'Revisar ocupación diaria y semanal',
+  'Rellenar el informe diario de estados de habitación',
+  'Cotejar y actualizar MEWS con el informe de estados y la tipología de cama',
+  'Contabilizar habitaciones limpiadas y no limpiadas',
+  'Pasar el informe de habitaciones a Recepción',
+  'Revisar las tareas diarias del departamento',
+  'Rellenar el informe de total de limpieza',
+  'Revisar horas extra y devolución de horas',
+  'Revisar tareas de Mantenimiento en habitaciones',
+  'Informar de las incidencias del día',
+  'Comprobar que los móviles tienen batería',
+  'Comprobar las plantillas impresas de lencería y amenities'
+];
+
 // ── DATOS CHECKLIST RECEPCIÓN ──
 var CHK_REC_MANANA_SECTIONS = [{"title":"INICIO DE TURNO","count":4},{"title":"OPERACION MEWS","count":4},{"title":"HOUSEKEEPING","count":2},{"title":"CAJA","count":4},{"title":"COMUNICACION","count":3},{"title":"CIERRE DE TURNO","count":3}];
 var CHK_REC_MANANA_ITEMS = ["Fichaje realizado desde móvil","Revisado handover del turno noche","Revisadas incidencias pendientes","Revisadas tareas abiertas","Revisadas salidas del día en MEWS","Revisadas llegadas del día en MEWS","Revisados cargos pendientes antes de check-out","Revisadas pensiones / extras","Revisado estado de habitaciones con housekeeping","Comunicadas habitaciones prioritarias","Cash MEWS comparado con cash físico","Tarjeta MEWS comparada con TPV","Stripe MEWS comparado con Stripe real","Diferencias explicadas si existen","WhatsApp / email / llamadas revisadas","Incidencias registradas correctamente","Tareas necesarias creadas","Handover preparado para turno tarde","Follow-up refleja situación real","Fichaje de salida realizado desde móvil"];
@@ -334,6 +361,19 @@ function chkOpen(pendingData){
   var isSala=(currentUser&&currentUser.area==='Sala');
   var isFnB=(currentUser&&(currentUser.rol==='fb'||currentUser.area==='F&B'));
   var isRec=(currentUser&&(currentUser.area==='Recepción'||currentUser._activeDept==='Recepción'));
+  var isHK=(currentUser&&/^(hk|housekeeping|limpieza)$/i.test(currentUser.area||''));
+  var isHKGob=isHK&&((typeof hkIsGobernanta==='function'&&hkIsGobernanta(currentUser))
+    || ['admin','gobernante','subgobernante','jefe','jefe_departamento'].indexOf(currentUser.rol)>=0);
+  if(isHK&&!isHKGob){
+    if(pendingData != null){
+      _chkSavedState=[];
+      _chkPendingData=null;
+      if(typeof _doSaveTurno==='function') _doSaveTurno();
+    } else if(typeof toast==='function'){
+      toast('Tu trabajo diario se gestiona desde Mi Ruta','ok');
+    }
+    return;
+  }
   var recTurno=isRec?getRecTurnoValue():'';
   var isLabRec=(currentUser&&/syncrolab/i.test(currentUser.area||''));
   // FEAT-TURNO-AUTO (spec 22): radio marcado manda; sin radio → turno auto
@@ -341,7 +381,8 @@ function chkOpen(pendingData){
   var isEntr=(typeof _esEntrenador==='function')&&_esEntrenador(currentUser);
   var entrTurno=isEntr?(function(){var r=document.querySelector('input[name="turno-entr"]:checked');if(r)return r.value;if(typeof autoAssignTurno==='function'){var a=autoAssignTurno(currentUser.area,currentUser.puesto);if(a)return a.turno;}return 'Mañana';})():'';
   var sections,items;
-  if(isEntr){
+  if(isHKGob){sections=CHK_HK_GOB_SECTIONS;items=CHK_HK_GOB_ITEMS;}
+  else if(isEntr){
     if(entrTurno==='Tarde'){sections=CHK_ENTR_TARDE_SECTIONS;items=CHK_ENTR_TARDE_ITEMS;}
     else if(entrTurno==='Sábado'){sections=CHK_ENTR_SABADO_SECTIONS;items=CHK_ENTR_SABADO_ITEMS;}
     else{sections=CHK_ENTR_MANANA_SECTIONS;items=CHK_ENTR_MANANA_ITEMS;}

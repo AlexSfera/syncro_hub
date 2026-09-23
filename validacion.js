@@ -27,8 +27,11 @@ function _valChecklistItems(s){
     if(srv.indexOf('tarde') >= 0) return (typeof CHK_LAB_TARDE_ITEMS  !== 'undefined') ? CHK_LAB_TARDE_ITEMS  : null;
     return (typeof CHK_LAB_MANANA_ITEMS !== 'undefined') ? CHK_LAB_MANANA_ITEMS : null;
   }
+  if(/^(hk|housekeeping|limpieza)$/i.test(area)){
+    return (typeof CHK_HK_GOB_ITEMS !== 'undefined') ? CHK_HK_GOB_ITEMS : null;
+  }
   if(area === 'Cocina') return (typeof CHK_COCINA_ITEMS !== 'undefined') ? CHK_COCINA_ITEMS : null;
-  // Housekeeping, Mantenimiento, Administración, otros → sin checklist por ahora
+  // Mantenimiento, Administración y otros → sin checklist por ahora
   return null;
 }
 window._valChecklistItems = _valChecklistItems;
@@ -498,6 +501,26 @@ function _updateNotasTabVisibility(){
   }
 }
 
+function canSeeCajaTab(user){
+  if(!user) return false;
+  if(typeof isContable==='function' && isContable(user)) return true;
+  if(typeof canActAsAdmin==='function' && canActAsAdmin(user)) return true;
+  return !/^(hk|housekeeping|limpieza)$/i.test(user.area||'');
+}
+
+function _updateCajaTabVisibility(){
+  var btn=document.getElementById('val-tab-caja');
+  if(!btn) return;
+  var visible=canSeeCajaTab(currentUser);
+  btn.style.display=visible?'inline-block':'none';
+  if(!visible){
+    var cajaDiv=document.getElementById('val-content-caja');
+    if(cajaDiv&&cajaDiv.style.display!=='none') switchValTab('followup');
+  }
+}
+window.canSeeCajaTab=canSeeCajaTab;
+window._updateCajaTabVisibility=_updateCajaTabVisibility;
+
 function _valTabStyleActive(btn, color){
   if(!btn) return;
   btn.style.cssText='padding:8px 18px;border-radius:6px;border:2px solid '+color+';background:'+(color==='#2ec4b6'?'rgba(46,196,182,.15)':color==='#3b82f6'?'rgba(59,130,246,.15)':'rgba(168,85,247,.15)')+';color:'+color+';font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.1em;';
@@ -510,6 +533,7 @@ function _valTabStyleInactive(btn){
 function switchValTab(tab) {
   // Contable: solo puede estar en la pestaña de Caja
   if(typeof isContable==='function' && isContable(currentUser)) tab = 'caja';
+  if(tab==='caja' && !canSeeCajaTab(currentUser)) tab='followup';
   var followupDiv  = document.getElementById('val-content-followup');
   var operativoDiv = document.getElementById('val-content-operativo');
   var cajaDiv      = document.getElementById('val-content-caja');
@@ -1608,21 +1632,27 @@ async function pGo(){
   _pLaunch(u);
 }
 
-async function _pLaunch(u){
+async function _pLaunch(u, options){
   document.getElementById('portal-screen').style.display='none';
   currentUser=u;
   var ls=document.getElementById('login-screen');
   var ap=document.getElementById('app');
   if(ls) ls.style.display='none';
   if(ap) ap.style.display='block';
+  if(typeof startSessionIdleGuard==='function') startSessionIdleGuard(!!(options&&options.restore));
   await startApp();
 }
 
 document.addEventListener('DOMContentLoaded',function(){
   if(!(window.SyncroAuth && window.SyncroAuth.enabled)) return;
+  if(typeof sessionIdleExpired==='function' && sessionIdleExpired()){
+    if(typeof stopSessionIdleGuard==='function') stopSessionIdleGuard(true);
+    window.SyncroAuth.logout().catch(function(e){ console.warn('idle session cleanup failed', e); });
+    return;
+  }
   window.SyncroAuth.restore().then(function(session){
     if(session && session.forcePinChange) return window.SyncroAuth.logout();
-    if(session) return _pLaunch(session.profile);
+    if(session) return _pLaunch(session.profile,{restore:true});
   }).catch(function(e){ console.warn('secure session restore failed', e); });
 });
 

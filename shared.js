@@ -642,7 +642,52 @@ function autoLogoutAfterCaja(){
   // CAJA-V2 C3 · logout automático tras guardar/cerrar caja (SYNCROLAB, Sala, Recepción)
   setTimeout(function(){ if(typeof logout === 'function') logout(); }, 1200);
 }
-function logout(){
+var SESSION_IDLE_MS=40*60*1000;
+var SESSION_ACTIVITY_KEY='syncro.session.lastActivity';
+var _sessionIdleTimer=null;
+var _sessionActivityBound=false;
+var _sessionLastWrite=0;
+
+function _sessionActivityTs(){
+  try{return Number(localStorage.getItem(SESSION_ACTIVITY_KEY)||0)||0;}catch(e){return 0;}
+}
+function sessionIdleExpired(now){
+  var last=_sessionActivityTs();
+  return !!last&&((now||Date.now())-last>=SESSION_IDLE_MS);
+}
+function markSessionActivity(force){
+  var now=Date.now();
+  if(!force&&now-_sessionLastWrite<15000) return;
+  _sessionLastWrite=now;
+  try{localStorage.setItem(SESSION_ACTIVITY_KEY,String(now));}catch(e){}
+}
+function _checkSessionIdle(){
+  if(!currentUser) return;
+  if(sessionIdleExpired()) logout('idle');
+}
+function startSessionIdleGuard(preserveExisting){
+  if(!preserveExisting||!_sessionActivityTs()) markSessionActivity(true);
+  if(!_sessionActivityBound){
+    ['pointerdown','touchstart','keydown','scroll'].forEach(function(name){
+      document.addEventListener(name,function(){if(currentUser) markSessionActivity(false);},{passive:true});
+    });
+    document.addEventListener('visibilitychange',function(){if(!document.hidden) _checkSessionIdle();});
+    _sessionActivityBound=true;
+  }
+  if(_sessionIdleTimer) clearInterval(_sessionIdleTimer);
+  _sessionIdleTimer=setInterval(_checkSessionIdle,30000);
+}
+function stopSessionIdleGuard(clearStored){
+  if(_sessionIdleTimer){clearInterval(_sessionIdleTimer);_sessionIdleTimer=null;}
+  if(clearStored){try{localStorage.removeItem(SESSION_ACTIVITY_KEY);}catch(e){}}
+}
+window.SESSION_IDLE_MS=SESSION_IDLE_MS;
+window.sessionIdleExpired=sessionIdleExpired;
+window.startSessionIdleGuard=startSessionIdleGuard;
+window.stopSessionIdleGuard=stopSessionIdleGuard;
+
+function logout(reason){
+  stopSessionIdleGuard(true);
   if(window.SyncroAuth && window.SyncroAuth.enabled){
     window.SyncroAuth.logout().catch(function(e){ console.warn('secure logout failed', e); });
   }
@@ -653,6 +698,7 @@ function logout(){
   if(bn) bn.style.display='none';
   var ps=document.getElementById('portal-screen');
   if(ps){ ps.style.display='flex'; ps.style.visibility=''; ps.style.pointerEvents=''; }
+  if(reason==='idle'&&typeof toast==='function') toast('Sesión cerrada tras 40 minutos sin actividad','warn');
 }
 document.addEventListener('keydown',e=>{ var ls=document.getElementById('login-screen'); if(!ls||ls.style.display==='none') return; if(e.key>='0'&&e.key<='9') pinPress(e.key); if(e.key==='Backspace') pinDel(); if(e.key==='Enter') pinOk(); });
 
@@ -690,7 +736,8 @@ async function startApp(){
   var urTop=document.getElementById('user-role-top'); if(urTop) urTop.textContent=rl[currentUser.rol]||currentUser.rol.toUpperCase();
   buildNav();
   // Show loading state
-  showScreen('readme');
+  var _isHKStart=currentUser&&/^(hk|housekeeping|limpieza)$/i.test(currentUser.area||'');
+  showScreen(_isHKStart?'ruta-mod':'readme');
   // Preload employees into cache
   try { await getDB('employees'); } catch(e) { console.warn('preload error', e); }
   await populateDashEmpDropdowns();
@@ -752,7 +799,7 @@ function getScreens(rol){
     hkPlan:      {id:'hk-plan',     label:'📅 Planificación'},
     hkZonas:     {id:'hk-zonas',    label:'🧽 Zonas públicas'},
     hkConfig:    {id:'hk-config',   label:'⚙ Configuración HK'},
-    hkRevision:  {id:'hk-revision', label:'🔍 Revisión HK'},
+    hkRevision:  {id:'hk-revision', label:'🔍 Inspecciones'},
     fichaje:     {id:'fichaje',     label:'📋 Alertas Fichaje'},
     incentivos:  {id:'incentivos',  label:'💰 Incentivos'},
     miRendimiento:{id:'mi-rendimiento', label:'📈 Mi Rendimiento'},
@@ -809,9 +856,9 @@ function getScreens(rol){
   var miDia = [];
 
   if(isHK){
-    // HK: Mi Ruta y Revisión (gobernanta) se anteponen a Mi Turno
+    // HK operativo trabaja desde Mi Ruta; el checklist es exclusivo de Gobernanta.
     miDia.push(ITEMS.ruta);
-    miDia.push(ITEMS.checklist);
+    if(isJefe) miDia.push(ITEMS.checklist);
     miDia.push(ITEMS.turno);
   } else {
     miDia.push(ITEMS.turno);
@@ -1090,6 +1137,7 @@ async function showScreen(id){
     var _startTab = (currentUser && (currentUser.rol==='coord_recepcion_syncrolab' || currentUser.rol==='contable')) ? 'caja' : 'followup';
     switchValTab(_startTab);
     if(typeof _updateContableTabLock==='function') _updateContableTabLock();
+    if(typeof _updateCajaTabVisibility==='function') _updateCajaTabVisibility();
   }
   if(id==='dashboard'){
     // Show dept filter for admin/fb
@@ -1800,6 +1848,8 @@ function saveTurno(){
   // Step 2: for Sala open Ajustes first, for Cocina go straight to checklist
   if(currentUser && currentUser.area === 'Sala') {
     openAjustesModal();
+  } else if(_isHKUser && !(typeof hkIsGobernanta==='function' && hkIsGobernanta(currentUser))) {
+    _doSaveTurno();
   } else {
     chkOpen({});
   }
@@ -2593,6 +2643,7 @@ function onValDeptChange(){
   }
   // MERMA: mostrar/ocultar pestaña según dept y rol
   if(typeof _updateMermaTabVisibility === 'function') _updateMermaTabVisibility();
+  if(typeof _updateCajaTabVisibility === 'function') _updateCajaTabVisibility();
   // FIO tab visibility (C6)
   if(typeof _updateFIOTabVisibility === 'function') _updateFIOTabVisibility();
 }
@@ -2636,6 +2687,7 @@ function initValDeptFilter(){
   }
   onValDeptChange();
   if(typeof _updateMermaTabVisibility === 'function') _updateMermaTabVisibility();
+  if(typeof _updateCajaTabVisibility === 'function') _updateCajaTabVisibility();
   if(typeof _updateNotasTabVisibility === 'function') _updateNotasTabVisibility();
   if(typeof _updateFIOTabVisibility === 'function') _updateFIOTabVisibility();
 }

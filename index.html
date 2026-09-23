@@ -743,6 +743,46 @@ tr:hover td{background:rgba(96,165,250,.06);}
 .vbtn-sec{background:#1a2f4a;color:#cbd5e1;border-color:#2a4365;}
 .vbtn-warn{background:rgba(251,191,36,.14);color:#fbbf24;border-color:#fbbf24;}
 .vbtn-del{background:rgba(248,113,113,.14);color:#f87171;border-color:#f87171;}
+
+/* Housekeeping UX · OSCAL C30 Pro baseline (360 x 800 CSS px) */
+.hk-quick-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.hk-quick-actions .tbtn,.hk-action-bar .tbtn{min-height:44px;padding:10px 14px;}
+.hk-action-bar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px;}
+.hk-action-buttons{display:flex;gap:6px;flex-wrap:wrap;}
+.hk-load-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;}
+.hk-load-card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px;}
+.hk-load-track{height:7px;background:var(--bg4);border-radius:999px;overflow:hidden;margin-top:7px;}
+.hk-load-fill{height:100%;border-radius:999px;}
+.hk-filter-bar{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:8px;margin-bottom:12px;}
+.hk-choice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:7px;max-height:330px;overflow-y:auto;padding:2px;}
+.hk-choice{display:flex;align-items:flex-start;gap:8px;background:var(--bg3);border:2px solid var(--border);border-radius:9px;padding:10px;cursor:pointer;min-height:48px;touch-action:manipulation;}
+.hk-choice.is-selected{border-color:var(--orange);background:rgba(249,115,22,.10);}
+.hk-choice.is-disabled{opacity:.35;cursor:not-allowed;}
+.hk-choice input{width:18px;height:18px;flex:0 0 18px;margin-top:1px;accent-color:var(--orange);}
+.hk-review-grid{display:grid;grid-template-columns:minmax(180px,2fr) minmax(130px,1.2fr) minmax(105px,.8fr) minmax(125px,1fr) minmax(130px,1fr);gap:8px;align-items:center;}
+.hk-review-head{padding:0 10px 6px;color:var(--text3);font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
+.hk-review-row{background:var(--bg2);border:1px solid var(--border);border-left:4px solid var(--hk-status,#9ca3af);border-radius:8px;padding:10px;margin-bottom:7px;}
+.hk-review-cell-label{display:none;}
+#hk-exec-actions .tbtn,#modal-hk-asignar .tbtn,#modal-hk-exec>div>div:last-child .tbtn{min-height:44px;}
+
+@media(max-width:560px){
+  #hk-ruta-content,#hk-plan-content,#hk-revision-content,#hk-config-content,#hk-dash-content,#hk-zonas-content{padding-left:10px !important;padding-right:10px !important;}
+  .hk-quick-actions,.hk-action-buttons{display:grid;grid-template-columns:1fr 1fr;width:100%;}
+  .hk-quick-actions .tbtn,.hk-action-buttons .tbtn{width:100%;white-space:normal;}
+  .hk-load-grid{grid-template-columns:1fr;}
+  .hk-filter-bar{grid-template-columns:1fr;}
+  .hk-choice-grid{grid-template-columns:1fr 1fr;max-height:48vh;}
+  .hk-choice{padding:9px 8px;}
+  .hk-review-head{display:none;}
+  .hk-review-grid{grid-template-columns:1fr 1fr;gap:8px;}
+  .hk-review-grid>div:first-child{grid-column:1/-1;}
+  .hk-review-grid>div:last-child{grid-column:1/-1;}
+  .hk-review-cell-label{display:block;color:var(--text3);font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px;}
+  .hk-review-row .tbtn{width:100%;min-height:44px;}
+  #modal-hk-asignar,#modal-hk-exec{padding:6px !important;align-items:flex-end !important;}
+  #modal-hk-asignar>div,#modal-hk-exec>div{max-width:none !important;width:100% !important;max-height:94vh !important;border-radius:14px 14px 0 0 !important;padding:16px !important;}
+  #modal-hk-asignar input,#modal-hk-asignar select,#modal-hk-exec input,#modal-hk-exec select,#modal-hk-exec textarea{font-size:16px !important;}
+}
 </style>
 </head>
 <body>
