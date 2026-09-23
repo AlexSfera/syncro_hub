@@ -8,7 +8,12 @@ const read = (name) => fs.readFileSync(new URL('../' + name, import.meta.url), '
 test('catálogo Housekeeping queda agrupado en nueve FIO activos', () => {
   const sql = read('supabase/migrations/202609230001_housekeeping_fio_catalog.sql');
   const rows = [...sql.matchAll(/\('HK26-\d{2}',\s*'Housekeeping'/g)];
+  const valueRows = sql.match(/^\s*\('HK26-\d{2}'.*\)[,]?$/gm) || [];
   assert.equal(rows.length, 9);
+  assert.equal(valueRows.length, 9);
+  for (const row of valueRows) {
+    assert.equal((row.match(/'(?:[^']|'')*'|true|false|\d+/g) || []).length, 9);
+  }
   assert.match(sql, /Limpieza o higiene incorrectas/);
   assert.match(sql, /Habitación no lista o estado incorrecto/);
   assert.match(sql, /Incumplimiento de seguridad o privacidad/);
