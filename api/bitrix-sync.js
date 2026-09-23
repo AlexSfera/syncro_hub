@@ -601,6 +601,7 @@ export default async function handler(req, res) {
   let updatedRecords = 0;
   let unchangedRecords = 0;
   let totalIntervals = 0;
+  const detectedChanges = [];
 
   try {
     const errores = [];
@@ -673,6 +674,12 @@ export default async function handler(req, res) {
               projectedById.set(String(row.id), Object.assign({}, before));
               continue;
             }
+            detectedChanges.push({
+              bitrix_record_id: String(row.bitrix_record_id),
+              employee_id: emp.id,
+              previous_matched_shift_id: before.matched_shift_id || null,
+              changes
+            });
 
             const patch = {};
             for (const field of RAW_SOURCE_FIELDS) patch[field] = row[field];
@@ -740,6 +747,7 @@ export default async function handler(req, res) {
       ...summary,
       dry_run: DRY_RUN,
       audit_events: DRY_RUN ? 0 : auditEvents.length,
+      cambios_detectados: DRY_RUN ? detectedChanges.slice(0, 50) : undefined,
       detalles: association.detalles.slice(0, 50),
       errores
     });

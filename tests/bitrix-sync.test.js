@@ -152,6 +152,7 @@ test('detecta una modificación Bitrix24, actualiza el turno y registra antes/de
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.records_updated, 1);
   assert.equal(response.body.shifts_updated, 1);
+  assert.equal(response.body.cambios_detectados, undefined);
   assert.equal(state.raw.duration_seconds, 32400);
   assert.equal(state.raw.end_ts, '2026-09-19T17:30:00+02:00');
   assert.equal(state.shift.horas, 9);
