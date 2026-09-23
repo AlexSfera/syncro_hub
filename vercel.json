@@ -12,12 +12,8 @@
   ],
   "crons": [
     {
-      "path": "/api/bitrix-sync",
-      "schedule": "0 23 * * *"
-    },
-    {
       "path": "/api/bitrix-sync-history",
-      "schedule": "35 1 * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "functions": {

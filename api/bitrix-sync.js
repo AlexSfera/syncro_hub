@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════
 // /api/bitrix-sync.js — Sincronización Bitrix24 Timeman → SYNCRO SHIFT
-// v4 (Sep 2026) — ACTUALIZACIÓN CONTINUA + TRAZABILIDAD DE CAMBIOS.
+// v4 (Sep 2026) — ACTUALIZACIÓN DIARIA + TRAZABILIDAD DE CAMBIOS.
 //
 // PRINCIPIO (decisión CEO Jul 2026):
 //   · El turno MANUAL de SYNCRO SHIFT es la fuente de verdad operativa.
@@ -34,7 +34,7 @@
 //   6. Escribe audit_log de cada alta, cambio, actualización de turno y error.
 //
 // TRIGGERS:
-//   · Vercel Cron frecuente + revisión histórica diaria (vercel.json)
+//   · Vercel Cron: una revisión histórica diaria (vercel.json)
 //   · Manual: POST /api/bitrix-sync?modo=range&fecha=YYYY-MM-DD con header
 //     Authorization: Bearer <CRON_SECRET>   (añade &dry_run=1 para simular)
 //

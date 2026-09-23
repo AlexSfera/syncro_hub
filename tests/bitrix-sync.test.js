@@ -213,22 +213,9 @@ test('pausa cero de Bitrix24 equivale al valor histórico nulo', () => {
   assert.deepEqual(__test.changedRawFields(before, after), {});
 });
 
-test('Vercel conserva dos revisiones diarias compatibles con el plan Hobby', async () => {
+test('Vercel ejecuta una única revisión histórica diaria', async () => {
   const config = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
   assert.deepEqual(config.crons, [
-    { path: '/api/bitrix-sync', schedule: '0 23 * * *' },
-    { path: '/api/bitrix-sync-history', schedule: '35 1 * * *' }
+    { path: '/api/bitrix-sync-history', schedule: '0 0 * * *' }
   ]);
-});
-
-test('la migración programa la comprobación frecuente sin guardar el secreto', async () => {
-  const migration = await readFile(
-    new URL('../supabase/migrations/20260923122947_bitrix_continuous_sync_cron.sql', import.meta.url),
-    'utf8'
-  );
-  assert.match(migration, /'syncro-bitrix-hours-continuous'/);
-  assert.match(migration, /'\*\/15 \* \* \* \*'/);
-  assert.match(migration, /vault\.decrypted_secrets/);
-  assert.match(migration, /syncro_bitrix_cron_secret/);
-  assert.doesNotMatch(migration, /Bearer\s+[A-Za-z0-9_-]{16,}/);
 });
