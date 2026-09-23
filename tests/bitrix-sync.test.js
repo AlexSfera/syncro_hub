@@ -206,6 +206,12 @@ test('la comparación no marca como cambio dos timestamps equivalentes', () => {
   assert.deepEqual(__test.changedRawFields(before, after), {});
 });
 
+test('pausa cero de Bitrix24 equivale al valor histórico nulo', () => {
+  const before = baseRaw({ break_length: null });
+  const after = { ...before, break_length: 0 };
+  assert.deepEqual(__test.changedRawFields(before, after), {});
+});
+
 test('Vercel conserva dos revisiones diarias compatibles con el plan Hobby', async () => {
   const config = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
   assert.deepEqual(config.crons, [

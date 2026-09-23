@@ -168,7 +168,9 @@ function comparableRaw(row) {
     start_ts: canonicalTs(row.start_ts),
     end_ts: canonicalTs(row.end_ts),
     duration_seconds: Number(row.duration_seconds || 0),
-    break_length: row.break_length == null ? null : Number(row.break_length),
+    break_length: row.break_length == null || Number(row.break_length) === 0
+      ? null
+      : Number(row.break_length),
     is_approved: !!row.is_approved,
     fecha_operativa: String(row.fecha_operativa || ''),
     servicio: String(row.servicio || '')
@@ -640,7 +642,9 @@ export default async function handler(req, res) {
               start_ts: startTs,
               end_ts: endTs,
               duration_seconds: record.duration,
-              break_length: record.breakLength == null ? null : record.breakLength,
+              break_length: record.breakLength == null || Number(record.breakLength) === 0
+                ? null
+                : record.breakLength,
               is_approved: !!record.isApproved,
               fecha_operativa: fecha,
               servicio,
