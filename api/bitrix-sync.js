@@ -728,7 +728,7 @@ export default async function handler(req, res) {
     );
     const durationMs = Date.now() - startedAt;
     const summary = {
-      version: 'v4-continuous-audit', modo, desde, hasta,
+      version: 'v4-daily-audit', modo, desde, hasta,
       employees: employees.length, intervals: totalIntervals,
       records_created: createdRecords, records_updated: updatedRecords,
       records_unchanged: unchangedRecords, shifts_updated: association.updated,
