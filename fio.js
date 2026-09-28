@@ -36,12 +36,14 @@ function canCreateFIO(u){
 function canValidateFIO(u){
   if(!u) return false;
   if(typeof canActAsAdmin === 'function' && canActAsAdmin(u)) return true;
+  if(typeof isSupervisor === 'function' && isSupervisor(u)) return true;
   if(['fb','jefe_recepcion','chef','supervisor'].indexOf(u.rol) >= 0) return true;
   return false;
 }
 function canValidateCritical(u){
-  // L4 / L5 solo admin / adjunto_directivo / fb (Dirección/RRHH)
-  return !!u && (u.rol === 'admin' || u.rol === 'adjunto_directivo' || u.rol === 'fb');
+  // Casos críticos: Dirección global o manager del departamento matriz.
+  return !!u && (u.rol === 'admin' || u.rol === 'adjunto_directivo' || u.rol === 'adjunto' || u.rol === 'fb'
+    || u.puesto === 'Club Manager');
 }
 // Departamentos visibles para el usuario actual (admin = todos)
 function _fioViewableDepts(u){

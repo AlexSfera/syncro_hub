@@ -36,12 +36,14 @@ function canCreateFault(u){
 function canValidateFault(u){
   if(!u) return false;
   if(isAdmin(u)) return true;
+  if(typeof isSupervisor === 'function' && isSupervisor(u)) return true;
   if(['fb','jefe_recepcion','chef','supervisor'].indexOf(u.rol) >= 0) return true;
   return false;
 }
 function canValidateCritical(u){
-  // L4 / L5 solo admin/fb (Dirección/RRHH)
-  return !!u && (u.rol === 'admin' || u.rol === 'fb');
+  // Casos críticos: Dirección global o manager del departamento matriz.
+  return !!u && (u.rol === 'admin' || u.rol === 'adjunto_directivo' || u.rol === 'adjunto'
+    || u.rol === 'fb' || u.puesto === 'Club Manager');
 }
 
 // ── BADGES ────────────────────────────────────────────────────────────

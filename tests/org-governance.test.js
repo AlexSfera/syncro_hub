@@ -1,0 +1,79 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+
+import {
+  POSITION_GOVERNANCE,
+  canonicalizeEmployeeProfile,
+  positionRank
+} from '../lib/org-governance.js';
+
+test('active position catalog contains the approved organizational structure', () => {
+  const expected = [
+    'F&B Manager',
+    'Jefe de Cocina', 'Segundo Jefe de Cocina', 'Cocinero', 'Cocinera',
+    'Ayudante de cocina', 'Freelancer',
+    'Jefe de Sala', 'Jefe de Sector', 'Camarero', 'Camarera',
+    'Ayudante camarero', 'Ayudante camarera',
+    'Jefe de Recepción', 'Subjefe de Recepción', 'Recepcionista',
+    'Ayudante de Recepción', 'Auditor de Noche',
+    'Gobernanta', 'Subgobernanta', 'Camarera de pisos',
+    'Ayudante camarera de pisos',
+    'Jefe de Mantenimiento', 'Técnico',
+    'Club Manager', 'Coordinador(a) de Atención al Cliente',
+    'Coordinador(a) de Entrenadores', 'Coordinador(a) de Fisioterapeutas',
+    'Atención al Cliente', 'Entrenador(a)', 'Fisioterapeuta',
+    'Administrador', 'Adjunto Directivo', 'Contable',
+    'Técnico de Recursos Humanos'
+  ];
+  assert.deepEqual(Object.keys(POSITION_GOVERNANCE), expected);
+});
+
+test('parent managers outrank departmental leadership and operational staff', () => {
+  const fnb = canonicalizeEmployeeProfile({ puesto: 'F&B Manager' });
+  const kitchenHead = canonicalizeEmployeeProfile({ puesto: 'Jefe de Cocina' });
+  const kitchenDeputy = canonicalizeEmployeeProfile({ puesto: 'Segundo Jefe de Cocina' });
+  const cook = canonicalizeEmployeeProfile({ puesto: 'Cocinero' });
+  assert.ok(positionRank(fnb) > positionRank(kitchenHead));
+  assert.ok(positionRank(kitchenHead) > positionRank(kitchenDeputy));
+  assert.ok(positionRank(kitchenDeputy) > positionRank(cook));
+});
+
+test('position governance preserves specialized operational permissions', () => {
+  assert.equal(POSITION_GOVERNANCE['Jefe de Cocina'].role, 'chef');
+  assert.equal(POSITION_GOVERNANCE['Jefe de Sala'].role, 'supervisor');
+  assert.equal(POSITION_GOVERNANCE['Jefe de Recepción'].role, 'jefe_recepcion');
+  assert.equal(POSITION_GOVERNANCE.Gobernanta.role, 'gobernante');
+  assert.equal(
+    POSITION_GOVERNANCE['Coordinador(a) de Entrenadores'].role,
+    'coord_entrenadores'
+  );
+});
+
+test('historic position labels cannot elevate a stored role to Administrator or Adjunto', () => {
+  const historicAdjunto = canonicalizeEmployeeProfile({
+    puesto: 'Administrador', rol: 'adjunto', validador: 1
+  });
+  assert.equal(historicAdjunto.rol, 'adjunto');
+  assert.equal(positionRank(historicAdjunto), 90);
+
+  const forgedAdmin = canonicalizeEmployeeProfile({
+    puesto: 'Administrador', rol: 'empleado', validador: 0
+  });
+  assert.equal(forgedAdmin.rol, 'empleado');
+  assert.equal(positionRank(forgedAdmin), 10);
+});
+
+test('employee modal removes retired positions and adds Freelancer and HR technician', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const employeeModal = html.slice(
+    html.indexOf('id="modal-empleado"'),
+    html.indexOf('id="modal-reset-pin"')
+  );
+  assert.match(employeeModal, /<option>Freelancer<\/option>/);
+  assert.match(employeeModal, /<option>Técnico de Recursos Humanos<\/option>/);
+  assert.doesNotMatch(employeeModal, /<option>Friegue<\/option>/);
+  assert.doesNotMatch(employeeModal, /<option>Camarero de pisos<\/option>/);
+  assert.doesNotMatch(employeeModal, /<option>Ayudante camarero de pisos<\/option>/);
+  assert.doesNotMatch(employeeModal, /<option>Lavandería<\/option>/);
+});

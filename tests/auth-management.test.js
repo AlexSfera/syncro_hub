@@ -19,8 +19,14 @@ import {
   canResetEmployeePin,
   canUpdateEmployee,
   effectiveDepartment,
-  normalizeEmployeeDraft
+  normalizeEmployeeDraft,
+  supervisorDepartments
 } from '../lib/authz-server.js';
+import {
+  canonicalizeEmployeeProfile,
+  governanceForPosition,
+  positionRank
+} from '../lib/org-governance.js';
 
 const originalFetch = globalThis.fetch;
 const trackedEnv = [
@@ -100,7 +106,7 @@ test('server authorization preserves admin, adjunto, F&B and department boundari
     employeeSala
   ), false);
   assert.equal(canResetEmployeePin({ id: 'd', rol: 'adjunto' }, employeeSala), true);
-  assert.equal(canResetEmployeePin({ id: 'd', rol: 'adjunto' }, { rol: 'jefe', area: 'Sala' }), false);
+  assert.equal(canResetEmployeePin({ id: 'd', rol: 'adjunto' }, { rol: 'jefe', area: 'Sala' }), true);
   assert.equal(canEditEmployee({ id: 'j', rol: 'jefe', area: 'Sala' }, employeeSala), true);
   assert.equal(canUpdateEmployee(
     { id: 'j', rol: 'jefe', area: 'Sala' },
@@ -156,6 +162,84 @@ test('SYNCROLAB authorization derives both actor and target scope from trusted p
   assert.equal(canCreateEmployee(
     { id: 'trainer-coord', rol: 'coord_entrenadores', area: 'SYNCROLAB' }, physio
   ), false);
+});
+
+test('Club Manager governs every SYNCROLAB segment and coordinators remain scoped below', () => {
+  const clubManager = {
+    id: 'sofia', rol: 'jefe', area: 'SYNCROLAB', puesto: 'Club Manager', validador: 0
+  };
+  const trainerCoordinator = {
+    id: 'trainer-coord', rol: 'empleado', area: 'SYNCROLAB',
+    puesto: 'Coordinador(a) de Entrenadores', validador: 0
+  };
+  const clientCoordinator = {
+    id: 'client-coord', rol: 'jefe', area: 'SYNCROLAB',
+    puesto: 'Coordinador(a) de Atención al Cliente', validador: 1
+  };
+  const trainer = { rol: 'empleado', area: 'SYNCROLAB', puesto: 'Entrenador(a)' };
+  const physio = { rol: 'empleado', area: 'SYNCROLAB', puesto: 'Fisioterapeuta' };
+  const fnbHead = { rol: 'jefe', area: 'Sala', puesto: 'Jefe de Sala' };
+
+  assert.deepEqual(supervisorDepartments(clubManager), [
+    'SYNCROLAB', 'SyncroLab', 'Recepción SYNCROLAB',
+    'Entrenadores', 'Fisioterapeutas', 'Clínica'
+  ]);
+  assert.equal(canEditEmployee(clubManager, trainerCoordinator), true);
+  assert.equal(canEditEmployee(clubManager, clientCoordinator), true);
+  assert.equal(canEditEmployee(clubManager, physio), true);
+  assert.equal(canEditEmployee(clubManager, fnbHead), false);
+  assert.equal(canEditEmployee(trainerCoordinator, trainer), true);
+  assert.equal(canEditEmployee(trainerCoordinator, physio), false);
+  assert.equal(canEditEmployee(trainerCoordinator, clientCoordinator), false);
+});
+
+test('position governance derives department, system role, level and validation', () => {
+  const club = canonicalizeEmployeeProfile({
+    puesto: 'Club Manager', area: 'Administración', rol: 'empleado', validador: 0
+  });
+  assert.equal(club.area, 'SYNCROLAB');
+  assert.equal(club.rol, 'jefe');
+  assert.equal(club.validador, 1);
+  assert.equal(positionRank(club), 80);
+
+  const fnb = governanceForPosition('F&B Manager');
+  assert.deepEqual(
+    { area: fnb.area, role: fnb.role, accessLevel: fnb.accessLevel, rank: fnb.rank },
+    { area: 'F&B', role: 'fb', accessLevel: 3, rank: 80 }
+  );
+  const rrhh = normalizeEmployeeDraft({
+    nombre: 'RRHH', puesto: 'Técnico de Recursos Humanos', area: 'Sala', rol: 'admin',
+    email: '', obs: '', estado: 'Activo', coste: 0, responsable: 0, validador: 0
+  });
+  assert.equal(rrhh.area, 'Administración');
+  assert.equal(rrhh.rol, 'jefe');
+  assert.equal(rrhh.validador, 1);
+});
+
+test('retired positions cannot be assigned but remain editable on their existing record', () => {
+  const body = {
+    nombre: 'Legacy', puesto: 'Lavandería', area: 'Housekeeping', rol: 'empleado',
+    email: '', obs: '', estado: 'Activo', coste: 0, responsable: 0, validador: 0
+  };
+  assert.equal(normalizeEmployeeDraft(body), null);
+  assert.equal(normalizeEmployeeDraft(body, { allowLegacyPosition: 'Lavandería' }).puesto, 'Lavandería');
+});
+
+test('editing a protected historic leadership label does not silently elevate its role', () => {
+  const body = {
+    nombre: 'Perfil histórico', puesto: 'Administrador', area: 'Administración',
+    rol: 'admin', email: '', obs: '', estado: 'Activo', coste: 0,
+    responsable: 0, validador: 1
+  };
+  const current = {
+    ...body, id: 'historic-adjunto', rol: 'adjunto_directivo', validador: 1
+  };
+  const draft = normalizeEmployeeDraft(body, {
+    allowLegacyPosition: 'Administrador',
+    existingProfile: current
+  });
+  assert.equal(draft.rol, 'adjunto_directivo');
+  assert.equal(draft.validador, 1);
 });
 
 test('employee input derives area from the position and ignores a forged browser area', () => {

@@ -1817,7 +1817,9 @@ async function pGo(){
 
 async function _pLaunch(u){
   document.getElementById('portal-screen').style.display='none';
-  currentUser=u;
+  currentUser=typeof _applyPositionGovernanceProfile==='function'
+    ? _applyPositionGovernanceProfile(u)
+    : u;
   var ls=document.getElementById('login-screen');
   var ap=document.getElementById('app');
   if(ls) ls.style.display='none';

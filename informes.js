@@ -71,7 +71,7 @@ function canAccessInformes(u){
   if(!u) return false;
   var rol = (u.rol || '').toLowerCase();
   if(rol === 'admin') return true;
-  if(rol === 'adjunto_directivo') return true;  // Angélica: solo ve RRHH (filtrado en _infDeptsVisibles)
+  if(rol === 'adjunto_directivo' || rol === 'adjunto') return true;
   if(typeof isSupervisor === 'function' && isSupervisor(u)) return true;
   return ['fb','chef','jefe_recepcion','supervisor','coord_entrenadores'].indexOf(rol) >= 0;
 }
@@ -88,9 +88,14 @@ function _infDeptsVisibles(u){
     return INF_DEPT_CATALOG.filter(function(d){ return !d.coming; }).map(function(d){ return d.key; });
   }
 
-  // Adjunto directivo (Angélica / RRHH) → solo su dept
-  if(rol === 'adjunto_directivo'){
-    return ['RRHH'];
+  // Adjunto Directivo → visión operativa global, sin permisos de Administrador.
+  if(rol === 'adjunto_directivo' || rol === 'adjunto'){
+    return INF_DEPT_CATALOG.filter(function(d){ return !d.coming; }).map(function(d){ return d.key; });
+  }
+
+  // Club Manager supervisa los tres subdepartamentos de SYNCROLAB.
+  if(puesto === 'Club Manager'){
+    return ['SYNCROLAB','Entrenadores','Fisioterapeutas'];
   }
 
   // Entrenadores: comparten area=SYNCROLAB, se detectan por puesto

@@ -205,6 +205,7 @@ function _deptCatalogo(u){
   if(!u) return '';
   var area = u.area || '';
   if(/syncrolab|syncro lab/i.test(area)){
+    if((u.puesto||'').trim() === 'Club Manager') return 'SYNCROLAB';
     if(_esEntrenador(u)) return 'Entrenadores';
     if(_esFisio(u))      return 'Fisioterapeutas';
     return 'Recepción SYNCROLAB';
@@ -495,11 +496,18 @@ function canActAsAdmin(user){ return isAdmin(user) || isAdjuntoDirectivo(user); 
 function isContable(user){ return !!user && user.rol==='contable'; }
 // Quién puede gestionar usuarios con rol=admin (solo el propio admin):
 function canManageAdminUsers(user){ return isAdmin(user); }
-function isSupervisor(user){ return !!user && (user.rol==='jefe' || Object.prototype.hasOwnProperty.call(SUPERVISOR_DEPT_MAP,user.rol)); }
+function isSupervisor(user){
+  if(!user || isAdmin(user) || isAdjuntoDirectivo(user)) return false;
+  if(typeof _positionRank === 'function' && _positionRank(user) >= 60) return true;
+  return user.rol==='jefe' || Object.prototype.hasOwnProperty.call(SUPERVISOR_DEPT_MAP,user.rol);
+}
 function getSupervisorDepartments(user){
   if(!user) return [];
+  if(typeof _applyPositionGovernanceProfile === 'function') user=_applyPositionGovernanceProfile(user);
   if(isAdmin(user)) return ['*'];
-  if(user.rol==='jefe'){
+  if((user.puesto||'').trim()==='Club Manager') return AREA_GROUPS.SYNCROLAB.slice();
+  if((user.puesto||'').trim()==='F&B Manager' || user.rol==='fb') return AREA_GROUPS['F&B'].slice();
+  if(isSupervisor(user)){
     var a=user.area||'';
     // FIX-SYNCROLAB-DEPT: jefes SYNCROLAB → restringir a su sub-departamento
     if(/^syncrolab$/i.test(a.trim()) && typeof _deptCatalogo === 'function'){
@@ -524,8 +532,6 @@ function canViewDepartment(user,dept){
   return depts.map(normalizeDeptName).indexOf(d)!==-1;
 }
 function canValidateDepartment(user,dept){
-  // adjunto_directivo con area=Administración: solo lectura, no valida
-  if(isAdjuntoDirectivo(user) && (user.area==='Administración')) return false;
   return isAdmin(user) || isAdjuntoDirectivo(user) || (isSupervisor(user)&&canViewDepartment(user,dept));
 }
 function getRecordDepartment(record,shiftMap){
@@ -835,7 +841,7 @@ function getScreens(rol){
 
   // ── MI DEPARTAMENTO ──────────────────────────────────────────────
   var miDpto = [];
-  if(!isAdmon){
+  if(!isAdmon || (puesto === 'Técnico de Recursos Humanos' && isJefe)){
     if(isJefe) miDpto.push(ITEMS.validacion);           // Validación: primera para jefes
     if(isMant) miDpto.push(ITEMS.mantmod);
     miDpto.push(ITEMS.fichaje);
@@ -2614,13 +2620,26 @@ function onValDeptChange(){
 
 // Departamentos (valores de v-dept) que corresponden al área de un jefe
 function _jefeDeptOptions(user){
-  var a = (user && user.area) || '';
-  if(a.indexOf('SYNCROLAB')>=0 || a.indexOf('Syncrolab')>=0) return ['Recepción SYNCROLAB'];
-  if(a.indexOf('Recepción')>=0 || a.indexOf('Recepcion')>=0)  return ['Recepción'];
-  if(a==='Sala')                       return ['Sala'];
-  if(a==='Cocina' || a==='Friegue')    return ['Cocina'];
-  if(a==='F&B' || a==='Food & Beverage' || a==='Restaurante') return ['Sala','Cocina'];
-  return a ? [a] : [];
+  if(!user) return [];
+  var allowed=['Cocina','Sala','Recepción','Housekeeping','Recepción SYNCROLAB',
+    'Entrenadores','Fisioterapeutas','Mantenimiento','Economato','Administración','RRHH'];
+  var aliases={
+    'friegue':'Cocina','f&b':'Sala','fnb':'Sala','food & beverage':'Sala',
+    'recepción sfera':'Recepción','recepcion sfera':'Recepción',
+    'syncrolab':'Recepción SYNCROLAB','syncro lab':'Recepción SYNCROLAB',
+    'clínica':'Fisioterapeutas','clinica':'Fisioterapeutas','limpieza':'Housekeeping'
+  };
+  var scoped=typeof getSupervisorDepartments==='function'
+    ? getSupervisorDepartments(user) : [user.area||''];
+  var out=[];
+  scoped.forEach(function(raw){
+    if(raw==='*') return;
+    var normalized=String(raw||'').trim();
+    var canonical=aliases[normalized.toLowerCase()]||normalized;
+    if(allowed.indexOf(canonical)!==-1 && out.indexOf(canonical)===-1) out.push(canonical);
+  });
+  if((user.puesto||'')==='F&B Manager' && out.indexOf('Cocina')===-1) out.push('Cocina');
+  return out;
 }
 function initValDeptFilter(){
   var sel=document.getElementById('v-dept');
@@ -3524,29 +3543,140 @@ async function renderDashboard(){
 
 // ═══════════════════════════════════════════════════════════════════════
 // MAESTRO
-// Mapeo optgroup del select puesto → área canónica
+// El puesto es la fuente de verdad para área, rol efectivo, nivel y validación.
+// rank ordena la jerarquía dentro de un mismo nivel de acceso.
+var PUESTO_GOVERNANCE = {
+  'F&B Manager':{area:'F&B',rol:'fb',nivel:3,rank:80,validador:1},
+  'Jefe de Cocina':{area:'Cocina',rol:'chef',nivel:2,rank:70,validador:1},
+  'Segundo Jefe de Cocina':{area:'Cocina',rol:'chef',nivel:2,rank:60,validador:1},
+  'Cocinero':{area:'Cocina',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Cocinera':{area:'Cocina',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Ayudante de cocina':{area:'Cocina',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Freelancer':{area:'Cocina',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Jefe de Sala':{area:'Sala',rol:'supervisor',nivel:2,rank:70,validador:1},
+  'Jefe de Sector':{area:'Sala',rol:'supervisor',nivel:2,rank:60,validador:1},
+  'Camarero':{area:'Sala',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Camarera':{area:'Sala',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Ayudante camarero':{area:'Sala',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Ayudante camarera':{area:'Sala',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Jefe de Recepción':{area:'Recepción',rol:'jefe_recepcion',nivel:2,rank:70,validador:1},
+  'Subjefe de Recepción':{area:'Recepción',rol:'jefe_recepcion',nivel:2,rank:60,validador:1},
+  'Recepcionista':{area:'Recepción',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Ayudante de Recepción':{area:'Recepción',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Auditor de Noche':{area:'Recepción',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Gobernanta':{area:'Housekeeping',rol:'gobernante',nivel:2,rank:70,validador:1},
+  'Subgobernanta':{area:'Housekeeping',rol:'subgobernante',nivel:2,rank:60,validador:1},
+  'Camarera de pisos':{area:'Housekeeping',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Ayudante camarera de pisos':{area:'Housekeeping',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Jefe de Mantenimiento':{area:'Mantenimiento',rol:'jefe_mantenimiento',nivel:2,rank:70,validador:1},
+  'Técnico':{area:'Mantenimiento',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Club Manager':{area:'SYNCROLAB',rol:'jefe',nivel:3,rank:80,validador:1},
+  'Coordinador(a) de Atención al Cliente':{area:'SYNCROLAB',rol:'coord_recepcion_syncrolab',nivel:2,rank:60,validador:1},
+  'Coordinador(a) de Entrenadores':{area:'SYNCROLAB',rol:'coord_entrenadores',nivel:2,rank:60,validador:1},
+  'Coordinador(a) de Fisioterapeutas':{area:'SYNCROLAB',rol:'coord_fisioterapeutas',nivel:2,rank:60,validador:1},
+  'Atención al Cliente':{area:'SYNCROLAB',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Entrenador(a)':{area:'SYNCROLAB',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Fisioterapeuta':{area:'SYNCROLAB',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Administrador':{area:'Administración',rol:'admin',nivel:5,rank:100,validador:1},
+  'Adjunto Directivo':{area:'Administración',rol:'adjunto',nivel:4,rank:90,validador:1},
+  'Contable':{area:'Administración',rol:'contable',nivel:1,rank:20,validador:0},
+  'Técnico de Recursos Humanos':{area:'Administración',rol:'jefe',nivel:2,rank:70,validador:1}
+};
+var LEGACY_PUESTO_GOVERNANCE = {
+  'Friegue':{area:'Cocina',rol:'empleado',nivel:1,rank:10,validador:0,legacy:true},
+  'Camarero de pisos':{area:'Housekeeping',rol:'empleado',nivel:1,rank:10,validador:0,legacy:true},
+  'Ayudante camarero de pisos':{area:'Housekeeping',rol:'empleado',nivel:1,rank:10,validador:0,legacy:true},
+  'Lavandería':{area:'Housekeeping',rol:'empleado',nivel:1,rank:10,validador:0,legacy:true}
+};
 var PUESTO_AREA_MAP = {
-  'Cocina':['Jefe de Cocina','Segundo Jefe de Cocina','Cocinero','Cocinera','Ayudante de cocina','Friegue'],
+  'Cocina':['Jefe de Cocina','Segundo Jefe de Cocina','Cocinero','Cocinera','Ayudante de cocina','Freelancer'],
   'Sala':['Jefe de Sala','Jefe de Sector','Camarero','Camarera','Ayudante camarero','Ayudante camarera'],
   'Recepción':['Jefe de Recepción','Subjefe de Recepción','Recepcionista','Ayudante de Recepción','Auditor de Noche'],
-  'Housekeeping':['Gobernanta','Subgobernanta','Camarero de pisos','Camarera de pisos','Ayudante camarero de pisos','Ayudante camarera de pisos','Lavandería'],
+  'Housekeeping':['Gobernanta','Subgobernanta','Camarera de pisos','Ayudante camarera de pisos'],
   'Mantenimiento':['Jefe de Mantenimiento','Técnico'],
   'SYNCROLAB':['Club Manager','Coordinador(a) de Atención al Cliente','Coordinador(a) de Entrenadores','Coordinador(a) de Fisioterapeutas','Atención al Cliente','Entrenador(a)','Fisioterapeuta'],
   'F&B':['F&B Manager'],
-  'Administración':['Administrador','Adjunto Directivo','Contable']
+  'Administración':['Administrador','Adjunto Directivo','Contable','Técnico de Recursos Humanos']
 };
-function _getAreaFromPuesto(puesto){
+function _governanceForPosition(puesto,allowLegacy){
   var p=(puesto||'').trim();
-  for(var area in PUESTO_AREA_MAP){
-    if(PUESTO_AREA_MAP[area].indexOf(p)!==-1) return area;
+  return PUESTO_GOVERNANCE[p] || (allowLegacy ? LEGACY_PUESTO_GOVERNANCE[p] : null) || null;
+}
+function _applyPositionGovernanceProfile(profile){
+  if(!profile) return profile;
+  var out=Object.assign({},profile);
+  var gov=_governanceForPosition(out.puesto,true);
+  if(!gov) return out;
+  var storedRole=String(out.rol||'').trim();
+  var protectedMismatch=gov.rank>=90 && storedRole
+    && !(gov.rol==='admin' && storedRole==='admin')
+    && !(gov.rol==='adjunto' && (storedRole==='adjunto'||storedRole==='adjunto_directivo'));
+  out.area=gov.area;
+  out.rol=protectedMismatch?storedRole:gov.rol;
+  out.validador=protectedMismatch?(parseInt(out.validador)||0):gov.validador;
+  return out;
+}
+function _positionRank(profile){
+  if(!profile) return 0;
+  var gov=_governanceForPosition(profile.puesto,true);
+  var ranks={admin:100,adjunto:90,adjunto_directivo:90,fb:80,jefe:60,supervisor:60,chef:60,jefe_recepcion:60,gobernante:60,subgobernante:60,jefe_mantenimiento:60,coord_recepcion_syncrolab:60,coord_entrenadores:60,coord_fisioterapeutas:60,contable:20,empleado:10};
+  var storedRole=String(profile.rol||'').trim();
+  if(gov){
+    if(gov.rank===100 && storedRole && storedRole!=='admin') return ranks[storedRole]||0;
+    if(gov.rank===90 && storedRole && storedRole!=='adjunto' && storedRole!=='adjunto_directivo') return ranks[storedRole]||0;
+    return gov.rank;
   }
-  return p; // fallback: usar el puesto como área
+  return ranks[storedRole]||0;
+}
+function _governanceScopeLabel(gov){
+  if(!gov) return '[NO DATA]';
+  if(gov.rank===100) return 'Toda la organización y seguridad';
+  if(gov.rank===90) return 'Toda la operación, sin gestionar Administradores';
+  if(gov.rank===80 && gov.area==='F&B') return 'Restaurante: Sala y Cocina';
+  if(gov.rank===80 && gov.area==='SYNCROLAB') return 'Todo SYNCROLAB y sus coordinadores';
+  if(gov.rank>=60) return 'Su departamento y puestos subordinados';
+  if(gov.rol==='contable') return 'Lectura financiera y dashboard';
+  return 'Operación propia del puesto';
+}
+function _canManageEmployee(actor,target){
+  if(!actor||!target) return false;
+  actor=_applyPositionGovernanceProfile(actor);
+  target=_applyPositionGovernanceProfile(target);
+  if(isAdmin(actor)) return true;
+  if(isAdmin(target)) return false;
+  if(isAdjuntoDirectivo(actor)) return _positionRank(target)<_positionRank(actor);
+  return isSupervisor(actor) && canViewDepartment(actor,_deptCatalogo(target)||target.area)
+    && _positionRank(target)<_positionRank(actor);
+}
+function _getAreaFromPuesto(puesto){
+  var gov=_governanceForPosition(puesto,true);
+  return gov ? gov.area : (puesto||'').trim();
 }
 function _syncAreaFromPuesto(){
   var puestoEl=document.getElementById('emp-puesto');
   var areaEl=document.getElementById('emp-area');
   if(!puestoEl||!areaEl) return;
-  areaEl.value=_getAreaFromPuesto(puestoEl.value);
+  var gov=_governanceForPosition(puestoEl.value,true);
+  var preserveProtectedRole=!!_editEmpId && gov && gov.rank>=90
+    && window._editEmpOriginalPosition===puestoEl.value
+    && window._editEmpOriginalRole && window._editEmpOriginalRole!==gov.rol;
+  areaEl.value=gov?gov.area:_getAreaFromPuesto(puestoEl.value);
+  var rolEl=document.getElementById('emp-rol');
+  var valEl=document.getElementById('emp-val');
+  if(gov&&rolEl){
+    var protectedUiRole=window._editEmpOriginalRole==='adjunto_directivo'
+      ? 'adjunto' : window._editEmpOriginalRole;
+    rolEl.value=preserveProtectedRole?protectedUiRole:gov.rol;
+  }
+  if(gov&&valEl) valEl.value=String(preserveProtectedRole?window._editEmpOriginalValidator:gov.validador);
+  var summary=document.getElementById('emp-governance-summary');
+  if(summary){
+    summary.textContent=gov
+      ? (preserveProtectedRole
+        ? 'Perfil histórico protegido · conserva su rol seguro actual hasta reclasificar el puesto'
+        : 'Nivel '+gov.nivel+' · '+_governanceScopeLabel(gov)+' · '+(gov.validador?'Puede validar':'Sin validación'))
+      : '[NO DATA] Puesto sin gobernanza definida';
+  }
 }
 
 async function renderMaestro(){
@@ -3577,16 +3707,10 @@ async function renderMaestro(){
     .filter(inMyScope);
   var employees = estadoFilt === '' ? allEmps : allEmps.filter(function(e){ return e.estado === estadoFilt; });
 
-  // Permisos de fila:
-  //  - adjunto_directivo NO toca fila con rol=admin
-  //  - admin/adjunto: todo · fb: todo salvo admin
-  //  - jefe/coordinador (supervisor): solo empleados (rol=empleado) de SU ámbito
+  // Permisos de fila: el superior solo gestiona puestos de rango inferior
+  // dentro de su ámbito. El puesto, no un rol manual, define la jerarquía.
   function canEditRow(e){
-    if(isAdjuntoDirectivo(currentUser) && e.rol === 'admin') return false;
-    if(canActAsAdmin(currentUser)) return true;
-    if(currentUser.rol === 'fb') return e.rol !== 'admin';
-    if(isSupervisor(currentUser)) return e.rol === 'empleado' && inMyScope(e);
-    return false;
+    return _canManageEmployee(currentUser,e);
   }
   function pinCell(e){
     // PIN visible SOLO para admin. Jefes y adjunto_directivo nunca lo ven.
@@ -3598,12 +3722,12 @@ async function renderMaestro(){
     var canToggle = canEditRow(e);  // quien puede editar puede dar baja/activar
     var html = '<button class="btn btn-secondary btn-sm" onclick="openEmpModal(\''+e.id+'\')">Editar</button> ';
     // Botón Restablecer PIN: admin siempre; jefe/supervisor solo para empleados de su ámbito
-    var canResetPin = isAdmin(currentUser) || (isSupervisor(currentUser) && e.rol === 'empleado' && inMyScope(e)) || (currentUser.rol === 'fb' && e.rol !== 'admin');
+    var canResetPin = _canManageEmployee(currentUser,e);
     if(canResetPin){
       html += '<button class="btn btn-secondary btn-sm" onclick="openResetPinModalDirect(\''+e.id+'\',\''+e.nombre.replace(/'/g,"\\'")+'\',\''+(e.email||'')+'\')" title="Restablecer PIN" style="font-size:11px;">🔑 PIN</button> ';
     }
     // Botón Reenviar invitación: solo si tiene email
-    if(e.email && (isAdmin(currentUser) || canActAsAdmin(currentUser) || (isSupervisor(currentUser) && inMyScope(e)))){
+    if(e.email && canEditRow(e)){
       html += '<button class="btn btn-secondary btn-sm" onclick="reenviarInvitacionDirect(\''+e.id+'\',\''+e.nombre.replace(/'/g,"\\'")+'\',\''+e.email+'\')" title="Reenviar invitación" style="font-size:11px;">📧</button> ';
     }
     if(canToggle){
@@ -3647,15 +3771,35 @@ async function renderMaestro(){
 async function openEmpModal(empId){
   _editEmpId=empId||null;
   var isEdit = !!empId;
+  var positionSelect=document.getElementById('emp-puesto');
+  if(positionSelect){
+    positionSelect.querySelectorAll('optgroup[data-legacy-position]').forEach(function(group){
+      group.remove();
+    });
+  }
   var createDiv = document.getElementById('emp-pin-create');
   var secureCreateDiv = document.getElementById('emp-pin-secure-create');
   var statusDiv = document.getElementById('emp-pin-status');
   if(empId){
     const e=(await getDB('employees')).find(x=>x.id===empId); if(!e) return;
+    window._editEmpOriginalPosition=e.puesto||'';
+    window._editEmpOriginalRole=e.rol||'';
+    window._editEmpOriginalValidator=(e.validador==1||e.validador===true||e.validador==='1'||e.validador==='true')?1:0;
     document.getElementById('me-title').textContent='Editar: '+e.nombre;
     document.getElementById('emp-nombre').value=e.nombre;
     var emEl=document.getElementById('emp-email'); if(emEl) emEl.value=e.email||'';
     document.getElementById('emp-area').value=e.area;
+    if(positionSelect && !_governanceForPosition(e.puesto,false)
+      && _governanceForPosition(e.puesto,true)){
+      var legacyGroup=document.createElement('optgroup');
+      legacyGroup.label='Puesto histórico · reclasificar';
+      legacyGroup.setAttribute('data-legacy-position','true');
+      var legacyOption=document.createElement('option');
+      legacyOption.value=e.puesto;
+      legacyOption.textContent=e.puesto;
+      legacyGroup.appendChild(legacyOption);
+      positionSelect.appendChild(legacyGroup);
+    }
     document.getElementById('emp-puesto').value=e.puesto;
     var pinIn = document.getElementById('emp-pin'); if(pinIn) pinIn.value='';
     document.getElementById('emp-coste').value=(e.coste&&parseFloat(e.coste)>0)?parseFloat(e.coste):'';
@@ -3673,9 +3817,7 @@ async function openEmpModal(empId){
       badge.className='badge '+(secureAccess||e.pin?'b-green':'b-yellow');
       badge.textContent=secureAccess?'Acceso seguro':(e.pin?'PIN configurado':'PIN pendiente');
     }
-    var canReset = isAdmin(currentUser) ||
-      (isSupervisor(currentUser) && e.rol==='empleado') ||
-      (currentUser.rol==='fb' && e.rol!=='admin');
+    var canReset = _canManageEmployee(currentUser,e);
     var resetBtn=document.getElementById('emp-pin-reset-btn');
     if(resetBtn) resetBtn.style.display = canReset ? '' : 'none';
     var reinvBtn=document.getElementById('emp-reinvite-btn');
@@ -3688,6 +3830,9 @@ async function openEmpModal(empId){
     window._resetPinEmpEmail= e.email||'';
     _renderEmpIpPanel(e);
   } else {
+    window._editEmpOriginalPosition='';
+    window._editEmpOriginalRole='';
+    window._editEmpOriginalValidator=0;
     document.getElementById('me-title').textContent='Nuevo Empleado';
     ['emp-nombre','emp-email','emp-pin','emp-coste','emp-obs'].forEach(function(id){var el=document.getElementById(id); if(el) el.value='';});
     ['emp-puesto','emp-estado'].forEach(function(id){ var el=document.getElementById(id); if(el) el.selectedIndex=0; });
@@ -3790,84 +3935,54 @@ async function removeEmpIp(rowId, empId, ip){
 
 // Aplica restricciones visuales al modal según el rol del usuario actual
 function _aplicarRestriccionesModalEmp(){
-  var esJefe = isSupervisor(currentUser) && !isAdjuntoDirectivo(currentUser) && !isAdmin(currentUser) && currentUser.rol !== 'fb';
+  var esAdministrador = isAdmin(currentUser);
+  var esAdjunto = isAdjuntoDirectivo(currentUser);
 
-  // ── 1. PUESTO: filtrar optgroups por departamento del jefe ───────────
+  // ── 1. PUESTO: solo puestos inferiores dentro del ámbito ─────────────
   var puestoSel = document.getElementById('emp-puesto');
   if(puestoSel){
     var grupos = puestoSel.querySelectorAll('optgroup');
-    if(esJefe){
-      var misDeptos = getSupervisorDepartments(currentUser).map(function(d){ return d.toLowerCase(); });
-      // Mapa optgroup label → área normalizada
-      var labelAreaMap = {
-        'cocina':             'cocina',
-        'sala':               'sala',
-        'recepción / hotel':  'recepción',
-        'recepcion / hotel':  'recepción',
-        'housekeeping':       'housekeeping',
-        'mantenimiento':      'mantenimiento',
-        'syncrolab':          'syncrolab',
-        'dirección':          'administración',
-        'direccion':          'administración',
-        'f&b (superior de cocina y sala)': 'f&b'
-      };
-      grupos.forEach(function(og){
-        var lbl = (og.getAttribute('label')||'').toLowerCase();
-        var area = labelAreaMap[lbl] || lbl;
-        var visible = misDeptos.some(function(d){ return d === area || area.indexOf(d) !== -1 || d.indexOf(area) !== -1; });
-        og.style.display = visible ? '' : 'none';
-        og.querySelectorAll('option').forEach(function(o){ o.disabled = !visible; });
+    grupos.forEach(function(og){
+      var enabledCount=0;
+      og.querySelectorAll('option').forEach(function(o){
+        var gov=_governanceForPosition(o.value,false);
+        var target=gov?{puesto:o.value,area:gov.area,rol:gov.rol,validador:gov.validador}:null;
+        var dept=target?(_deptCatalogo(target)||target.area):'';
+        var allowed=esAdministrador || (!!target && esAdjunto
+          && _positionRank(target)<_positionRank(currentUser))
+          || (!!target && isSupervisor(currentUser)
+            && canViewDepartment(currentUser,dept)
+            && _positionRank(target)<_positionRank(currentUser));
+        o.disabled=!allowed;
+        o.style.display=allowed?'':'none';
+        if(allowed) enabledCount++;
       });
-      // Si el puesto seleccionado actualmente no pertenece al depto del jefe, resetear al primer puesto visible
+      og.style.display=enabledCount?'':'none';
+    });
+    if(!esAdministrador){
       var currentOpt = puestoSel.options[puestoSel.selectedIndex];
       if(currentOpt && currentOpt.disabled){
         var firstVisible = Array.from(puestoSel.options).find(function(o){ return !o.disabled && o.value; });
         if(firstVisible) puestoSel.value = firstVisible.value;
-        _syncAreaFromPuesto();
       }
-    } else {
-      // admin/adjunto: mostrar todo
-      grupos.forEach(function(og){
-        og.style.display = '';
-        og.querySelectorAll('option').forEach(function(o){ o.disabled = false; });
-      });
     }
   }
 
-  // ── 2. ROL SISTEMA: ocultar roles superiores a jefes ────────────────
+  // ── 2. ROL Y VALIDACIÓN: siempre derivados del puesto ───────────────
+  _syncAreaFromPuesto();
   var rolSel = document.getElementById('emp-rol');
   if(rolSel){
-    var rolesPermitidos = esJefe ? ['empleado'] :
-      (currentUser.rol === 'fb') ? ['empleado','jefe'] :
-      isAdjuntoDirectivo(currentUser) ? ['empleado','jefe','adjunto'] :
-      null; // admin: todos visibles
-    Array.from(rolSel.options).forEach(function(opt){
-      if(rolesPermitidos){
-        opt.style.display = rolesPermitidos.indexOf(opt.value) !== -1 ? '' : 'none';
-        opt.disabled      = rolesPermitidos.indexOf(opt.value) === -1;
-      } else {
-        opt.style.display = '';
-        opt.disabled = false;
-      }
-    });
-    // Si el rol seleccionado quedó deshabilitado, forzar al primero permitido
-    if(rolSel.options[rolSel.selectedIndex] && rolSel.options[rolSel.selectedIndex].disabled){
-      var firstOk = Array.from(rolSel.options).find(function(o){ return !o.disabled; });
-      if(firstOk) rolSel.value = firstOk.value;
-    }
-    // Bloquear el select si solo hay una opción visible
-    rolSel.disabled = esJefe;
+    rolSel.disabled=true;
+    rolSel.title='El rol se asigna automáticamente según el puesto';
+    rolSel.style.opacity='0.65';
+    rolSel.style.cursor='not-allowed';
   }
-
-  // ── 3. PUEDE VALIDAR: solo adjunto_directivo y admin pueden cambiarlo ─
   var valSel = document.getElementById('emp-val');
   if(valSel){
-    var puedeEditarValidador = isAdmin(currentUser) || isAdjuntoDirectivo(currentUser);
-    valSel.disabled = !puedeEditarValidador;
-    valSel.title = puedeEditarValidador ? '' : 'Solo Adjunto Directivo o Administrador pueden modificar este campo';
-    // Estilo visual para indicar que está bloqueado
-    valSel.style.opacity = puedeEditarValidador ? '' : '0.5';
-    valSel.style.cursor  = puedeEditarValidador ? '' : 'not-allowed';
+    valSel.disabled=true;
+    valSel.title='La capacidad de validar se asigna automáticamente según el puesto';
+    valSel.style.opacity='0.65';
+    valSel.style.cursor='not-allowed';
   }
 }
 
@@ -4116,39 +4231,16 @@ async function saveEmpleado(){
   var selectedArea = document.getElementById('emp-area').value || _getAreaFromPuesto(document.getElementById('emp-puesto').value);
   var selectedRol  = document.getElementById('emp-rol').value;
 
-  // ─── Validación de ámbito de creación/edición según rol del usuario actual ───
-  // Admin: sin restricciones
-  // Adjunto Directivo: todo excepto tocar admin
-  // F&B Manager: solo crea/edita en Sala / Cocina / Friegue, rol ≤ supervisor
-  // Coord_*, chef, jefe_recepcion, gobernante, jefe_departamento, supervisor, mantenimiento:
-  //   solo crea/edita en SU dept (según SUPERVISOR_DEPT_MAP), rol = empleado
-  if(!isAdmin(currentUser)){
-    if(selectedRol === 'admin'){
-      toast('Solo un Administrador puede crear/modificar usuarios admin','err'); return;
-    }
-    if(isAdjuntoDirectivo(currentUser)){
-      // todo permitido excepto admin (validado arriba)
-    } else if(currentUser.rol === 'fb'){
-      var fbAreas = ['Sala','Cocina','Friegue'];
-      if(fbAreas.indexOf(selectedArea) === -1){
-        toast('F&B Manager solo puede gestionar empleados de Sala / Cocina / Friegue','err'); return;
-      }
-      if(['adjunto_directivo','admin','fb','chef','jefe_recepcion','gobernante','subgobernante','jefe_mantenimiento','coord_recepcion_syncrolab','coord_entrenadores','coord_fisioterapeutas','mantenimiento'].indexOf(selectedRol) !== -1){
-        toast('F&B Manager solo puede asignar roles base/supervisor/jefe_departamento','err'); return;
-      }
-    } else if(isSupervisor(currentUser)){
-      var allowedAreas = getSupervisorDepartments(currentUser);
-      var sa = String(selectedArea||'').trim().toLowerCase();
-      var ok = allowedAreas.some(function(d){ return String(d||'').trim().toLowerCase() === sa; });
-      if(!ok){
-        toast('Solo puedes gestionar empleados de tu departamento ('+(allowedAreas.join(' / ')||'sin dept')+')','err'); return;
-      }
-      if(selectedRol !== 'empleado'){
-        toast('Como jefe de departamento solo puedes crear/editar empleados con rol Empleado','err'); return;
-      }
-    } else {
-      toast('No tienes permisos para gestionar empleados','err'); return;
-    }
+  // El puesto determina el rol y la jerarquía. Solo se permiten puestos
+  // inferiores dentro del ámbito del actor; Administrador conserva control total.
+  var proposedDraft={
+    puesto:document.getElementById('emp-puesto').value,
+    area:selectedArea,
+    rol:selectedRol,
+    validador:parseInt(document.getElementById('emp-val').value)||0
+  };
+  if(!isAdmin(currentUser) && !_canManageEmployee(currentUser,proposedDraft)){
+    toast('Solo puedes gestionar puestos subordinados dentro de tu ámbito','err'); return;
   }
 
   if(_editEmpId){

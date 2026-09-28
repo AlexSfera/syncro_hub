@@ -147,7 +147,10 @@ export default async function handler(req) {
     patch = { estado: body.estado };
     eventType = 'employee_status';
   } else if (body.action === 'update') {
-    proposed = normalizeEmployeeDraft(body.employee);
+    proposed = normalizeEmployeeDraft(body.employee, {
+      allowLegacyPosition: target.puesto,
+      existingProfile: target
+    });
     if (!proposed) return jsonResponse({ error: 'Datos de empleado no válidos' }, 400);
     if (!canUpdateEmployee(actorSession.profile, target, proposed)) {
       return jsonResponse({ error: 'Forbidden' }, 403);

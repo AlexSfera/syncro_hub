@@ -29,6 +29,12 @@ function getDashDeptsForUser() {
   if (rol === 'fb') return DASH_DEPTS.filter(function(d) {
     return ['Cocina','Sala','FnB'].indexOf(d.id) !== -1;
   });
+  if (currentUser.puesto === 'Club Manager') return DASH_DEPTS.filter(function(d) {
+    return ['RecepcionSyncrolab','Entrenadores','Fisioterapeutas'].indexOf(d.id) !== -1;
+  });
+  if (currentUser.puesto === 'Técnico de Recursos Humanos') return DASH_DEPTS.filter(function(d) {
+    return d.id === 'RRHH';
+  });
   if (rol === 'jefe_recepcion') return DASH_DEPTS.filter(function(d) {
     return d.id === 'Recepción';
   });

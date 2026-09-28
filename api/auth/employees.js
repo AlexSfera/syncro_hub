@@ -11,6 +11,7 @@ import {
   supervisorDepartments,
   targetIsInScope
 } from '../../lib/authz-server.js';
+import { canonicalizeEmployeeProfile } from '../../lib/org-governance.js';
 
 export const config = { runtime: 'edge' };
 
@@ -39,12 +40,13 @@ export function employeeListForActor(rows, actor) {
         || (isSupervisor && targetIsInScope(actor, row))
     ))
     .map(row => {
+      const canonical = canonicalizeEmployeeProfile(row);
       if (canSeeAll || (isSupervisor && targetIsInScope(actor, row))) {
-        return withoutSensitiveIdentity(row);
+        return withoutSensitiveIdentity(canonical);
       }
-      const safe = pick(row, SAFE_FIELDS);
-      if (row.id === actor.id && 'email' in row) safe.email = row.email;
-      if (isAccounting && 'coste' in row) safe.coste = row.coste;
+      const safe = pick(canonical, SAFE_FIELDS);
+      if (row.id === actor.id && 'email' in canonical) safe.email = canonical.email;
+      if (isAccounting && 'coste' in canonical) safe.coste = canonical.coste;
       return safe;
     });
 }

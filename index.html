@@ -2434,7 +2434,7 @@ tr:hover td{background:rgba(96,165,250,.06);}
       <select id="emp-area" style="display:none;" aria-hidden="true">
         <option>Sala</option><option>Cocina</option><option>Recepción</option>
         <option>Housekeeping</option><option>Mantenimiento</option><option>SYNCROLAB</option>
-        <option>Administración</option><option>Friegue</option>
+        <option>Administración</option><option>F&amp;B</option>
       </select>
       <div class="fg sp2"><label>Puesto <span class="req">*</span> <span style="font-size:11px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;">— el área se asigna automáticamente</span></label><select id="emp-puesto" onchange="_syncAreaFromPuesto()">
   <optgroup label="F&amp;B (superior de Cocina y Sala)">
@@ -2446,7 +2446,7 @@ tr:hover td{background:rgba(96,165,250,.06);}
     <option>Cocinero</option>
     <option>Cocinera</option>
     <option>Ayudante de cocina</option>
-    <option>Friegue</option>
+    <option>Freelancer</option>
   </optgroup>
   <optgroup label="Sala">
     <option>Jefe de Sala</option>
@@ -2466,11 +2466,8 @@ tr:hover td{background:rgba(96,165,250,.06);}
   <optgroup label="Housekeeping">
     <option>Gobernanta</option>
     <option>Subgobernanta</option>
-    <option>Camarero de pisos</option>
     <option>Camarera de pisos</option>
-    <option>Ayudante camarero de pisos</option>
     <option>Ayudante camarera de pisos</option>
-    <option>Lavandería</option>
   </optgroup>
   <optgroup label="Mantenimiento">
     <option>Jefe de Mantenimiento</option>
@@ -2489,8 +2486,11 @@ tr:hover td{background:rgba(96,165,250,.06);}
     <option>Administrador</option>
     <option>Adjunto Directivo</option>
     <option>Contable</option>
+    <option>Técnico de Recursos Humanos</option>
   </optgroup>
-</select></div>
+</select>
+        <div id="emp-governance-summary" style="margin-top:8px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text2);font-size:11px;"></div>
+      </div>
       <!-- Sección acceso: modo creación (PIN nuevo) o modo edición (estado PIN) -->
       <div class="fg sp2" id="emp-pin-row">
         <!-- En creación -->
@@ -2515,10 +2515,20 @@ tr:hover td{background:rgba(96,165,250,.06);}
       <div class="fg"><label>Coste €/hora</label><input type="number" id="emp-coste" step="0.01" min="0"></div>
       <div class="fg"><label>Estado</label><select id="emp-estado"><option>Activo</option><option>Baja</option><option>Vacaciones</option></select></div>
       <div class="fg"><label>Responsable de turno</label><select id="emp-resp"><option value="1">Sí</option><option value="0">No</option></select></div>
-      <div class="fg"><label>Puede validar</label><select id="emp-val"><option value="0">No</option><option value="1">Sí</option></select></div>
-      <div class="fg"><label>Rol sistema</label><select id="emp-rol">
+      <div class="fg"><label>Puede validar <span style="font-size:10px;color:var(--text3);">· automático</span></label><select id="emp-val"><option value="0">No</option><option value="1">Sí</option></select></div>
+      <div class="fg"><label>Rol sistema <span style="font-size:10px;color:var(--text3);">· automático</span></label><select id="emp-rol">
         <option value="empleado">Empleado</option>
         <option value="jefe">Jefe / Coordinador</option>
+        <option value="supervisor">Jefatura de Sala</option>
+        <option value="chef">Jefatura de Cocina</option>
+        <option value="jefe_recepcion">Jefatura de Recepción</option>
+        <option value="gobernante">Gobernanta</option>
+        <option value="subgobernante">Subgobernanta</option>
+        <option value="jefe_mantenimiento">Jefatura de Mantenimiento</option>
+        <option value="coord_recepcion_syncrolab">Coordinación Atención al Cliente</option>
+        <option value="coord_entrenadores">Coordinación Entrenadores</option>
+        <option value="coord_fisioterapeutas">Coordinación Fisioterapeutas</option>
+        <option value="fb">F&amp;B Manager</option>
         <option value="adjunto">Adjunto Directivo / RRHH</option>
         <option value="admin">Administrador</option>
         <option value="contable">Contable</option>
