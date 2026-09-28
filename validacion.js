@@ -1307,6 +1307,7 @@ setInterval(_pClk,30000);
 var _pDeptAreas = {
   'cocina':       ['Cocina','Friegue','F&B'],
   'sala':         ['Sala','F&B'],
+  'fb-operativo': ['Sala','Cocina','Friegue','F&B','Food & Beverage'],
   'recepcion':    ['Recepción','Recepción SFERA'],
   'syncrolab':    ['SYNCROLAB','SyncroLab','Recepción SYNCROLAB','Entrenadores','Fisioterapeutas','Clínica'],
   'rec-syncrolab':['Recepción SYNCROLAB','SYNCROLAB'],
@@ -1319,6 +1320,8 @@ var _pDeptAreas = {
 // Puestos que pertenecen al portal Entrenadores (dentro del área SYNCROLAB)
 var _entrenadorPuestos = ['Entrenador(a)','Coordinador(a) de Entrenadores'];
 var _fisioterapeutaPuestos = ['Fisioterapeuta','Coordinador(a) de Fisioterapeutas'];
+var _cocinaPuestos = ['Jefe de Cocina','Segundo Jefe de Cocina','Cocinero','Cocinera','Ayudante de cocina','Friegue'];
+var _salaPuestos = ['Jefe de Sala','Jefe de Sector','Camarero','Camarera','Ayudante camarero','Ayudante camarera'];
 
 function _pEscHtml(value){
   return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){
@@ -1420,6 +1423,104 @@ async function pSelSyncrolab(){
     +segment('Atención a clientes','Recepción y atención de SYNCROLAB',clientCare)
     +segment('Entrenadores','Sesiones y seguimiento',trainers)
     +segment('Fisioterapeutas','Tratamientos y pacientes',physios)
+    +'</div></div>';
+
+  main.querySelectorAll('section').forEach(function(section){ section.style.display = 'none'; });
+  var existing = document.getElementById('pdept-team-screen');
+  if(existing) existing.outerHTML = html;
+  else {
+    var wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    main.appendChild(wrapper.firstChild);
+  }
+}
+
+// ── F&B · JERARQUÍA ÚNICA (F&B Manager → Sala / Cocina) ──────────
+async function pSelFb(){
+  _pD = 'fb-operativo'; _pP = ''; _pGoBusy = false; _pColor = '#f59e0b'; _pLabel = 'F&B';
+  var main = document.querySelector('#portal-screen > main');
+  if(!main) return;
+
+  var emps = [];
+  var loadFailed = false;
+  try {
+    if(window.SyncroAuth && window.SyncroAuth.enabled){
+      emps = await window.SyncroAuth.directory('fb-operativo');
+    } else {
+      var allEmps = await getDB('employees');
+      var fbAreas = _pDeptAreas['fb-operativo'].map(function(area){ return area.toLowerCase(); });
+      emps = allEmps.filter(function(e){
+        return e.estado === 'Activo' && fbAreas.indexOf((e.area||'').trim().toLowerCase()) !== -1;
+      });
+    }
+  } catch(e){
+    loadFailed = true;
+  }
+
+  function normalized(value){ return (value||'').trim().toLocaleLowerCase('es'); }
+  function hasPosition(emp, positions){
+    var position = normalized(emp.puesto);
+    return positions.some(function(item){ return normalized(item) === position; });
+  }
+  function isManager(emp){
+    return normalized(emp.puesto) === 'f&b manager' || normalized(emp.rol) === 'fb';
+  }
+  function isKitchen(emp){
+    var area = normalized(emp.area);
+    return area === 'cocina' || area === 'friegue'
+      || hasPosition(emp,_cocinaPuestos)
+      || normalized(emp.rol) === 'chef';
+  }
+  function isSala(emp){
+    return normalized(emp.area) === 'sala' || hasPosition(emp,_salaPuestos);
+  }
+  function isLeader(emp){
+    var position = normalized(emp.puesto);
+    return position === 'jefe de sala' || position === 'jefe de sector'
+      || position === 'jefe de cocina' || position === 'segundo jefe de cocina'
+      || normalized(emp.rol) === 'jefe' || normalized(emp.rol) === 'chef';
+  }
+  function personCard(emp){
+    return '<button type="button" class="ps-lab-person" data-employee-id="'+_pEscHtml(emp.id)+'" data-employee-name="'+_pEscHtml(emp.nombre)+'" onclick="_pOpenPin(this.dataset.employeeId,this.dataset.employeeName)">'
+      +'<span class="ps-lab-avatar">'+_pEmpInitials(emp.nombre)+'</span>'
+      +'<span><span class="ps-lab-person-name">'+_pEscHtml(emp.nombre)+'</span>'
+      +'<span class="ps-lab-person-role">'+_pEscHtml(emp.puesto||'Puesto [NO DATA]')+'</span></span>'
+      +'</button>';
+  }
+  function peopleOrEmpty(list, emptyLabel){
+    if(list.length) return '<div class="ps-lab-people">'+list.map(personCard).join('')+'</div>';
+    return '<div class="ps-lab-empty"><span class="ps-lab-nodata">[NO DATA]</span><br>'+emptyLabel+'</div>';
+  }
+  function segment(title, meta, list){
+    var leaders = list.filter(isLeader);
+    var team = list.filter(function(emp){ return !isLeader(emp); });
+    return '<section class="ps-lab-segment">'
+      +'<h2 class="ps-lab-segment-title">'+title+'</h2>'
+      +'<div class="ps-lab-segment-meta">'+meta+'</div>'
+      +'<div class="ps-lab-role">Responsable</div>'
+      +peopleOrEmpty(leaders,'Responsable no asignado')
+      +'<div class="ps-lab-role">Personas</div>'
+      +peopleOrEmpty(team,'Sin personas activas')
+      +'</section>';
+  }
+
+  var managers = emps.filter(isManager);
+  var sala = emps.filter(function(emp){ return !isManager(emp) && isSala(emp); });
+  var cocina = emps.filter(function(emp){ return !isManager(emp) && !isSala(emp) && isKitchen(emp); });
+  var html = '<div id="pdept-team-screen" class="ps-lab-screen" style="--org-color:#f59e0b;--org-color-rgb:245,158,11;--org-accent:#fde68a">'
+    +'<div class="ps-lab-head">'
+    +'<button type="button" class="ps-lab-back" onclick="pBack()">← Atrás</button>'
+    +'<div class="ps-lab-title">F&amp;B</div>'
+    +'<div class="ps-lab-lead">Selecciona tu nombre para introducir el PIN</div>'
+    +'</div>'
+    +(loadFailed ? '<div class="ps-lab-empty" style="margin-bottom:14px"><span class="ps-lab-nodata">[NO DATA]</span> No se pudo cargar el equipo. Vuelve atrás e inténtalo de nuevo.</div>' : '')
+    +'<div class="ps-lab-manager">'
+    +'<div class="ps-lab-level">F&amp;B Manager · Responsable de Sala y Cocina</div>'
+    +peopleOrEmpty(managers,'F&amp;B Manager no asignado')
+    +'</div>'
+    +'<div class="ps-lab-grid two-segments">'
+    +segment('Sala','Servicio, caja e incidencias',sala)
+    +segment('Cocina','Producción, mermas y friegue',cocina)
     +'</div></div>';
 
   main.querySelectorAll('section').forEach(function(section){ section.style.display = 'none'; });

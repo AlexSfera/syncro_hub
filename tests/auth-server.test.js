@@ -121,6 +121,21 @@ test('SYNCROLAB directory groups the three subdepartments without mixing their s
   ]);
 });
 
+test('F&B directory unifies Sala and Cocina in one minimal active directory', () => {
+  const rows = [
+    { id:'manager', nombre:'Manager', area:'F&B', puesto:'F&B Manager', rol:'fb', estado:'Activo' },
+    { id:'sala', nombre:'Sala', area:'Sala', puesto:'Camarera', rol:'empleado', estado:'Activo' },
+    { id:'cocina', nombre:'Cocina', area:'Cocina', puesto:'Cocinero', rol:'empleado', estado:'Activo' },
+    { id:'friegue', nombre:'Friegue', area:'Friegue', puesto:'Friegue', rol:'empleado', estado:'Activo' },
+    { id:'hotel', nombre:'Hotel', area:'Recepción', puesto:'Recepcionista', rol:'empleado', estado:'Activo' },
+    { id:'inactive', nombre:'Baja', area:'Sala', puesto:'Camarero', rol:'empleado', estado:'Baja' }
+  ];
+
+  assert.deepEqual(filterDirectory(rows, 'fb-operativo').map(row => row.id), [
+    'manager', 'sala', 'cocina', 'friegue'
+  ]);
+});
+
 test('disabled auth endpoint is indistinguishable from a missing route', async () => {
   process.env.SYNCRO_AUTH_ENABLED = 'false';
   let called = false;
