@@ -1308,14 +1308,129 @@ var _pDeptAreas = {
   'cocina':       ['Cocina','Friegue','F&B'],
   'sala':         ['Sala','F&B'],
   'recepcion':    ['Recepción','Recepción SFERA'],
+  'syncrolab':    ['SYNCROLAB','SyncroLab','Recepción SYNCROLAB','Entrenadores','Fisioterapeutas','Clínica'],
   'rec-syncrolab':['Recepción SYNCROLAB','SYNCROLAB'],
   'entrenadores': ['Entrenadores','SYNCROLAB'],  // área SYNCROLAB, filtrado por puesto abajo
+  'fisioterapeutas':['Fisioterapeutas','Clínica','SYNCROLAB'],
   'housekeeping': ['Housekeeping'],
   'mantenimiento':['Mantenimiento'],
   'administracion':['Administración','RRHH','Recursos Humanos','F&B']
 };
 // Puestos que pertenecen al portal Entrenadores (dentro del área SYNCROLAB)
 var _entrenadorPuestos = ['Entrenador(a)','Coordinador(a) de Entrenadores'];
+var _fisioterapeutaPuestos = ['Fisioterapeuta','Coordinador(a) de Fisioterapeutas'];
+
+function _pEscHtml(value){
+  return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+
+function _pEmpInitials(nombre){
+  var parts = (nombre||'').trim().split(/\s+/);
+  return (parts[0]||'').charAt(0).toUpperCase() + (parts[1]||'').charAt(0).toUpperCase();
+}
+
+// ── SYNCROLAB · JERARQUÍA ÚNICA (Club Manager → 3 subdepartamentos) ──
+async function pSelSyncrolab(){
+  _pD = 'syncrolab'; _pP = ''; _pGoBusy = false; _pColor = '#06b6d4'; _pLabel = 'SYNCROLAB';
+  var main = document.querySelector('#portal-screen > main');
+  if(!main) return;
+
+  var emps = [];
+  var loadFailed = false;
+  try {
+    if(window.SyncroAuth && window.SyncroAuth.enabled){
+      emps = await window.SyncroAuth.directory('syncrolab');
+    } else {
+      var allEmps = await getDB('employees');
+      var labAreas = _pDeptAreas.syncrolab.map(function(area){ return area.toLowerCase(); });
+      emps = allEmps.filter(function(e){
+        return e.estado === 'Activo' && labAreas.indexOf((e.area||'').trim().toLowerCase()) !== -1;
+      });
+    }
+  } catch(e){
+    loadFailed = true;
+  }
+
+  function normalized(value){ return (value||'').trim().toLocaleLowerCase('es'); }
+  function hasPosition(emp, positions){
+    var position = normalized(emp.puesto);
+    return positions.some(function(item){ return normalized(item) === position; });
+  }
+  function isTrainer(emp){
+    return normalized(emp.area) === 'entrenadores'
+      || hasPosition(emp, _entrenadorPuestos)
+      || normalized(emp.rol) === 'coord_entrenadores';
+  }
+  function isPhysio(emp){
+    var area = normalized(emp.area);
+    return area === 'fisioterapeutas' || area === 'clínica' || area === 'clinica'
+      || hasPosition(emp, _fisioterapeutaPuestos)
+      || normalized(emp.rol) === 'coord_fisioterapeutas';
+  }
+  function isClubManager(emp){ return normalized(emp.puesto) === 'club manager'; }
+  function isCoordinator(emp){
+    return normalized(emp.puesto).indexOf('coordinador') === 0
+      || normalized(emp.rol).indexOf('coord_') === 0;
+  }
+  function personCard(emp){
+    return '<button type="button" class="ps-lab-person" data-employee-id="'+_pEscHtml(emp.id)+'" data-employee-name="'+_pEscHtml(emp.nombre)+'" onclick="_pOpenPin(this.dataset.employeeId,this.dataset.employeeName)">'
+      +'<span class="ps-lab-avatar">'+_pEmpInitials(emp.nombre)+'</span>'
+      +'<span><span class="ps-lab-person-name">'+_pEscHtml(emp.nombre)+'</span>'
+      +'<span class="ps-lab-person-role">'+_pEscHtml(emp.puesto||'Puesto [NO DATA]')+'</span></span>'
+      +'</button>';
+  }
+  function peopleOrEmpty(list, emptyLabel){
+    if(list.length) return '<div class="ps-lab-people">'+list.map(personCard).join('')+'</div>';
+    return '<div class="ps-lab-empty"><span class="ps-lab-nodata">[NO DATA]</span><br>'+emptyLabel+'</div>';
+  }
+  function segment(title, meta, list){
+    var coordinators = list.filter(isCoordinator);
+    var team = list.filter(function(emp){ return !isCoordinator(emp); });
+    return '<section class="ps-lab-segment">'
+      +'<h2 class="ps-lab-segment-title">'+title+'</h2>'
+      +'<div class="ps-lab-segment-meta">'+meta+'</div>'
+      +'<div class="ps-lab-role">Coordinador</div>'
+      +peopleOrEmpty(coordinators,'Coordinador no asignado')
+      +'<div class="ps-lab-role">Personas</div>'
+      +peopleOrEmpty(team,'Sin personas activas')
+      +'</section>';
+  }
+
+  var clubManagers = emps.filter(isClubManager);
+  var trainers = emps.filter(function(emp){ return !isClubManager(emp) && isTrainer(emp); });
+  var physios = emps.filter(function(emp){ return !isClubManager(emp) && !isTrainer(emp) && isPhysio(emp); });
+  var clientCare = emps.filter(function(emp){
+    return !isClubManager(emp) && !isTrainer(emp) && !isPhysio(emp);
+  });
+
+  var html = '<div id="pdept-team-screen" class="ps-lab-screen">'
+    +'<div class="ps-lab-head">'
+    +'<button type="button" class="ps-lab-back" onclick="pBack()">← Atrás</button>'
+    +'<div class="ps-lab-title">SYNCROLAB</div>'
+    +'<div class="ps-lab-lead">Selecciona tu nombre para introducir el PIN</div>'
+    +'</div>'
+    +(loadFailed ? '<div class="ps-lab-empty" style="margin-bottom:14px"><span class="ps-lab-nodata">[NO DATA]</span> No se pudo cargar el equipo. Vuelve atrás e inténtalo de nuevo.</div>' : '')
+    +'<div class="ps-lab-manager">'
+    +'<div class="ps-lab-level">Club Manager · Responsable de SYNCROLAB</div>'
+    +peopleOrEmpty(clubManagers,'Club Manager no asignado')
+    +'</div>'
+    +'<div class="ps-lab-grid">'
+    +segment('Atención a clientes','Recepción y atención de SYNCROLAB',clientCare)
+    +segment('Entrenadores','Sesiones y seguimiento',trainers)
+    +segment('Fisioterapeutas','Tratamientos y pacientes',physios)
+    +'</div></div>';
+
+  main.querySelectorAll('section').forEach(function(section){ section.style.display = 'none'; });
+  var existing = document.getElementById('pdept-team-screen');
+  if(existing) existing.outerHTML = html;
+  else {
+    var wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    main.appendChild(wrapper.firstChild);
+  }
+}
 
 // ── PANTALLA EQUIPO DEPARTAMENTO (pre-PIN) ──────────────────────
 async function pSel(dept, label, color){
@@ -1386,21 +1501,12 @@ async function pSel(dept, label, color){
     return (e.rol === 'empleado' || e.rol === 'contable') && jefeIds.indexOf(e.id) === -1 && respIds.indexOf(e.id) === -1;
   });
 
-  function empInitials(nombre){
-    var parts = (nombre||'').trim().split(/\s+/);
-    return (parts[0]||'').charAt(0).toUpperCase() + (parts[1]||'').charAt(0).toUpperCase();
-  }
-  function escHtml(value){
-    return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
-    });
-  }
   // Cada tarjeta es clickable → abre el PIN directamente
   function empCard(e){
-    return '<div data-employee-id="'+escHtml(e.id)+'" data-employee-name="'+escHtml(e.nombre)+'" onclick="_pOpenPin(this.dataset.employeeId,this.dataset.employeeName)" style="display:flex;align-items:center;gap:14px;background:#0f2035;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 16px;min-width:160px;cursor:pointer;transition:all .15s;" onmouseover="this.style.background=\'#162840\';this.style.borderColor=\''+color+'88\'" onmouseout="this.style.background=\'#0f2035\';this.style.borderColor=\'rgba(255,255,255,.12)\'">'
-      +'<div style="width:40px;height:40px;border-radius:50%;background:'+color+'33;border:2px solid '+color+'66;display:flex;align-items:center;justify-content:center;font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:700;color:'+color+';flex-shrink:0;">'+empInitials(e.nombre)+'</div>'
-      +'<div><div style="font-size:14px;font-weight:600;color:#f1f5f9;">'+escHtml(e.nombre)+'</div>'
-      +'<div style="font-size:12px;color:#94a3b8;">'+escHtml(e.puesto)+'</div></div>'
+    return '<div data-employee-id="'+_pEscHtml(e.id)+'" data-employee-name="'+_pEscHtml(e.nombre)+'" onclick="_pOpenPin(this.dataset.employeeId,this.dataset.employeeName)" style="display:flex;align-items:center;gap:14px;background:#0f2035;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 16px;min-width:160px;cursor:pointer;transition:all .15s;" onmouseover="this.style.background=\'#162840\';this.style.borderColor=\''+color+'88\'" onmouseout="this.style.background=\'#0f2035\';this.style.borderColor=\'rgba(255,255,255,.12)\'">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:'+color+'33;border:2px solid '+color+'66;display:flex;align-items:center;justify-content:center;font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:700;color:'+color+';flex-shrink:0;">'+_pEmpInitials(e.nombre)+'</div>'
+      +'<div><div style="font-size:14px;font-weight:600;color:#f1f5f9;">'+_pEscHtml(e.nombre)+'</div>'
+      +'<div style="font-size:12px;color:#94a3b8;">'+_pEscHtml(e.puesto)+'</div></div>'
       +'</div>';
   }
   function section(titleLabel, titleColor, empsArr){

@@ -99,6 +99,28 @@ test('directory output excludes PIN, email and cost fields', () => {
   ]);
 });
 
+test('SYNCROLAB directory groups the three subdepartments without mixing their staff', () => {
+  const rows = [
+    { id:'manager', nombre:'Manager', area:'SYNCROLAB', puesto:'Club Manager', rol:'jefe', estado:'Activo' },
+    { id:'cliente', nombre:'Cliente', area:'SYNCROLAB', puesto:'Atención al Cliente', rol:'empleado', estado:'Activo' },
+    { id:'trainer', nombre:'Trainer', area:'SYNCROLAB', puesto:'Entrenador(a)', rol:'empleado', estado:'Activo' },
+    { id:'physio', nombre:'Physio', area:'SYNCROLAB', puesto:'Fisioterapeuta', rol:'empleado', estado:'Activo' },
+    { id:'clinic', nombre:'Clínica', area:'Clínica', puesto:'Fisioterapeuta', rol:'empleado', estado:'Activo' },
+    { id:'inactive', nombre:'Baja', area:'SYNCROLAB', puesto:'Entrenador(a)', rol:'empleado', estado:'Baja' }
+  ];
+
+  assert.deepEqual(filterDirectory(rows, 'syncrolab').map(row => row.id), [
+    'manager', 'cliente', 'trainer', 'physio', 'clinic'
+  ]);
+  assert.deepEqual(filterDirectory(rows, 'rec-syncrolab').map(row => row.id), [
+    'manager', 'cliente'
+  ]);
+  assert.deepEqual(filterDirectory(rows, 'entrenadores').map(row => row.id), ['trainer']);
+  assert.deepEqual(filterDirectory(rows, 'fisioterapeutas').map(row => row.id), [
+    'physio', 'clinic'
+  ]);
+});
+
 test('disabled auth endpoint is indistinguishable from a missing route', async () => {
   process.env.SYNCRO_AUTH_ENABLED = 'false';
   let called = false;
