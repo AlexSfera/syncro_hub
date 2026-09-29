@@ -116,6 +116,7 @@ function _hmRender(){
     +     '<span style="font-size:10px;color:var(--text3);font-family:var(--font-mono);">' + meta + ' · ' + nRecords + ' regs</span>'
     +     '<button class="btn" onclick="_hmForceReload()" style="font-size:11px;padding:6px 12px;">🔄 Recargar</button>'
     +     '<button class="btn" onclick="_hmExportCsv()" style="font-size:11px;padding:6px 12px;">⬇ CSV</button>'
+    +     '<button class="btn" onclick="showScreen(\'planificacion-horaria\')" style="font-size:11px;padding:6px 12px;">📅 Planificación</button>'
     +     '<button class="btn" onclick="_hmAbrirBackfill()" style="font-size:11px;padding:6px 12px;background:var(--bg4);border:1px solid var(--amber);color:var(--amber);">⚙ Backfill histórico</button>'
     +   '</div>'
     + '</div></div>'

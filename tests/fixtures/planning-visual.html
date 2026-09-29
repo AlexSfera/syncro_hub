@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Planificación Horaria · Visual fixture</title>
+  <style>
+    :root{--bg:#07111f;--bg2:#0e1d2f;--bg3:#16283c;--border:#29425c;--text:#f0f4ff;--text3:#91a4b7;--accent1:#2ec4b6;--red:#ef4444}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Inter,system-ui,sans-serif}.main{padding:24px}.page-header{margin-bottom:18px}.page-title{font-size:26px;font-weight:800}.page-sub{color:var(--text3);margin-top:4px}.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px}.fg{display:flex;flex-direction:column;gap:5px}.fg label{font-size:11px;color:var(--text3);font-weight:700}.fg input,.fg select{background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px}.btn{background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px 12px;cursor:pointer}.btn-primary{background:#167c75;border-color:#2ec4b6}.screen{display:block}
+  </style>
+</head>
+<body>
+  <div class="main"><div class="screen active" id="screen-planificacion-horaria">
+    <div class="page-header"><div class="page-title">📅 Planificación Horaria</div><div class="page-sub">Cuadrante semanal · vacaciones · ausencias · convenio</div></div>
+    <div id="planificacion-horaria-content"></div>
+  </div></div>
+  <div id="toast-c"></div>
+  <script>
+    window.currentUser={id:'M1',nombre:'Responsable de prueba',area:'Cocina',puesto:'Responsable',rol:'jefe',validador:1};
+    window.toast=function(message){
+      window.__lastToast=message;
+      document.getElementById('toast-c').textContent=message;
+    };
+    const fixture={ok:true,weekStart:'2026-09-28',dates:['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03','2026-10-04'],selectedDepartment:'Cocina',permissions:{canEdit:true,canManageLaborConditions:false,allowedDepartments:['Cocina']},mappings:[{departamento_id:'Cocina',bitrix_schedule_id:55,tipo_uso:'principal_departamento',ultima_lectura_at:'2026-09-30T08:15:00Z',ultimo_resultado:'ok'}],employees:[{id:'E1',nombre:'Empleado Alfa',area:'Cocina',puesto:'Cocina',estado:'Activo'},{id:'E2',nombre:'Empleado Beta',area:'Friegue',puesto:'Friegue',estado:'Activo'},{id:'E3',nombre:'Empleado Gamma',area:'Cocina',puesto:'Cocina',estado:'Activo'}],week:{id:10,departamento_id:'Cocina',fecha_inicio:'2026-09-28',version_actual:2,estado:'borrador'},assignments:[{id:101,empleado_id:'E1',fecha_operativa:'2026-09-28',tipo_dia:'turno',turno_catalogo_id:1,minutos_planificados:480},{id:102,empleado_id:'E1',fecha_operativa:'2026-09-29',tipo_dia:'descanso',minutos_planificados:0},{id:103,empleado_id:'E2',fecha_operativa:'2026-10-01',tipo_dia:'turno',turno_catalogo_id:1,minutos_planificados:480}],segments:[{asignacion_id:101,orden:1,inicio:'2026-09-28T06:00:00Z',fin:'2026-09-28T10:00:00Z',bitrix_shift_id:'A'},{asignacion_id:101,orden:2,inicio:'2026-09-28T16:00:00Z',fin:'2026-09-28T20:00:00Z',bitrix_shift_id:'B'},{asignacion_id:103,orden:1,inicio:'2026-10-01T06:00:00Z',fin:'2026-10-01T14:00:00Z',bitrix_shift_id:'A'}],catalog:[{id:1,bitrix_schedule_id:55,bitrix_shift_id:'A',nombre:'08:00–16:00',inicio:'08:00:00',fin:'16:00:00',descanso_minutos:30,cruza_medianoche:false,activo:true},{id:2,bitrix_schedule_id:55,bitrix_shift_id:'B',nombre:'18:00–22:00',inicio:'18:00:00',fin:'22:00:00',descanso_minutos:0,cruza_medianoche:false,activo:true}],conditions:[],absences:[{id:201,empleado_id:'E3',fecha_inicio:'2026-09-30',fecha_fin:'2026-10-01',tipo_ausencia_id:'permiso',etiqueta_publica:'Ausencia autorizada'}],extras:[{id:301,empleado_id:'E2',fecha:'2026-10-01',tipo:'extra',minutos:60,estado:'pendiente'}],holidays:[{fecha:'2026-10-04',nombre:'Festivo local'}],balances:[{employee_id:'E1',exercise:2026,entitlement:'[NO DATA]',value:'[NO DATA]',previous_value:'[NO DATA]'},{employee_id:'E2',exercise:2026,entitlement:31,value:8,previous_value:2},{employee_id:'E3',exercise:2026,entitlement:'[NO DATA]',value:'[NO DATA]',previous_value:'[NO DATA]'}],conventionVersions:[],bitrixWriteSupported:false};
+    window.syncroSupabaseFetch=async function(url,options){
+      if(String(url).includes('/api/planning/bootstrap')) return new Response(JSON.stringify(fixture),{status:200,headers:{'Content-Type':'application/json'}});
+      if(String(url).includes('/api/planning/publish')) return new Response(JSON.stringify({error:'BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO'}),{status:409,headers:{'Content-Type':'application/json'}});
+      return new Response(JSON.stringify({ok:true}),{status:200,headers:{'Content-Type':'application/json'}});
+    };
+  </script>
+  <script src="/planificacion_horaria.js"></script>
+  <script>renderPlanificacionHoraria();</script>
+</body>
+</html>

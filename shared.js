@@ -787,6 +787,7 @@ function getScreens(rol){
     miRendimiento:{id:'mi-rendimiento', label:'📈 Mi Rendimiento'},
     informes:    {id:'informes',    label:'📊 Informes'},
     horasMes:    {id:'horas-mes',   label:'⏱ Horas Mensuales'},
+    planificacion:{id:'planificacion-horaria', label:'📅 Planificación Horaria'},
     checklist:   {id:'chk-mod',     label:'✅ Checklist', action:'openChkMidDay'},
     nota:        {id:'notas-mod',   label:'💬 Nota'}
   };
@@ -802,7 +803,7 @@ function getScreens(rol){
       {sep:true,label:'MANAGER BAR',dropdown:true},
       ITEMS.fichaje, ITEMS.dashboard,
       ITEMS.maestro, ITEMS.export, ITEMS.fio, ITEMS.informes,
-      ITEMS.horasMes
+      ITEMS.horasMes, ITEMS.planificacion
     ];
   }
 
@@ -817,7 +818,7 @@ function getScreens(rol){
       ITEMS.validacion, ITEMS.dashHK, ITEMS.liquidaciones,
       {sep:true,label:'MANAGER BAR',dropdown:true},
       ITEMS.dashboard,
-      ITEMS.maestro, ITEMS.export, ITEMS.fio, ITEMS.informes
+      ITEMS.maestro, ITEMS.export, ITEMS.fio, ITEMS.informes, ITEMS.planificacion
     ];
   }
 
@@ -826,7 +827,7 @@ function getScreens(rol){
   // Entra a los cierres pero NO valida (read-only, ver validacion.js)
   // ════════════════════════════════════════════════════════════════
   if(rol === 'contable'){
-    return [ ITEMS.validacion, ITEMS.dashboard ];
+    return [ ITEMS.validacion, ITEMS.dashboard, ITEMS.planificacion ];
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -860,6 +861,7 @@ function getScreens(rol){
   miDia.push(ITEMS.incidencias);
   if(isRecepcion || isMant) miDia.push(ITEMS.hypoxic); // Hypoxic: Recepción + Mantenimiento (admin lo tiene en su bloque)
   miDia.push(ITEMS.nota);                              // Nota/Sugerencia: todos los empleados
+  miDia.push(ITEMS.planificacion);                     // Cuadrante publicado: visible para toda la plantilla
 
   // ── MI DEPARTAMENTO ──────────────────────────────────────────────
   var miDpto = [];
@@ -924,8 +926,9 @@ function buildNav(){
     'incidencias': _svg('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
     'hypoxic':   _svg('<path d="M12 2a3 3 0 0 0-3 3c0 1.5 1 2.5 1 4v3a4 4 0 0 1-2 3.5L7 16a3 3 0 0 0 0 4.5 3 3 0 0 0 4 0l1-1 1 1a3 3 0 0 0 4 0 3 3 0 0 0 0-4.5l-1-.5a4 4 0 0 1-2-3.5V9c0-1.5 1-2.5 1-4a3 3 0 0 0-3-3z"/>'),
     'rec-caja-op': _svg('<rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 10h.01"/><path d="M2 10h20"/>')
+    ,'planificacion-horaria': _svg('<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>')
   };
-  const SHORT={'readme':'Info','turno':'Turno','tareas':'Tareas','validacion':'Valid.','dashboard':'Panel','maestro':'Equipo','export':'Export','gestiones':'Gestiones','incidencias':'Incid.','hypoxic':'Hypoxic','caja':'Caja','rec-caja':'Caja Rec.','rec-caja-op':'Caja','merma-mod':'Merma','ajustes-mod':'Aj.Caja','ruta-mod':'Ruta','rec-mod':'Recep.','mant-mod':'Mant.'};
+  const SHORT={'readme':'Info','turno':'Turno','tareas':'Tareas','validacion':'Valid.','dashboard':'Panel','maestro':'Equipo','export':'Export','gestiones':'Gestiones','incidencias':'Incid.','hypoxic':'Hypoxic','caja':'Caja','rec-caja':'Caja Rec.','rec-caja-op':'Caja','merma-mod':'Merma','ajustes-mod':'Aj.Caja','ruta-mod':'Ruta','rec-mod':'Recep.','mant-mod':'Mant.','planificacion-horaria':'Planif.'};
 
   // Pintar sidebar (escritorio) + bottom nav (móvil) + topbar legacy oculto
   const sideb = document.getElementById('sidebar-nav');
@@ -1155,6 +1158,7 @@ async function showScreen(id){
   if(id==='liquidaciones' && typeof renderLiquidacionesPorDepartamento==='function') renderLiquidacionesPorDepartamento(document.getElementById('liquidaciones-departamento-content'));
   if(id==='informes'    && typeof renderInformes==='function')           renderInformes();
   if(id==='horas-mes'   && typeof renderHorasMensuales==='function')     renderHorasMensuales();
+  if(id==='planificacion-horaria' && typeof renderPlanificacionHoraria==='function') renderPlanificacionHoraria();
   updateDots();
 }
 async function updateDots(){
