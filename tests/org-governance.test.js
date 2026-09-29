@@ -130,3 +130,16 @@ test('BOSS is hidden from directory cards and opens only from the SYNCROSFERA lo
   assert.match(portal, /directory\('administracion'\)/);
   assert.match(portal, /find\(_pIsBossEmployee\)/);
 });
+
+test('Dirección / RRHH portal does not include the F&B area', () => {
+  const portal = readFileSync(new URL('../validacion.js', import.meta.url), 'utf8');
+
+  assert.match(
+    portal,
+    /'administracion':\['Administración','RRHH','Recursos Humanos'\]/
+  );
+  assert.doesNotMatch(
+    portal,
+    /'administracion':\[[^\]]*'F&B'/
+  );
+});

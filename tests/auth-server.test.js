@@ -136,6 +136,21 @@ test('F&B directory unifies Sala and Cocina in one minimal active directory', ()
   ]);
 });
 
+test('Dirección / RRHH excludes the F&B manager from its directory', () => {
+  const rows = [
+    { id:'admin', nombre:'Administración', area:'Administración', puesto:'Administrador', rol:'admin', estado:'Activo' },
+    { id:'rrhh', nombre:'RRHH', area:'RRHH', puesto:'Técnico de Recursos Humanos', rol:'tecnico_rrhh', estado:'Activo' },
+    { id:'fnb', nombre:'José Antonio', area:'F&B', puesto:'F&B Manager', rol:'fb', estado:'Activo' }
+  ];
+
+  assert.deepEqual(filterDirectory(rows, 'administracion').map(row => row.id), [
+    'admin', 'rrhh'
+  ]);
+  assert.deepEqual(filterDirectory(rows, 'fb-operativo').map(row => row.id), [
+    'fnb'
+  ]);
+});
+
 test('disabled auth endpoint is indistinguishable from a missing route', async () => {
   process.env.SYNCRO_AUTH_ENABLED = 'false';
   let called = false;

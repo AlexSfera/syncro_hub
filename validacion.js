@@ -1326,7 +1326,7 @@ var _pDeptAreas = {
   'fisioterapeutas':['Fisioterapeutas','Clínica','SYNCROLAB'],
   'housekeeping': ['Housekeeping'],
   'mantenimiento':['Mantenimiento'],
-  'administracion':['Administración','RRHH','Recursos Humanos','F&B']
+  'administracion':['Administración','RRHH','Recursos Humanos']
 };
 // Puestos que pertenecen al portal Entrenadores (dentro del área SYNCROLAB)
 var _entrenadorPuestos = ['Entrenador(a)','Coordinador(a) de Entrenadores'];
@@ -1591,7 +1591,7 @@ async function pSel(dept, label, color){
 
   // Clasificar por rol
   // JEFES: rol admin/fb/jefe/adjunto — pero solo del área nativa del dept
-  // Excepción: fb siempre aparece en cocina/sala/administracion (cross-dept)
+  // F&B Manager aparece en Cocina y Sala mediante el mapa de áreas del portal F&B.
   var jefes = deptEmps.filter(function(e){
     if(e.rol === 'admin' || e.rol === 'fb' || e.rol === 'adjunto') return true;
     if(e.rol === 'jefe'){
