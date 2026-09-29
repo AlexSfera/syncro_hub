@@ -437,6 +437,22 @@ function _mrEsMia(r){
   if(r.employee_id && currentUser && r.employee_id === currentUser.id) return true;
   return _mrNormNombre(r.employee_nombre) === _mrNormNombre(currentUser && currentUser.nombre);
 }
+function _mrEntrLatestMonth(incentiveRows, shifts, user, fallbackMonth){
+  var months = [];
+  (incentiveRows||[]).forEach(function(r){
+    var mine = (r.employee_id && user && r.employee_id === user.id)
+      || _mrNormNombre(r.employee_nombre) === _mrNormNombre(user && user.nombre);
+    if(mine && /^\d{4}-\d{2}$/.test(r.ym||'')) months.push(r.ym);
+  });
+  (shifts||[]).forEach(function(s){
+    if(!user || s.employee_id !== user.id || !s.kpi_entrenador) return;
+    var ym = String(s.fecha||'').slice(0,7);
+    if(/^\d{4}-\d{2}$/.test(ym)) months.push(ym);
+  });
+  months = months.filter(function(ym, i, all){ return all.indexOf(ym) === i; });
+  months.sort().reverse();
+  return months[0] || fallbackMonth;
+}
 var _MR_ENTR_KPI_KEYS = ['dir_efectiva','dir_no_efectiva','pt','pt_duo','pt_30','val_funcional','visbody','banera_hielo'];
 var _MR_ENTR_KPI_LBL = {
   dir_efectiva:'Clases efectivas', dir_no_efectiva:'Clases NO efectivas',
@@ -446,16 +462,16 @@ var _MR_ENTR_KPI_LBL = {
 
 async function _mrEntrenador(el){
   var monthOpts = getMonthOptions(6);
-  // Inicializar siempre con el último mes que tiene datos en BD para este entrenador.
-  // Así el entrenador ve sus datos directamente sin tocar el selector.
+  // Inicializar con el mes más reciente que tenga actividad propia o informe
+  // oficial. Antes solo se miraba VirtuGym y un registro nuevo podía quedar
+  // oculto al abrir automáticamente un mes anterior.
   // Se sobreescribe _mrEntrMonth en cada apertura de Mi Rendimiento.
   try {
-    var _allRows = await getDB('entrenadores_incentivos_mes');
-    var _misMeses = (_allRows||[])
-      .filter(function(r){ return _mrEsMia(r); })
-      .map(function(r){ return r.ym; })
-      .sort().reverse(); // más reciente primero
-    _mrEntrMonth = (_misMeses.length > 0) ? _misMeses[0] : monthOpts[0].value;
+    var _sources = await Promise.all([
+      getDB('entrenadores_incentivos_mes').catch(function(){ return []; }),
+      getDB('shifts').catch(function(){ return []; })
+    ]);
+    _mrEntrMonth = _mrEntrLatestMonth(_sources[0], _sources[1], currentUser, monthOpts[0].value);
   } catch(e){
     _mrEntrMonth = monthOpts[0].value;
   }
@@ -501,6 +517,41 @@ window._mrEntrSetMonth = _mrEntrSetMonth;
 
 function _mrEntrNum(n){ return (Math.round(n*100)/100).toLocaleString('es-ES',{minimumFractionDigits:0,maximumFractionDigits:2}); }
 
+function _mrEntrParseKpi(value){
+  if(!value) return null;
+  try { return typeof value === 'string' ? JSON.parse(value) : value; }
+  catch(e){ return null; }
+}
+
+function _mrEntrDetalle(mios){
+  var rows = (mios||[]).map(function(s){
+    return { shift:s, kpi:_mrEntrParseKpi(s.kpi_entrenador) };
+  }).filter(function(r){ return r.kpi; });
+  rows.sort(function(a,b){
+    return String((b.shift.fecha||'')+' '+(b.shift.created_at||''))
+      .localeCompare(String((a.shift.fecha||'')+' '+(a.shift.created_at||'')));
+  });
+  if(!rows.length) return '';
+  var body = rows.map(function(r){
+    var parts = _MR_ENTR_KPI_KEYS.filter(function(k){ return (parseInt(r.kpi[k],10)||0) > 0; })
+      .map(function(k){ return _MR_ENTR_KPI_LBL[k]+': <b>'+(parseInt(r.kpi[k],10)||0)+'</b>'; });
+    var estado = typeof bEstado === 'function' ? bEstado(r.shift.estado||'Pendiente') : (r.shift.estado||'Pendiente');
+    return '<tr style="border-bottom:1px solid var(--border);">'
+      + '<td style="padding:8px 6px;white-space:nowrap;font-family:var(--font-mono);font-size:11px;">'+fmtDate((r.shift.fecha||'').slice(0,10))+'</td>'
+      + '<td style="padding:8px 6px;white-space:nowrap;">'+displayServicio(r.shift.servicio||'—')+'</td>'
+      + '<td style="padding:8px 6px;min-width:260px;">'+(parts.length?parts.join(' · '):'<span style="color:var(--text3);">0 en todos los KPI</span>')+'</td>'
+      + '<td style="padding:8px 6px;text-align:center;">'+estado+'</td>'
+      + '</tr>';
+  }).join('');
+  return '<div style="margin-top:18px;">'
+    + '<div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px;">REGISTROS DEL MES</div>'
+    + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">'
+    + '<thead><tr style="border-bottom:2px solid var(--border2);color:var(--text3);font-family:var(--font-mono);font-size:10px;text-transform:uppercase;">'
+    + '<th style="text-align:left;padding:8px 6px;">Fecha</th><th style="text-align:left;padding:8px 6px;">Turno</th>'
+    + '<th style="text-align:left;padding:8px 6px;">Actividad registrada</th><th style="text-align:center;padding:8px 6px;">Estado</th>'
+    + '</tr></thead><tbody>'+body+'</tbody></table></div></div>';
+}
+
 function _mrEntrBarras(pares){
   var max = 0; pares.forEach(function(p){ if(p.v > max) max = p.v; });
   if(max <= 0) max = 1;
@@ -531,8 +582,7 @@ async function _mrEntrMis(){
   var sum = {}; _MR_ENTR_KPI_KEYS.forEach(function(k){ sum[k]=0; });
   var nTurnos = 0;
   mios.forEach(function(s){
-    var kpi=null;
-    try { kpi = (typeof s.kpi_entrenador === 'string') ? JSON.parse(s.kpi_entrenador) : s.kpi_entrenador; } catch(e){ kpi=null; }
+    var kpi = _mrEntrParseKpi(s.kpi_entrenador);
     if(!kpi) return;
     nTurnos++;
     _MR_ENTR_KPI_KEYS.forEach(function(k){ sum[k] += parseInt(kpi[k],10)||0; });
@@ -554,7 +604,8 @@ async function _mrEntrMis(){
     +     '<div style="font-size:11px;color:var(--text3);margin-top:4px;">'+nTurnos+' turnos</div>'
     +   '</div>'
     + '</div>'
-    + comparador;
+    + comparador
+    + _mrEntrDetalle(mios);
 }
 
 // COMPARADOR mensual: autorreporte (sum) vs oficial VirtuGym (entrenadores_incentivos_mes)

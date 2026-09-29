@@ -98,6 +98,22 @@ function invalidateCache(table) {
   delete _cacheTs[table];
 }
 
+function _verifyEntrKpiShiftWrite(result, shiftId, expectedKpi) {
+  if(!Array.isArray(result) || result.length !== 1) return false;
+  var saved = result[0];
+  if(!saved || saved.id !== shiftId || !saved.kpi_entrenador) return false;
+  var persisted = saved.kpi_entrenador;
+  try {
+    if(typeof persisted === 'string') persisted = JSON.parse(persisted);
+  } catch(e) { return false; }
+  if(!persisted || typeof persisted !== 'object') return false;
+  var keys = Object.keys(expectedKpi || {});
+  if(!keys.length) return false;
+  return keys.every(function(key){
+    return Number(persisted[key]) === Number(expectedKpi[key]);
+  });
+}
+
 async function setDB(table, data) {
   // setDB is used in bulk — for Supabase we upsert all rows
   // This is called from importBackup only
@@ -1920,13 +1936,20 @@ async function _doSaveTurno() {
   }
 
   // ── Guardar turno (INSERT o UPDATE) ─────────────────────────────────
+  var shiftWriteResult;
   if (isEditing) {
     var upd = {};
     for (var k in shift) { if (k !== 'id') upd[k] = shift[k]; }
-    await dbUpdate('shifts', editingShiftId, upd);
+    shiftWriteResult = await dbUpdate('shifts', editingShiftId, upd);
   } else {
     shift.created_at = ts;
-    await dbInsert('shifts', shift);
+    shiftWriteResult = await dbInsert('shifts', shift);
+  }
+
+  // El KPI del entrenador no puede darse por guardado si Supabase devolvió
+  // error, cero filas o una representación distinta de la enviada.
+  if (window._entrKpiState && !_verifyEntrKpiShiftWrite(shiftWriteResult, shiftId, window._entrKpiState)) {
+    throw new Error('Supabase no confirmó el registro KPI del entrenador');
   }
 
   window._lastSavedShiftId = shiftId;
@@ -2548,6 +2571,7 @@ async function renderMisTurnos(){
   const incidencias=await getDB('incidencias');
   var ajustesAll = []; try { ajustesAll = await getDB('ajustes'); } catch(e){}
   var isSalaDept = currentUser && (currentUser.area === 'Sala' || currentUser.area === 'Recepción');
+  var isEntrDept = (typeof _esEntrenador === 'function') && _esEntrenador(currentUser);
   // Build per-shift maps for gestión y incidencia
   var gestionMap={}, inciMap={};
   incidencias.forEach(function(i){
@@ -2555,7 +2579,7 @@ async function renderMisTurnos(){
     if(i.categoria==='Gestión pendiente') gestionMap[i.shift_id]=true;
     else inciMap[i.shift_id]=true;
   });
-  el.innerHTML='<table><tr><th>Fecha</th><th>Servicio</th><th>Horas</th>'+(isSalaDept?'<th>Ajustes de Caja</th>':'<th>Mermas</th>')+'<th>Gestión</th><th>Incid.</th><th>Estado</th></tr>'
+  el.innerHTML='<table><tr><th>Fecha</th><th>Servicio</th><th>Horas</th>'+(isEntrDept?'<th>Actividad registrada</th>':(isSalaDept?'<th>Ajustes de Caja</th>':'<th>Mermas</th>'))+'<th>Gestión</th><th>Incid.</th><th>Estado</th></tr>'
   +shifts.map(function(s){
     const mc=mermas.filter(m=>m.shift_id===s.id).length;
     var ajustesS = ajustesAll.filter(function(a){ return a.shift_id===s.id; });
@@ -2567,11 +2591,23 @@ async function renderMisTurnos(){
     } else {
       ajustesCell = '—';
     }
+    var entrKpiCell = '—';
+    if(isEntrDept && s.kpi_entrenador){
+      var entrKpi = s.kpi_entrenador;
+      try { if(typeof entrKpi === 'string') entrKpi = JSON.parse(entrKpi); } catch(e){ entrKpi=null; }
+      if(entrKpi){
+        var entrLabels = {dir_efectiva:'Clases efectivas',dir_no_efectiva:'Clases no efectivas',pt:'PT',pt_duo:'PT DÚO',pt_30:'PT 30 min',val_funcional:'Val. funcional',visbody:'Visbody',banera_hielo:'Bañera hielo'};
+        var entrParts = Object.keys(entrLabels).filter(function(k){ return (parseInt(entrKpi[k],10)||0)>0; })
+          .map(function(k){ return entrLabels[k]+': '+(parseInt(entrKpi[k],10)||0); });
+        var entrTotal = Object.keys(entrLabels).reduce(function(sum,k){ return sum+(parseInt(entrKpi[k],10)||0); },0);
+        entrKpiCell = '<span class="badge b-blue" title="'+(entrParts.join(' · ')||'0 en todos los KPI')+'">'+entrTotal+' actividades</span>';
+      }
+    }
     return '<tr>'
       +'<td style="font-family:var(--font-mono);font-size:11px">'+fmtDate(s.fecha)+'</td>'
       +'<td style="font-size:13px;">'+displayServicio(s.servicio)+'</td>'
       +'<td style="font-family:var(--font-mono)">'+s.horas+'h</td>'
-      +'<td style="text-align:center">'+(isSalaDept?ajustesCell:(mc>0?'<span class="badge b-yellow">'+mc+'</span>':'—'))+'</td>'
+      +'<td style="text-align:center">'+(isEntrDept?entrKpiCell:(isSalaDept?ajustesCell:(mc>0?'<span class="badge b-yellow">'+mc+'</span>':'—')))+'</td>'
       +'<td style="text-align:center">'+(gestionMap[s.id]?'<span class="badge b-yellow">Sí</span>':'—')+'</td>'
       +'<td style="text-align:center">'+(inciMap[s.id]?'<span class="badge b-red">Sí</span>':'—')+'</td>'
       +'<td>'+bEstado(s.estado)+'</td>'

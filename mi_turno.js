@@ -1370,6 +1370,7 @@ var _ENTR_KPI_CAMPOS = [
   {k:'visbody',         lbl:'Valoraciones Visbody'},
   {k:'banera_hielo',    lbl:'Bañeras de hielo'}
 ];
+var _entrKpiSubmitting = false;
 
 function _ensureEntrKpiModal(){
   if(document.getElementById('modal-entr-kpi')) return;
@@ -1389,7 +1390,7 @@ function _ensureEntrKpiModal(){
     + '<div id="entrkpi-err" style="color:var(--red);font-size:12px;margin-top:12px;min-height:14px;"></div>'
     + '<div class="modal-f" style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">'
     + '<button class="btn btn-secondary" onclick="closeEntrKpiModal()">Cancelar</button>'
-    + '<button class="btn btn-primary" onclick="submitEntrKpi()">💾 Guardar turno</button>'
+    + '<button class="btn btn-primary" id="entrkpi-submit" onclick="submitEntrKpi()">💾 Guardar turno</button>'
     + '</div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click', function(e){ if(e.target===ov) closeEntrKpiModal(); });
@@ -1397,18 +1398,24 @@ function _ensureEntrKpiModal(){
 
 function openEntrKpiModal(){
   _ensureEntrKpiModal();
+  var previo = window._entrKpiState || {};
   _ENTR_KPI_CAMPOS.forEach(function(c){
-    var el = document.getElementById('entrkpi-'+c.k); if(el) el.value='';
+    var el = document.getElementById('entrkpi-'+c.k);
+    if(el) el.value = previo[c.k] != null ? String(previo[c.k]) : '';
   });
   var err = document.getElementById('entrkpi-err'); if(err) err.textContent='';
+  var btn = document.getElementById('entrkpi-submit');
+  if(btn){ btn.disabled=false; btn.textContent='💾 Guardar turno'; }
   var m = document.getElementById('modal-entr-kpi'); if(m) m.style.display='flex';
 }
 function closeEntrKpiModal(){
   var m = document.getElementById('modal-entr-kpi'); if(m) m.style.display='none';
 }
 
-function submitEntrKpi(){
+async function submitEntrKpi(){
+  if(_entrKpiSubmitting) return;
   var errEl = document.getElementById('entrkpi-err');
+  var btn = document.getElementById('entrkpi-submit');
   var kpi = {};
   for(var i=0;i<_ENTR_KPI_CAMPOS.length;i++){
     var c = _ENTR_KPI_CAMPOS[i];
@@ -1419,13 +1426,20 @@ function submitEntrKpi(){
   }
   window._entrKpiState = kpi;
   if(errEl) errEl.textContent='';
-  closeEntrKpiModal();
-  _doSaveTurno().then(function(){
+  _entrKpiSubmitting = true;
+  if(btn){ btn.disabled=true; btn.textContent='Guardando…'; }
+  try {
+    await _doSaveTurno();
     window._entrKpiState = null; // limpiar tras guardar
-  }).catch(function(e){
+    closeEntrKpiModal();
+  } catch(e) {
     // si falla el guardado, conservar el estado para reintento
-    if(errEl) errEl.textContent = 'No se pudo guardar el turno. Reintenta.';
-  });
+    if(errEl) errEl.textContent = 'No se pudo guardar el turno. Tus datos siguen aquí; reintenta.';
+    if(typeof toast === 'function') toast('No se guardó el entrenamiento. Reintenta.','err');
+  } finally {
+    _entrKpiSubmitting = false;
+    if(btn){ btn.disabled=false; btn.textContent='💾 Guardar turno'; }
+  }
 }
 
 window.openEntrKpiModal  = openEntrKpiModal;
