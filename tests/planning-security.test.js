@@ -75,6 +75,8 @@ test('interfaz conserva NO DATA y refresco periódico de cinco minutos', async (
   const ui = await read('planificacion_horaria.js');
   assert.match(ui, /\[NO DATA\]/);
   assert.match(ui, /5 \* 60 \* 1000/);
+  assert.match(ui, /_phRefreshCatalog\(true, false\)/);
+  assert.match(ui, /if\(refreshAfterLoad\) await _phLoad\(false\)/);
   assert.match(ui, /timeman\.schedule\.get|catálogo oficial|catálogo de turnos/i);
   assert.match(ui, /API oficial documentada/);
 });

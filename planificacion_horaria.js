@@ -124,6 +124,7 @@ async function _phLoad(syncOnOpen){
   var root = document.getElementById('planificacion-horaria-content');
   if(!root || _ph.loading) return;
   _ph.loading = true;
+  var refreshAfterLoad = false;
   root.innerHTML = '<div class="card"><p style="padding:16px 0;color:var(--text3)">Cargando planificación…</p></div>';
   try{
     var url = '/api/planning/bootstrap?week_start=' + encodeURIComponent(_ph.weekStart)
@@ -135,7 +136,7 @@ async function _phLoad(syncOnOpen){
       });
     });
     _phRender();
-    if(syncOnOpen && _ph.data.permissions.canEdit) await _phRefreshCatalog(true);
+    if(syncOnOpen && _ph.data.permissions.canEdit) refreshAfterLoad = await _phRefreshCatalog(true, false);
   }catch(error){
     var schemaPending = error.message === 'PLANNING_SCHEMA_NOT_READY';
     root.innerHTML = '<div class="card"><div class="ph-alert ' + (schemaPending ? 'warn' : 'err') + '">'
@@ -146,6 +147,7 @@ async function _phLoad(syncOnOpen){
   }finally{
     _ph.loading = false;
   }
+  if(refreshAfterLoad) await _phLoad(false);
 }
 
 function _phDepartmentOptions(){
@@ -364,14 +366,16 @@ window._phDeleteCell = _phDeleteCell;
 function _phCloseModal(){ var modal = document.getElementById('ph-modal'); if(modal) modal.classList.remove('open'); }
 window._phCloseModal = _phCloseModal;
 
-async function _phRefreshCatalog(silent){
-  if(!_ph.data || !_ph.data.permissions.canEdit) return;
+async function _phRefreshCatalog(silent, reload){
+  if(!_ph.data || !_ph.data.permissions.canEdit) return false;
   try{
     await _phApi('/api/planning/catalog', {method:'POST', body:{department:_ph.department}});
     if(!silent) toast('Catálogo Bitrix24 actualizado','ok');
-    await _phLoad(false);
+    if(reload !== false) await _phLoad(false);
+    return true;
   }catch(error){
     if(!silent) toast('No se pudo actualizar: ' + error.message,'err');
+    return false;
   }
 }
 window._phRefreshCatalog = _phRefreshCatalog;
