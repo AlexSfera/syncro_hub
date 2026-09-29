@@ -122,8 +122,8 @@ function _infDeptsVisibles(u){
   // Mantenimiento
   if(area==='Mantenimiento') return ['Mantenimiento'];
 
-  // RRHH puro
-  if(rol==='rrhh') return ['RRHH'];
+  // Técnico RRHH: reporting exclusivo de Recursos Humanos.
+  if(rol==='tecnico_rrhh' || rol==='rrhh') return ['RRHH'];
 
   return [];
 }

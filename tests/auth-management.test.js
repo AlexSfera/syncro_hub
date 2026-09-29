@@ -212,8 +212,23 @@ test('position governance derives department, system role, level and validation'
     email: '', obs: '', estado: 'Activo', coste: 0, responsable: 0, validador: 0
   });
   assert.equal(rrhh.area, 'Administración');
-  assert.equal(rrhh.rol, 'jefe');
+  assert.equal(rrhh.rol, 'tecnico_rrhh');
   assert.equal(rrhh.validador, 1);
+  assert.deepEqual(supervisorDepartments(rrhh), [
+    'Administración', 'RRHH', 'Recursos Humanos'
+  ]);
+  assert.equal(canCreateEmployee(rrhh, {
+    puesto: 'Contable', area: 'Administración', rol: 'contable'
+  }), true);
+  assert.equal(canCreateEmployee(rrhh, {
+    puesto: 'Jefe de Sala', area: 'Sala', rol: 'supervisor'
+  }), false);
+  assert.equal(canCreateEmployee(rrhh, {
+    puesto: 'Adjunto Directivo', area: 'Administración', rol: 'adjunto'
+  }), false);
+  assert.equal(canCreateEmployee(rrhh, {
+    puesto: 'Administrador', area: 'Administración', rol: 'admin'
+  }), false);
 });
 
 test('retired positions cannot be assigned but remain editable on their existing record', () => {

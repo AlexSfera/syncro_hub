@@ -45,6 +45,12 @@ test('position governance preserves specialized operational permissions', () => 
   assert.equal(POSITION_GOVERNANCE['Jefe de Recepción'].role, 'jefe_recepcion');
   assert.equal(POSITION_GOVERNANCE.Gobernanta.role, 'gobernante');
   assert.equal(
+    POSITION_GOVERNANCE['Técnico de Recursos Humanos'].role,
+    'tecnico_rrhh'
+  );
+  assert.equal(POSITION_GOVERNANCE['Técnico de Recursos Humanos'].accessLevel, 2);
+  assert.equal(POSITION_GOVERNANCE['Técnico de Recursos Humanos'].rank, 70);
+  assert.equal(
     POSITION_GOVERNANCE['Coordinador(a) de Entrenadores'].role,
     'coord_entrenadores'
   );
@@ -72,8 +78,23 @@ test('employee modal removes retired positions and adds Freelancer and HR techni
   );
   assert.match(employeeModal, /<option>Freelancer<\/option>/);
   assert.match(employeeModal, /<option>Técnico de Recursos Humanos<\/option>/);
+  assert.match(employeeModal, /<option value="tecnico_rrhh">Técnico RRHH<\/option>/);
   assert.doesNotMatch(employeeModal, /<option>Friegue<\/option>/);
   assert.doesNotMatch(employeeModal, /<option>Camarero de pisos<\/option>/);
   assert.doesNotMatch(employeeModal, /<option>Ayudante camarero de pisos<\/option>/);
   assert.doesNotMatch(employeeModal, /<option>Lavandería<\/option>/);
+});
+
+test('permission matrix documents every active technical role', () => {
+  const governanceDoc = readFileSync(
+    new URL('../docs/context/23_organizational_governance.md', import.meta.url),
+    'utf8'
+  );
+  const roles = [
+    'admin', 'adjunto', 'fb', 'jefe', 'tecnico_rrhh', 'chef', 'supervisor',
+    'jefe_recepcion', 'gobernante', 'subgobernante', 'jefe_mantenimiento',
+    'coord_recepcion_syncrolab', 'coord_entrenadores',
+    'coord_fisioterapeutas', 'contable', 'empleado'
+  ];
+  for (const role of roles) assert.match(governanceDoc, new RegExp('`' + role + '`'));
 });

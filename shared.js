@@ -147,6 +147,7 @@ const SUPERVISOR_DEPT_MAP = {
   coord_recepcion_syncrolab: ['Recepción SYNCROLAB'],
   coord_entrenadores: ['Entrenadores'],
   coord_fisioterapeutas: ['Fisioterapeutas', 'Clínica'],
+  tecnico_rrhh: ['Administración', 'RRHH', 'Recursos Humanos'],
   adjunto_directivo: ['*'],  // acceso a todos los departamentos
   adjunto: ['*']             // alias legacy
 };
@@ -173,7 +174,7 @@ const AREA_GROUPS = {
   'Recepción SYNCROLAB': ['SYNCROLAB', 'SyncroLab', 'Recepción SYNCROLAB', 'Entrenadores', 'Fisioterapeutas', 'Clínica'],
   'Mantenimiento':   ['Mantenimiento'],
   'Economato':       ['Economato'],
-  'Administración':  ['Administración']
+  'Administración':  ['Administración', 'RRHH', 'Recursos Humanos']
 };
 
 // ── SUBROLES SYNCROLAB ────────────────────────────────────────────────
@@ -3580,7 +3581,7 @@ var PUESTO_GOVERNANCE = {
   'Administrador':{area:'Administración',rol:'admin',nivel:5,rank:100,validador:1},
   'Adjunto Directivo':{area:'Administración',rol:'adjunto',nivel:4,rank:90,validador:1},
   'Contable':{area:'Administración',rol:'contable',nivel:1,rank:20,validador:0},
-  'Técnico de Recursos Humanos':{area:'Administración',rol:'jefe',nivel:2,rank:70,validador:1}
+  'Técnico de Recursos Humanos':{area:'Administración',rol:'tecnico_rrhh',nivel:2,rank:70,validador:1}
 };
 var LEGACY_PUESTO_GOVERNANCE = {
   'Friegue':{area:'Cocina',rol:'empleado',nivel:1,rank:10,validador:0,legacy:true},
@@ -3619,7 +3620,7 @@ function _applyPositionGovernanceProfile(profile){
 function _positionRank(profile){
   if(!profile) return 0;
   var gov=_governanceForPosition(profile.puesto,true);
-  var ranks={admin:100,adjunto:90,adjunto_directivo:90,fb:80,jefe:60,supervisor:60,chef:60,jefe_recepcion:60,gobernante:60,subgobernante:60,jefe_mantenimiento:60,coord_recepcion_syncrolab:60,coord_entrenadores:60,coord_fisioterapeutas:60,contable:20,empleado:10};
+  var ranks={admin:100,adjunto:90,adjunto_directivo:90,fb:80,jefe:60,tecnico_rrhh:70,supervisor:60,chef:60,jefe_recepcion:60,gobernante:60,subgobernante:60,jefe_mantenimiento:60,coord_recepcion_syncrolab:60,coord_entrenadores:60,coord_fisioterapeutas:60,contable:20,empleado:10};
   var storedRole=String(profile.rol||'').trim();
   if(gov){
     if(gov.rank===100 && storedRole && storedRole!=='admin') return ranks[storedRole]||0;
