@@ -56,6 +56,22 @@ test('un empleado ve solo incidencias propias o compartidas de su departamento',
   }), true);
 });
 
+test('adjunto directivo y técnico RRHH ven incidencias de todos los departamentos', () => {
+  const context = loadScripts();
+  context.canActAsAdmin = (user) => ['admin', 'adjunto', 'adjunto_directivo'].includes(user?.rol);
+  context.isTecnicoRrhh = (user) => user?.rol === 'tecnico_rrhh';
+  const incidenciaSala = {
+    employee_id: 'emp-sala', departamento: 'Sala', visible_companeros: false,
+  };
+
+  assert.equal(context.canViewAllIncidents({ rol: 'adjunto' }), true);
+  assert.equal(context.canViewAllIncidents({ rol: 'adjunto_directivo' }), true);
+  assert.equal(context.canViewAllIncidents({ rol: 'tecnico_rrhh' }), true);
+  assert.equal(context.canEmployeeViewIncident({ rol: 'adjunto' }, incidenciaSala), true);
+  assert.equal(context.canEmployeeViewIncident({ rol: 'tecnico_rrhh' }, incidenciaSala), true);
+  assert.equal(context.canViewAllIncidents({ rol: 'supervisor' }), false);
+});
+
 test('prepara tipos únicos para el filtro de incidencias', () => {
   const context = loadScripts();
   const tipos = context.getIncidentTypesForFilter([
@@ -76,6 +92,8 @@ test('el render final de incidencias conserva el filtro por tipo', () => {
   assert.match(source, /Filtrar por tipo de incidencia/);
   assert.match(source, /setIncidenciasScreenTipo\(this\.value\)/);
   assert.match(source, /canEmployeeViewIncident\(currentUser, i\)/);
+  assert.match(source, /canViewAllIncidents\(currentUser\)/);
+  assert.match(source, /canCloseIncident\(currentUser, i\)/);
   assert.doesNotMatch(source, /Las incidencias que reportes serán visibles solo por tu jefe/);
 });
 
@@ -83,7 +101,7 @@ test('Mi Turno muestra al empleado sus incidencias propias y compartidas sin acc
   const source = readFileSync(new URL('../adjuntos.js', import.meta.url), 'utf8');
 
   assert.match(source, /if\(isSupervisorUser \|\| incidencias\.length\)/);
-  assert.match(source, /isSupervisorUser && typeof bIncidentEstadoClick/);
+  assert.match(source, /canCloseIncident\(currentUser,i\)/);
   assert.match(source, /Propias y compartidas/);
 });
 

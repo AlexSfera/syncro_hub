@@ -767,6 +767,7 @@ async function _adjGetEmployeeMap(){
 //   1) dept de la incidencia está en los departamentos del supervisor, O
 //   2) algún employee_id en staff_implicado_ids pertenece a un dept del supervisor
 function canViewIncidencia(user, inci, empMap){
+  if(typeof canViewAllIncidents === 'function' && canViewAllIncidents(user)) return true;
   if(isAdmin(user)) return true;
   // Check 1: departamento directo (puede ser resuelto o legacy 'SYNCROLAB')
   var iDept = inci.departamento || inci.area || '';
@@ -801,12 +802,13 @@ function canViewIncidencia(user, inci, empMap){
     var dept = currentUser ? (currentUser.area||'—') : '—';
     var isAdminU = isAdmin(currentUser);
     var isSup    = typeof isSupervisor === 'function' && isSupervisor(currentUser);
-    var canSeeList = isAdminU || isSup;
+    var canSeeAll = typeof canViewAllIncidents === 'function'
+      && canViewAllIncidents(currentUser);
 
     // Empleado: lista limitada a incidencias propias o compartidas.
     // Admin y jefes ven su alcance completo. Los empleados ven sus propias
     // incidencias y las compartidas expresamente dentro de su departamento.
-    var verTodos = isAdminU;
+    var verTodos = isAdminU || canSeeAll;
     var all = [];
     try { all = await getDB('incidencias'); } catch(e){}
     var empMap = await _adjGetEmployeeMap();
@@ -851,7 +853,7 @@ function canViewIncidencia(user, inci, empMap){
           + '<div class="task-meta">'
           +   '<span class="dept-badge">'+deptLabel+'</span>'
           +   '<span class="task-origin">tipo: '+formatDisplayValue(i.tipo_incidencia||i.categoria)+'</span>'
-          +   (canSeeList ? bIncidentEstadoClick(i.estado, i.id) : bIncidentEstado(i.estado))
+          +   (canCloseIncident(currentUser, i) ? bIncidentEstadoClick(i.estado, i.id) : bIncidentEstado(i.estado))
           + '</div>'
           + '<div class="task-title">'+formatDisplayValue(i.descripcion)+'</div>'
           + '<div class="task-footer">'
@@ -914,6 +916,8 @@ function _adjGetStaffDeptsSync(inci, empMap){
 
     var isSupervisorUser = isAdmin(currentUser) || isSupervisor(currentUser);
     var isAdminUser      = isAdmin(currentUser);
+    var canSeeAllIncidents = typeof window.canViewAllIncidents === 'function'
+      && window.canViewAllIncidents(currentUser);
     var dept             = currentUser ? (currentUser.area || '') : '';
 
     if(btnNew)     btnNew.style.display   = isSupervisorUser ? '' : 'none';
@@ -968,7 +972,9 @@ function _adjGetStaffDeptsSync(inci, empMap){
 
     // INCIDENCIAS — FIX: usa sameDeptInci que incluye staff_implicado
     var incidencias;
-    if(isAdmin(currentUser) || isSupervisorUser){
+    if(canSeeAllIncidents){
+      incidencias = allIncis.filter(function(i){ return isIncidentOpen(i); });
+    } else if(isAdmin(currentUser) || isSupervisorUser){
       incidencias = allIncis.filter(function(i){
         return isIncidentOpen(i) && sameDeptInci(i);
       });
@@ -1028,7 +1034,7 @@ function _adjGetStaffDeptsSync(inci, empMap){
             + '<td style="font-size:12px;">'+formatDisplayValue(i.nombre)+'</td>'
             + '<td>'+deptInfo+'</td>'
             + '<td style="font-size:11px;color:var(--text3);">'+fechaStr+'</td>'
-            + '<td>'+(isSupervisorUser && typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
+            + '<td>'+(typeof canCloseIncident==='function' && canCloseIncident(currentUser,i) && typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
             + '<td style="font-size:12px;max-width:160px;color:var(--text3);">'+accion+'</td>'
             + '</tr>';
         }).join('') + '</table>';

@@ -55,10 +55,24 @@ function isIncidentVisibleToColleagues(incident){
   return value===true || value===1 || value==='1' || String(value).toLowerCase()==='true';
 }
 
+// Dirección adjunta y RRHH necesitan visibilidad transversal de incidencias.
+// Este permiso es de lectura; la capacidad de gestionar/cerrar sigue
+// centralizada en canCloseIncident().
+function canViewAllIncidents(user){
+  if(!user) return false;
+  var isOperationalAdmin = typeof canActAsAdmin === 'function'
+    ? canActAsAdmin(user)
+    : (typeof isAdmin === 'function' && isAdmin(user));
+  var isHrTechnician = typeof isTecnicoRrhh === 'function'
+    && isTecnicoRrhh(user);
+  return !!(isOperationalAdmin || isHrTechnician);
+}
+
 // Un empleado puede ver sus propias incidencias y las que otro empleado haya
 // compartido expresamente con compañeros de su mismo departamento.
 function canEmployeeViewIncident(user, incident){
   if(!user || !incident) return false;
+  if(canViewAllIncidents(user)) return true;
   var isOwner = incident.employee_id
     ? incident.employee_id === user.id
     : !!user.nombre && incident.nombre === user.nombre;

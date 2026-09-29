@@ -28,6 +28,8 @@ async function renderFollowupList() {
 
   var isSupervisorUser = isAdmin(currentUser) || isSupervisor(currentUser);
   var isAdminUser      = isAdmin(currentUser);
+  var canSeeAllIncidents = typeof window.canViewAllIncidents === 'function'
+    && window.canViewAllIncidents(currentUser);
   var dept             = currentUser ? (currentUser.area || '') : '';
 
   if(btnNew)     btnNew.style.display    = isSupervisorUser ? '' : 'none';
@@ -80,7 +82,9 @@ async function renderFollowupList() {
 
   // ── INCIDENCIAS: propias y compartidas con el departamento ──
   var incidencias;
-  if(isAdmin(currentUser) || isSupervisorUser){
+  if(canSeeAllIncidents){
+    incidencias = allIncis.filter(function(i){ return isIncidentOpen(i); });
+  } else if(isAdmin(currentUser) || isSupervisorUser){
     incidencias = allIncis.filter(function(i){
       return isIncidentOpen(i) && sameDept(i);
     });
@@ -142,7 +146,7 @@ async function renderFollowupList() {
           + '<td style="font-size:12px;max-width:200px;">'+formatDisplayValue(i.descripcion).slice(0,70)+(i.descripcion&&i.descripcion.length>70?'...':'')+'</td>'
           + '<td style="font-size:12px;">'+formatDisplayValue(i.nombre)+'</td>'
           + '<td style="font-size:11px;color:var(--text3);">'+fechaStr+'</td>'
-          + '<td>'+(isSupervisorUser && typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
+          + '<td>'+(typeof canCloseIncident==='function' && canCloseIncident(currentUser,i) && typeof bIncidentEstadoClick==='function'?bIncidentEstadoClick(i.estado,i.id):bIncidentEstado(i.estado))+'</td>'
           + '<td style="font-size:12px;max-width:160px;color:var(--text3);">'+accion+'</td>'
           + '</tr>';
       }).join('') + '</table>';

@@ -4733,8 +4733,10 @@ async function openItemModal(type, id){
   if(type==='gestion'){
     canActEmp = canActOnDept || sameDept;
   } else {
-    // incidencia: solo jefe del dpto correspondiente + admin
-    canActEmp = canActOnDept;
+    // Dirección adjunta puede actuar globalmente. RRHH mantiene lectura
+    // global y solo puede actuar dentro de su ámbito operativo.
+    canActEmp = typeof canCloseIncident === 'function'
+      && canCloseIncident(currentUser, rec);
   }
 
   if(puedeEditar && canActEmp){
@@ -5099,11 +5101,12 @@ async function renderIncidenciasScreen(){
   var dept = currentUser ? (currentUser.area||'—') : '—';
   var isAdminU = isAdmin(currentUser);
   var isSup    = typeof isSupervisor === 'function' && isSupervisor(currentUser);
-  var canSeeList = isAdminU || isSup;
+  var canSeeAll = typeof canViewAllIncidents === 'function'
+    && canViewAllIncidents(currentUser);
 
   // Admin y jefes ven su alcance completo. Los empleados ven sus propias
   // incidencias y las compartidas expresamente dentro de su departamento.
-  var verTodos = isAdminU;
+  var verTodos = isAdminU || canSeeAll;
   var all = [];
   try { all = await getDB('incidencias'); } catch(e){}
   // FIX-INCI-FILTER: usar canViewDepartment para que jefes SYNCROLAB vean subdepartamentos
@@ -5140,7 +5143,7 @@ async function renderIncidenciasScreen(){
         + '<div class="task-meta">'
         +   '<span class="dept-badge">'+formatDisplayValue(i.departamento||i.area)+'</span>'
         +   '<span class="task-origin">tipo: '+formatDisplayValue(i.tipo_incidencia||i.categoria)+'</span>'
-        +   (canSeeList ? bIncidentEstadoClick(i.estado, i.id) : bIncidentEstado(i.estado))
+        +   (canCloseIncident(currentUser, i) ? bIncidentEstadoClick(i.estado, i.id) : bIncidentEstado(i.estado))
         + '</div>'
         + '<div class="task-title">'+formatDisplayValue(i.descripcion)+'</div>'
         + '<div class="task-footer">'
