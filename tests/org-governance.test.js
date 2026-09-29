@@ -98,3 +98,35 @@ test('permission matrix documents every active technical role', () => {
   ];
   for (const role of roles) assert.match(governanceDoc, new RegExp('`' + role + '`'));
 });
+
+test('HR technician keeps leadership tools without restricted modules', () => {
+  const shared = readFileSync(new URL('../shared.js', import.meta.url), 'utf8');
+  const dashboard = readFileSync(new URL('../dashboard.js', import.meta.url), 'utf8');
+  const informes = readFileSync(new URL('../informes.js', import.meta.url), 'utf8');
+  const validacion = readFileSync(new URL('../validacion.js', import.meta.url), 'utf8');
+  const governanceDoc = readFileSync(
+    new URL('../docs/context/23_organizational_governance.md', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(shared, /if\(!isTecnicoRRHH\) gestion\.push\(ITEMS\.dashboard\)/);
+  assert.match(shared, /gestion\.push\(ITEMS\.maestro\)/);
+  assert.match(shared, /gestion\.push\(ITEMS\.fio\)/);
+  assert.match(shared, /\['dashboard','liquidaciones','hypoxic','informes'\]\.indexOf\(id\)/);
+  assert.match(dashboard, /isTecnicoRrhh\(currentUser\)\) return \[\]/);
+  assert.match(informes, /rol === 'tecnico_rrhh'.*return false/);
+  assert.match(validacion, /isTecnicoRrhh\(currentUser\) && tab === 'hypoxic'/);
+  assert.match(governanceDoc, /Sin acceso a Dashboard, Liquidaciones, Hypoxic Room ni Informes/);
+});
+
+test('BOSS is hidden from directory cards and opens only from the SYNCROSFERA logo', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const portal = readFileSync(new URL('../validacion.js', import.meta.url), 'utf8');
+
+  assert.match(html, /class="ps-logo-shell" aria-label="Acceso BOSS" onclick="_pOpenBossLogin\(\)"/);
+  assert.match(portal, /function _pHideBossFromDirectory\(employees\)/);
+  assert.match(portal, /emps = _pHideBossFromDirectory\(emps\)/);
+  assert.match(portal, /async function _pOpenBossLogin\(\)/);
+  assert.match(portal, /directory\('administracion'\)/);
+  assert.match(portal, /find\(_pIsBossEmployee\)/);
+});

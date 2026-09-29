@@ -32,7 +32,7 @@ empleado. El puesto sigue siendo la fuente de verdad para el rango exacto.
 | `adjunto` (`adjunto_directivo` como alias) | Adjunto Directivo | 4 / 90 | Toda la operación | Validación, dashboards, Maestro, FIO, liquidaciones, exportación e informes globales | Global operativa | Gestiona puestos de rango inferior; nunca Administradores ni configuración de seguridad. |
 | `fb` | F&B Manager | 3 / 80 | Restaurante: Sala y Cocina | Validación, Dashboard, Maestro, FIO e informes de Restaurante | Sala y Cocina; puede resolver casos críticos de su matriz | Gestiona jefaturas, segundos responsables y personal de Sala/Cocina; sin acceso a otros departamentos. |
 | `jefe` | Club Manager | 3 / 80 por puesto | Todo SYNCROLAB | Validación, Dashboard, Maestro, FIO e informes de los tres segmentos | Todo SYNCROLAB; puede resolver casos críticos de su matriz | Gestiona coordinadores y personal de Atención al Cliente, Entrenadores y Fisioterapia; sin acceso externo. |
-| `tecnico_rrhh` | Técnico de Recursos Humanos | 2 / 70 | Administración y RRHH | Validación, Dashboard RRHH, Maestro, FIO e informes RRHH | Solo Administración/RRHH | Gestiona puestos inferiores de su ámbito. Nunca Administrador, Adjunto Directivo, seguridad global ni casos críticos L4/L5. |
+| `tecnico_rrhh` | Técnico de Recursos Humanos | 2 / 70 | Administración y RRHH | Validación, Maestro y FIO. Sin acceso a Dashboard, Liquidaciones, Hypoxic Room ni Informes | Solo Administración/RRHH | Gestiona puestos inferiores de su ámbito. Nunca Administrador, Adjunto Directivo, seguridad global ni casos críticos L4/L5. |
 | `chef` | Jefe de Cocina; Segundo Jefe de Cocina | 2 / 70 o 60 | Cocina | Validación, Dashboard, Maestro, FIO e informes de Cocina | Cocina | El Jefe gestiona al Segundo y al personal; el Segundo solo al personal. |
 | `supervisor` | Jefe de Sala; Jefe de Sector | 2 / 70 o 60 | Sala | Validación, Dashboard, Maestro, FIO e informes de Sala | Sala | El Jefe gestiona al Jefe de Sector y al personal; el Jefe de Sector solo al personal. |
 | `jefe_recepcion` | Jefe de Recepción; Subjefe de Recepción | 2 / 70 o 60 | Recepción Hotel | Validación, Dashboard, Maestro, FIO, caja e informes de Recepción | Recepción Hotel | El Jefe gestiona al Subjefe y al personal; el Subjefe solo al personal. |
@@ -80,7 +80,7 @@ coordinadores. Cada coordinador queda limitado a su propio segmento.
 
 - Administrador: nivel 5.
 - Adjunto Directivo: nivel 4.
-- Técnico de Recursos Humanos: rol técnico independiente `tecnico_rrhh`, nivel 2 y rango 70; nunca recibe permisos de Administrador ni de Adjunto Directivo.
+- Técnico de Recursos Humanos: rol técnico independiente `tecnico_rrhh`, nivel 2 y rango 70. Mantiene capacidades de jefatura dentro de Administración/RRHH, pero no accede a Dashboard, Liquidaciones, Hypoxic Room ni Informes; nunca recibe permisos de Administrador ni de Adjunto Directivo.
 - Contable: nivel 1 con acceso financiero de lectura.
 
 ## Compatibilidad histórica

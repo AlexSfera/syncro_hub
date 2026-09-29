@@ -510,6 +510,8 @@ function _valTabStyleInactive(btn){
 function switchValTab(tab) {
   // Contable: solo puede estar en la pestaña de Caja
   if(typeof isContable==='function' && isContable(currentUser)) tab = 'caja';
+  // Técnico RRHH puede validar su ámbito, pero nunca acceder a Hypoxic Room.
+  if(typeof isTecnicoRrhh==='function' && isTecnicoRrhh(currentUser) && tab === 'hypoxic') tab = 'followup';
   var followupDiv  = document.getElementById('val-content-followup');
   var operativoDiv = document.getElementById('val-content-operativo');
   var cajaDiv      = document.getElementById('val-content-caja');
@@ -591,6 +593,15 @@ function _updateContableTabLock(){
   var c=document.getElementById('val-tab-caja'); if(c) c.style.display='';
 }
 window._updateContableTabLock = _updateContableTabLock;
+
+function _updateTecnicoRrhhTabLock(){
+  if(typeof isTecnicoRrhh!=='function' || !isTecnicoRrhh(currentUser)) return;
+  var hypoxic=document.getElementById('val-tab-hypoxic');
+  if(hypoxic) hypoxic.style.display='none';
+  var content=document.getElementById('val-content-hypoxic');
+  if(content && content.style.display!=='none') switchValTab('followup');
+}
+window._updateTecnicoRrhhTabLock = _updateTecnicoRrhhTabLock;
 
 // ── HYPOXIC ROOM TAB CONTENT ──
 async function renderValHypoxicList(){
@@ -1334,6 +1345,14 @@ function _pEmpInitials(nombre){
   return (parts[0]||'').charAt(0).toUpperCase() + (parts[1]||'').charAt(0).toUpperCase();
 }
 
+function _pIsBossEmployee(employee){
+  return !!employee && (employee.nombre||'').trim().toLocaleUpperCase('es') === 'BOSS';
+}
+
+function _pHideBossFromDirectory(employees){
+  return (employees||[]).filter(function(employee){ return !_pIsBossEmployee(employee); });
+}
+
 // ── SYNCROLAB · JERARQUÍA ÚNICA (Club Manager → 3 subdepartamentos) ──
 async function pSelSyncrolab(){
   _pD = 'syncrolab'; _pP = ''; _pGoBusy = false; _pColor = '#06b6d4'; _pLabel = 'SYNCROLAB';
@@ -1355,6 +1374,7 @@ async function pSelSyncrolab(){
   } catch(e){
     loadFailed = true;
   }
+  emps = _pHideBossFromDirectory(emps);
 
   function normalized(value){ return (value||'').trim().toLocaleLowerCase('es'); }
   function hasPosition(emp, positions){
@@ -1456,6 +1476,7 @@ async function pSelFb(){
   } catch(e){
     loadFailed = true;
   }
+  emps = _pHideBossFromDirectory(emps);
 
   function normalized(value){ return (value||'').trim().toLocaleLowerCase('es'); }
   function hasPosition(emp, positions){
@@ -1550,6 +1571,7 @@ async function pSel(dept, label, color){
       emps = (await getDB('employees')).filter(function(e){ return e.estado === 'Activo'; });
     }
   } catch(e){}
+  emps = _pHideBossFromDirectory(emps);
   var deptEmps = emps.filter(function(e){
     var a = (e.area||'').trim();
     var areaMatch = areas.some(function(x){ return x.toLowerCase() === a.toLowerCase(); });
@@ -1655,6 +1677,29 @@ function _pOpenPin(employeeId, employeeName){
   if(lbl){ lbl.textContent = _pEmployeeName || _pLabel || _pD; lbl.style.color = _pColor; }
   if(err){err.style.display='none';err.textContent='';}
   document.getElementById('portal-pin-modal').style.display='flex';
+}
+
+var _pBossOpening = false;
+async function _pOpenBossLogin(){
+  if(_pBossOpening) return;
+  _pBossOpening = true;
+  _pD = 'administracion';
+  _pLabel = 'BOSS';
+  _pColor = '#a855f7';
+  try {
+    if(window.SyncroAuth && window.SyncroAuth.enabled){
+      var employees = await window.SyncroAuth.directory('administracion');
+      var boss = (employees||[]).find(_pIsBossEmployee);
+      if(!boss) throw new Error('BOSS_NOT_FOUND');
+      _pOpenPin(boss.id, boss.nombre);
+    } else {
+      _pOpenPin('', 'BOSS');
+    }
+  } catch(error){
+    if(typeof toast==='function') toast('No se pudo abrir el acceso BOSS. Inténtalo de nuevo.','err');
+  } finally {
+    _pBossOpening = false;
+  }
 }
 
 function pBack(){

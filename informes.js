@@ -70,6 +70,7 @@ var INF_TURNOS_DEPT = {
 function canAccessInformes(u){
   if(!u) return false;
   var rol = (u.rol || '').toLowerCase();
+  if(rol === 'tecnico_rrhh' || (u.puesto||'').trim() === 'Técnico de Recursos Humanos') return false;
   if(rol === 'admin') return true;
   if(rol === 'adjunto_directivo' || rol === 'adjunto') return true;
   if(typeof isSupervisor === 'function' && isSupervisor(u)) return true;
@@ -122,8 +123,8 @@ function _infDeptsVisibles(u){
   // Mantenimiento
   if(area==='Mantenimiento') return ['Mantenimiento'];
 
-  // Técnico RRHH: reporting exclusivo de Recursos Humanos.
-  if(rol==='tecnico_rrhh' || rol==='rrhh') return ['RRHH'];
+  // Técnico RRHH no dispone del módulo Informes.
+  if(rol==='tecnico_rrhh' || rol==='rrhh') return [];
 
   return [];
 }

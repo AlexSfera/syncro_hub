@@ -495,6 +495,10 @@ function isAdjuntoDirectivo(user){ return !!user && (user.rol==='adjunto' || use
 function canActAsAdmin(user){ return isAdmin(user) || isAdjuntoDirectivo(user); }
 // Contable: solo lectura de cierres de caja + dashboard. No valida, no es jefe ni admin.
 function isContable(user){ return !!user && user.rol==='contable'; }
+function isTecnicoRrhh(user){
+  if(!user) return false;
+  return user.rol==='tecnico_rrhh' || (user.puesto||'').trim()==='Técnico de Recursos Humanos';
+}
 // Quién puede gestionar usuarios con rol=admin (solo el propio admin):
 function canManageAdminUsers(user){ return isAdmin(user); }
 function isSupervisor(user){
@@ -725,6 +729,7 @@ function getScreens(rol){
   // ── Flags de rol ─────────────────────────────────────────────────
   var isAdminU = rol === 'admin';
   var isAdjDir = typeof isAdjuntoDirectivo === 'function' && isAdjuntoDirectivo(currentUser);
+  var isTecnicoRRHH = typeof isTecnicoRrhh === 'function' && isTecnicoRrhh(currentUser);
   var isJefe   = isAdminU || isAdjDir
                  || (typeof isSupervisor === 'function' && isSupervisor(currentUser))
                  || ['chef','fb','jefe_recepcion','supervisor','jefe',
@@ -853,10 +858,10 @@ function getScreens(rol){
   // ── MANAGER BAR (solo jefe) ──────────────────────────────────────
   var gestion = [];
   if(isJefe){
-    gestion.push(ITEMS.dashboard);
+    if(!isTecnicoRRHH) gestion.push(ITEMS.dashboard);
     gestion.push(ITEMS.maestro);   // jefe/coordinador: gestiona empleados de SU departamento
     gestion.push(ITEMS.fio);
-    gestion.push(ITEMS.informes);
+    if(!isTecnicoRRHH) gestion.push(ITEMS.informes);
   }
   // C4: Config HK en Manager Bar (después de inicializar gestion)
   if(isHK && isJefe) gestion.push(ITEMS.hkConfig);
@@ -1075,6 +1080,11 @@ function buildNav(){
   }
 }
 async function showScreen(id){
+  if(typeof isTecnicoRrhh==='function' && isTecnicoRrhh(currentUser)
+    && ['dashboard','liquidaciones','hypoxic','informes'].indexOf(id)!==-1){
+    if(typeof toast==='function') toast('Técnico RRHH no tiene acceso a este módulo','err');
+    return;
+  }
   // Reset topbar dept accent when leaving dashboard
   if(id !== 'dashboard') document.documentElement.style.removeProperty('--topbar-accent-color');
   // Safety: ensure portal never blocks app screens
@@ -1097,6 +1107,7 @@ async function showScreen(id){
     var _startTab = (currentUser && (currentUser.rol==='coord_recepcion_syncrolab' || currentUser.rol==='contable')) ? 'caja' : 'followup';
     switchValTab(_startTab);
     if(typeof _updateContableTabLock==='function') _updateContableTabLock();
+    if(typeof _updateTecnicoRrhhTabLock==='function') _updateTecnicoRrhhTabLock();
   }
   if(id==='dashboard'){
     // Show dept filter for admin/fb
