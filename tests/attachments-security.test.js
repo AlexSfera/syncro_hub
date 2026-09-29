@@ -342,6 +342,6 @@ test('migration makes adjuntos private with limits and keeps a reconstructable r
 
 test('attachment integration is loaded exactly once', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.equal((html.match(/<script src="adjuntos\.js"><\/script>/g) || []).length, 1);
+  assert.equal((html.match(/<script src="adjuntos\.js(?:\?[^\"]+)?"><\/script>/g) || []).length, 1);
   assert.match(html, /location\.protocol === 'file:'[\s\S]*location\.replace\('https:\/\/syncro-shift\.vercel\.app\/'\)/);
 });
