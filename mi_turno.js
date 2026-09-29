@@ -1161,7 +1161,37 @@ function buildInfoContent(area){
   }
 
   // ════════════════════════════════════════════════════════════════════
-  // ─── SYNCROLAB ──────────────────────────────────────────────────────
+  // ─── CLUB MANAGER · CONTROL DE TODO SYNCROLAB ──────────────────────
+  // ════════════════════════════════════════════════════════════════════
+  if(/^syncrolab$/i.test(area)
+      && currentUser
+      && String(currentUser.puesto || '').trim() === 'Club Manager'){
+    return ''
+    + _infoCard('🏋 Club Manager — Control diario de SYNCROLAB',
+        'Tu cierre sirve para comprobar que la operación de <b>Recepción SYNCROLAB, Entrenadores y Fisioterapia</b> quedó registrada y bajo control.<br><br>'
+      + '<b>Tu función no es repetir el checklist operativo de Recepción ni cerrar sus cajas.</b> Debes revisar el trabajo del departamento, resolver bloqueos y dejar trazabilidad de todo pendiente en SYNCRO HUB.',
+        '#a855f7')
+
+    + _infoCard('🔍 Qué debes revisar antes de cerrar',
+        '• Todos los empleados que trabajaron hoy rellenaron su turno<br>'
+      + '• Los turnos enviados incluyen checklist e información obligatoria<br>'
+      + '• Los turnos correctos están validados y los incompletos fueron devueltos<br>'
+      + '• Las alertas de fichaje tienen seguimiento<br>'
+      + '• Las incidencias abiertas tienen responsable y siguiente acción<br>'
+      + '• Las tareas pendientes o vencidas tienen responsable y deadline<br>'
+      + '• Las gestiones y handovers de los tres equipos están revisados<br>'
+      + '• Las operaciones de caja de Recepción SYNCROLAB están registradas cuando corresponde',
+        '#06b6d4')
+
+    + _infoCard('✅ Cierre de Club Manager',
+        'Completa el checklist de control y registra cualquier pendiente mediante <b>Tarea, Incidencia o Gestión</b>, según corresponda.<br><br>'
+      + 'Al confirmar el checklist, tu turno se guarda directamente. <b>No se abrirá el cierre de caja de Recepción SYNCROLAB.</b>',
+        '#10b981')
+    + jefe;
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // ─── SYNCROLAB OPERATIVO ────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════
   if(/syncrolab/i.test(area)){
     return ''

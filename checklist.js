@@ -8,6 +8,10 @@ var _chkSavedState = [];
 var _chkPendingData = null;
 var _chkInitialized = false;
 
+function _chkIsClubManager(user){
+  return !!user && String(user.puesto || '').trim() === 'Club Manager';
+}
+
 // ── Persistencia localStorage (key por usuario + fecha + turno/área) ──
 // Cualquier marca durante el día se conserva al salir del modal y entre sesiones
 // (mismo dispositivo). Se limpia al guardar turno (_doSaveTurno) o al login (resetChkState).
@@ -83,6 +87,27 @@ var CHK_SALA_SECTIONS = [{title:'PREPARACION DEL SERVICIO',count:6},{title:'DURA
 // ── DATOS CHECKLIST F&B ──
 var CHK_FNB_ITEMS = ['Registro de ventas del servicio completado','Caja cuadrada y cerrada correctamente','Stock de bebidas revisado','Pedidos pendientes anotados','Incidencias con clientes registradas','Sala recogida y en orden','Personal de sala informado de novedades','Reservas del siguiente servicio revisadas'];
 var CHK_FNB_SECTIONS = [{title:'CONTROL ADMINISTRATIVO',count:4},{title:'OPERACIONES SALA Y SERVICIO',count:4}];
+
+// ── DATOS CHECKLIST CLUB MANAGER ──
+// Control diario de todo SYNCROLAB. No abre caja: verifica que cada equipo
+// haya registrado y dejado trazabilidad de su operación en SYNCRO HUB.
+var CHK_CLUB_MANAGER_SECTIONS = [
+  {title:'CONTROL DEL DÍA',count:4},
+  {title:'SEGUIMIENTO OPERATIVO',count:4},
+  {title:'CIERRE MANAGER',count:2}
+];
+var CHK_CLUB_MANAGER_ITEMS = [
+  'Comprobé que todos los empleados que trabajaron hoy rellenaron su turno en SYNCRO HUB',
+  'Revisé que los turnos enviados incluyan su checklist y la información obligatoria',
+  'Validé los turnos correctos y devolví para corrección los incompletos',
+  'Revisé las alertas de fichaje del departamento y asigné seguimiento cuando corresponde',
+  'Revisé las incidencias abiertas o en proceso y confirmé responsable y siguiente acción',
+  'Gestioné o escalé las incidencias urgentes que requerían mi decisión',
+  'Revisé las tareas pendientes o vencidas y confirmé responsable y deadline',
+  'Revisé las gestiones pendientes y los handovers de Recepción, Entrenadores y Fisioterapia',
+  'Comprobé que las operaciones de caja de Recepción SYNCROLAB estén registradas o marqué que no aplican',
+  'Dejé registrado en SYNCRO HUB todo pendiente que deba continuar mañana'
+];
 
 // ── DATOS CHECKLIST RECEPCIÓN ──
 var CHK_REC_MANANA_SECTIONS = [{"title":"INICIO DE TURNO","count":4},{"title":"OPERACION MEWS","count":4},{"title":"HOUSEKEEPING","count":2},{"title":"CAJA","count":4},{"title":"COMUNICACION","count":3},{"title":"CIERRE DE TURNO","count":3}];
@@ -294,8 +319,11 @@ async function chkConfirm(){
   var isSala=currentUser&&currentUser.area==='Sala';
   var isRec=currentUser&&(currentUser.area==='Recepción'||currentUser._activeDept==='Recepción');
   var isEntr=(typeof _esEntrenador==='function')&&_esEntrenador(currentUser);
+  var isClubManager=_chkIsClubManager(currentUser);
   var isLab=currentUser&&/syncrolab|syncro lab|entrenador|fisio|cl\u00ednica|clinica/i.test((currentUser.area||'')+' '+(currentUser.puesto||''));
-  if(isEntr){
+  if(isClubManager){
+    await _doSaveTurno();
+  } else if(isEntr){
     // Entrenadores: sin caja. Capturan KPI de turno (autocontrol).
     if(typeof openEntrKpiModal === 'function') openEntrKpiModal();
     else await _doSaveTurno();
@@ -336,12 +364,15 @@ function chkOpen(pendingData){
   var isRec=(currentUser&&(currentUser.area==='Recepción'||currentUser._activeDept==='Recepción'));
   var recTurno=isRec?getRecTurnoValue():'';
   var isLabRec=(currentUser&&/syncrolab/i.test(currentUser.area||''));
+  var isClubManager=_chkIsClubManager(currentUser);
   // FEAT-TURNO-AUTO (spec 22): radio marcado manda; sin radio → turno auto
   var labTurno=isLabRec?(function(){var r=document.querySelector('input[name="servicio-lab"]:checked');if(r)return r.value;if(typeof autoAssignTurno==='function'){var a=autoAssignTurno(currentUser.area,currentUser.puesto);if(a)return a.turno;}return '';})():'';
   var isEntr=(typeof _esEntrenador==='function')&&_esEntrenador(currentUser);
   var entrTurno=isEntr?(function(){var r=document.querySelector('input[name="turno-entr"]:checked');if(r)return r.value;if(typeof autoAssignTurno==='function'){var a=autoAssignTurno(currentUser.area,currentUser.puesto);if(a)return a.turno;}return 'Mañana';})():'';
   var sections,items;
-  if(isEntr){
+  if(isClubManager){
+    sections=CHK_CLUB_MANAGER_SECTIONS;items=CHK_CLUB_MANAGER_ITEMS;
+  } else if(isEntr){
     if(entrTurno==='Tarde'){sections=CHK_ENTR_TARDE_SECTIONS;items=CHK_ENTR_TARDE_ITEMS;}
     else if(entrTurno==='Sábado'){sections=CHK_ENTR_SABADO_SECTIONS;items=CHK_ENTR_SABADO_ITEMS;}
     else{sections=CHK_ENTR_MANANA_SECTIONS;items=CHK_ENTR_MANANA_ITEMS;}
