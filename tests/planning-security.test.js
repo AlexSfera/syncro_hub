@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
 
 test('migración aplica RLS y deniega acceso directo a todas las tablas nuevas', async () => {
-  const sql = await read('supabase/migrations/20260929213214_planificacion_horaria_v1.sql');
+  const sql = await read('supabase/migrations/20260929223545_planificacion_horaria_v1.sql');
   const tables = [...sql.matchAll(/create table public\.([a-z0-9_]+)/g)].map(match => match[1]);
   assert.ok(tables.length >= 15);
   for(const table of tables){
@@ -18,7 +18,7 @@ test('migración aplica RLS y deniega acceso directo a todas las tablas nuevas',
 });
 
 test('historial crítico es append-only y RPC no se expone al cliente', async () => {
-  const sql = await read('supabase/migrations/20260929213214_planificacion_horaria_v1.sql');
+  const sql = await read('supabase/migrations/20260929223545_planificacion_horaria_v1.sql');
   assert.match(sql, /planificacion_prevent_history_mutation/);
   assert.match(sql, /raise exception 'planning history is append-only'/);
   assert.match(sql, /revoke all on function public\.planificacion_guardar_semana[\s\S]*from public, anon, authenticated/);
@@ -26,11 +26,22 @@ test('historial crítico es append-only y RPC no se expone al cliente', async ()
 });
 
 test('rollback se detiene si existen datos operativos', async () => {
-  const sql = await read('supabase/rollback/20260929213214_planificacion_horaria_v1_rollback.sql');
+  const sql = await read('supabase/rollback/20260929223545_planificacion_horaria_v1_rollback.sql');
   assert.match(sql, /Rollback detenido: existen datos en/);
   assert.match(sql, /select exists \(select 1 from public\.%I limit 1\)/);
   assert.match(sql, /drop function public\.planificacion_guardar_semana/);
   assert.match(sql, /drop table public\.planificacion_audit/);
+});
+
+test('todas las claves foráneas operativas tienen índice de cobertura', async () => {
+  const sql = await read('supabase/migrations/20260929224043_planificacion_horaria_v1_fk_indexes.sql');
+  const indexes = [...sql.matchAll(/create index if not exists ([a-z0-9_]+)/g)]
+    .map(match => match[1]);
+  assert.equal(indexes.length, 20);
+  assert.match(sql, /empleado_condiciones_laborales \(convenio_version_id\)/);
+  assert.match(sql, /planificacion_asignaciones \(turno_catalogo_id\)/);
+  assert.match(sql, /planificacion_audit \(semana_id\)/);
+  assert.match(sql, /vacaciones_movimientos \(referencia_ausencia_id\)/);
 });
 
 test('APIs mutables exigen autenticación y mismo origen', async () => {

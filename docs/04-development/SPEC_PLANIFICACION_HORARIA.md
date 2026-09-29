@@ -164,8 +164,9 @@ de saldos permanece pendiente hasta recibir, certificar y autorizar los datos.
 
 Archivos:
 
-- `supabase/migrations/20260929213214_planificacion_horaria_v1.sql`
-- `supabase/rollback/20260929213214_planificacion_horaria_v1_rollback.sql`
+- `supabase/migrations/20260929223545_planificacion_horaria_v1.sql`
+- `supabase/migrations/20260929224043_planificacion_horaria_v1_fk_indexes.sql`
+- `supabase/rollback/20260929223545_planificacion_horaria_v1_rollback.sql`
 
 El rollback elimina un esquema recién creado y sin datos operativos. Si detecta
 condiciones laborales, catálogo leído, planificación, ausencias, festivos,
