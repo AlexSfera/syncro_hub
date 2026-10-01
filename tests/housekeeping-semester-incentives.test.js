@@ -127,7 +127,7 @@ test('hay una sola pantalla de Liquidación con Recepción Hotel, Entrenadores y
   assert.match(source, /Recepción Hotel y Entrenadores se liquidan por mes; Housekeeping, por semestre/);
   assert.match(source, /option value="Recepción Hotel"/);
   assert.match(source, /department: 'Entrenadores'/);
-  assert.match(shared, /id:'liquidaciones', label:'💳 Liquidación'/);
+  assert.match(shared, /id:'liquidaciones', label:'💳 Liquidaciones'/);
   assert.doesNotMatch(shared, /liquidacionEntr/);
   assert.match(html, /screen-liquidaciones/);
   assert.doesNotMatch(html, /screen-liquidacion-entr/);

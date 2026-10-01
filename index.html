@@ -125,10 +125,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 
 /* Colores por grupo */
 .nav-group-midia{--ng-color:#2ec4b6;}
+.nav-group-mi-dia{--ng-color:#2ec4b6;}
 .nav-group-midepartamento{--ng-color:#60a5fa;}
+.nav-group-mi-departamento,
+.nav-group-equipo{--ng-color:#60a5fa;}
+.nav-group-operacion{--ng-color:#2ec4b6;}
 .nav-group-gestion,
 .nav-group-gestin,
-.nav-group-managerbar{--ng-color:#fbbf24;}    /* gestión / manager bar */
+.nav-group-managerbar,
+.nav-group-manager,
+.nav-group-control-contable{--ng-color:#fbbf24;}
+.nav-group-direccion{--ng-color:#c084fc;}
 .nav-group-analitica,
 .nav-group-analtica{--ng-color:#c084fc;}
 
@@ -175,6 +182,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 }
 .nav-btn-dropdown-toggle:hover{background:rgba(251,191,36,.08);border-bottom-color:var(--ng-color,#fbbf24);}
 .nav-btn-dropdown-toggle.open{background:rgba(251,191,36,.15);border-bottom-color:var(--ng-color,#fbbf24);}
+.nav-btn-dropdown-toggle.active{background:color-mix(in srgb,var(--ng-color,#fbbf24) 12%,transparent);border-bottom-color:var(--ng-color,#fbbf24);}
 .nav-btn-dropdown-toggle .chevron{font-size:9px;transition:transform .2s;display:inline-block;}
 .nav-btn-dropdown-toggle.open .chevron{transform:rotate(180deg);}
 .nav-btn-dropdown-toggle .alert-dot{
@@ -187,22 +195,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
   position:absolute;top:calc(100% + 4px);right:0;
   background:#0a1626;border:1px solid #2a3f5f;
   border-radius:8px;box-shadow:0 12px 28px rgba(0,0,0,.55);
-  min-width:240px;padding:6px;z-index:500;
+  width:360px;max-width:calc(100vw - 24px);max-height:calc(100vh - 132px);
+  overflow-y:auto;padding:8px;z-index:500;
   display:none;flex-direction:column;gap:2px;
 }
 .nav-dropdown-menu.open{display:flex;}
 .nav-dropdown-menu .nav-btn{
-  height:auto;padding:11px 14px;justify-content:flex-start;
+  height:auto;padding:9px 12px;justify-content:flex-start;align-items:flex-start;
   border-bottom:none;border-left:3px solid transparent;
-  text-align:left;color:#cbd5e1;
+  text-align:left;color:#cbd5e1;text-transform:none;letter-spacing:0;
 }
 .nav-dropdown-menu .nav-btn:hover:not(.is-pending){
   background:rgba(251,191,36,.08);border-left-color:#fbbf24;color:#f1f5f9;
 }
 .nav-dropdown-menu .nav-btn.active{
-  color:#fbbf24;border-left-color:#fbbf24;background:rgba(251,191,36,.12);
+  color:var(--ng-color,#fbbf24);border-left-color:var(--ng-color,#fbbf24);background:rgba(251,191,36,.12);
   border-bottom-color:transparent;
 }
+.nav-sector-description{
+  padding:5px 10px 9px;color:#94a3b8;font-family:var(--font-ui);
+  font-size:11px;line-height:1.45;border-bottom:1px solid #1e3457;margin-bottom:2px;
+}
+.nav-subgroup-label{
+  padding:10px 10px 4px;color:var(--ng-color,#fbbf24);font-family:var(--font-mono);
+  font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+}
+.nav-item-copy{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.nav-item-label{font-family:var(--font-mono);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.nav-item-description{font-family:var(--font-ui);font-size:10.5px;font-weight:400;line-height:1.35;color:#94a3b8;white-space:normal;}
+.nav-btn:hover .nav-item-description,.nav-btn.active .nav-item-description{color:#cbd5e1;}
 
 /* ── CHIPS USUARIO (ÁREA · PUESTO · NOMBRE) ── */
 .topbar-user{
@@ -246,17 +267,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 }
 .btn-logout:hover{border-color:#ef4444;color:#ef4444;}
 
-/* ── Responsive móvil: topbar header se compacta, nav row scrollea ── */
+/* ── Responsive móvil: identidad compacta y sectores accesibles ── */
 @media(max-width:767px){
   .topbar-header{flex-wrap:wrap;gap:8px;padding:8px 12px;}
   .topbar-logo{font-size:13px;}
-  .topbar-user{font-size:11px;}
+  .topbar-user{font-size:11px;max-width:100%;overflow-x:auto;scrollbar-width:none;}
+  .topbar-user::-webkit-scrollbar{display:none;}
   .topbar-dept,.topbar-puesto,.topbar-name{padding:5px 8px;font-size:11px;}
   .btn-logout{padding:5px 10px;font-size:10px;margin-left:6px;}
-  .topbar-nav-row{padding:0 4px;min-height:54px;overflow-x:auto;overflow-y:visible;scrollbar-width:none;}
+  .topbar-nav-row{padding:0 4px;min-height:54px;overflow:visible;}
   .topbar-nav-row::-webkit-scrollbar{display:none;}
-  .topbar-nav{justify-content:flex-start;gap:10px;}
-  .nav-dropdown-menu{right:auto;left:0;min-width:200px;}
+  .topbar-nav{justify-content:center;gap:4px;}
+  .nav-btn-dropdown-toggle{padding:0 10px;font-size:10px;}
+  .nav-dropdown-menu{position:fixed;top:132px;right:12px;left:12px;width:auto;max-width:none;max-height:calc(100vh - 218px);}
 }
 
 /* ── GROUPNAV V4.0: ELIMINADO. Solo topbar legacy con buildNav() de shared.js ── */
@@ -298,7 +321,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-heigh
 
 /* Mobile padding-bottom para bottom-nav */
 @media(max-width:767px){
-  .main{padding-bottom:24px;}
+  .main{padding-bottom:88px !important;}
 }
 
 /* ── LAYOUT ── */
@@ -1136,7 +1159,7 @@ tr:hover td{background:rgba(96,165,250,.06);}
         <button class="btn-logout" onclick="logout()">SALIR</button>
       </div>
     </div>
-    <!-- Fila 2: navegación por grupos (MI DÍA · MI DEPARTAMENTO · GESTIÓN▾) -->
+    <!-- Fila 2: navegación por sectores según el alcance del usuario -->
     <div class="topbar-nav-row">
       <div class="topbar-nav" id="topbar-nav"></div>
     </div>

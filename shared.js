@@ -723,8 +723,17 @@ async function startApp(){
   await populateDashEmpDropdowns();
   setTimeout(fixSelectColors, 200);
 }
+function navSection(label, description, key){
+  return {sep:true, label:label, description:description, key:key, dropdown:true};
+}
+
+function navSubsection(label){
+  return {sub:true, label:label};
+}
+
 function getScreens(rol){
-  // ── V4.2: matriz redistribuida según Excel CEO (Jun 2026) ─────────
+  // V4.3: arquitectura de información por alcance de trabajo.
+  // Los permisos se conservan; solo cambia la agrupación y el orden visual.
   var area   = (currentUser && currentUser.area)   || '';
   var puesto = (currentUser && currentUser.puesto) || '';
 
@@ -759,37 +768,37 @@ function getScreens(rol){
 
   // ── Catálogo de pantallas ────────────────────────────────────────
   var ITEMS = {
-    readme:      {id:'readme',      label:'📋 Info'},
-    turno:       {id:'turno',       label:'🕐 Mi Turno'},
-    gestiones:   {id:'gestiones',   label:'📌 Gestiones'},
-    tareas:      {id:'tareas',      label:'🔗 Tareas'},
-    incidencias: {id:'incidencias', label:'⚠ Incidencias'},
-    hypoxic:     {id:'hypoxic',     label:'🫁 Hypoxic Room'},
-    validacion:  {id:'validacion',  label:'🛡 Validación'},
-    dashboard:   {id:'dashboard',   label:'📊 Dashboard'},
-    dashHK:      {id:'hk-dash',     label:'📊 Dashboard HK'},
-    maestro:     {id:'maestro',     label:'👥 Maestro'},
-    export:      {id:'export',      label:'⬇ Exportar'},
-    fio:         {id:'fio',         label:'⚖ FIO'},
-    misfio:      {id:'mis-fio',     label:'⚖ Mis FIO'},
-    merma:       {id:'merma-mod',   label:'📦 Merma'},
-    ruta:        {id:'ruta-mod',    label:'🧹 Mi Ruta'},
-    cajaRec:     {id:'rec-caja-op', label:'💰 Caja', action:'openRecCajaChoice'},
-    cajaLab:     {id:'lab-caja-op', label:'💰 Caja', action:'openLabCajaChoice'},
-    mantmod:     {id:'mant-mod',    label:'📊 Mantenimiento'},
-    hkPlan:      {id:'hk-plan',     label:'📅 Planificación'},
-    hkZonas:     {id:'hk-zonas',    label:'🧽 Zonas públicas'},
-    hkConfig:    {id:'hk-config',   label:'⚙ Configuración HK'},
-    hkRevision:  {id:'hk-revision', label:'🔍 Revisión HK'},
-    fichaje:     {id:'fichaje',     label:'📋 Alertas Fichaje'},
-    incentivos:  {id:'incentivos',  label:'💰 Incentivos'},
-    liquidaciones: {id:'liquidaciones', label:'💳 Liquidación'},
-    miRendimiento:{id:'mi-rendimiento', label:'📈 Mi Rendimiento'},
-    informes:    {id:'informes',    label:'📊 Informes'},
-    horasMes:    {id:'horas-mes',   label:'⏱ Horas Mensuales'},
-    planificacion:{id:'planificacion-horaria', label:'📅 Planificación Horaria'},
-    checklist:   {id:'chk-mod',     label:'✅ Checklist', action:'openChkMidDay'},
-    nota:        {id:'notas-mod',   label:'💬 Nota'}
+    readme:      {id:'readme',      label:'📋 Info', description:'Instrucciones del puesto y del cierre de jornada.'},
+    turno:       {id:'turno',       label:'🕐 Mi Turno', description:'Registrar y cerrar la jornada operativa.'},
+    gestiones:   {id:'gestiones',   label:'📌 Gestiones', description:'Pendientes que deben continuar dentro del departamento.'},
+    tareas:      {id:'tareas',      label:'🔗 Tareas', description:'Acciones delegadas entre departamentos con responsable y fecha.'},
+    incidencias: {id:'incidencias', label:'⚠ Incidencias', description:'Hechos que requieren seguimiento, decisión o corrección.'},
+    hypoxic:     {id:'hypoxic',     label:'🫁 Hypoxic Room', description:'Registrar y seguir incidencias de la sala hipóxica.'},
+    validacion:  {id:'validacion',  label:'🛡 Validación', description:'Revisar turnos, operativa, caja, merma, notas y FIO.'},
+    dashboard:   {id:'dashboard',   label:'📊 Dashboard', description:'Control ejecutivo de KPI, costes y previsión.'},
+    dashHK:      {id:'hk-dash',     label:'📊 Dashboard HK', description:'Control de ejecución, tiempos y estado de Housekeeping.'},
+    maestro:     {id:'maestro',     label:'👥 Equipo', description:'Consultar y gestionar personas dentro del alcance autorizado.'},
+    export:      {id:'export',      label:'⬇ Exportar', description:'Extraer datos operativos y copias de control.'},
+    fio:         {id:'fio',         label:'⚖ Gestión FIO', description:'Registrar, revisar y resolver faltas u observaciones.'},
+    misfio:      {id:'mis-fio',     label:'⚖ Mis FIO', description:'Consultar las observaciones asociadas a la persona.'},
+    merma:       {id:'merma-mod',   label:'📦 Merma', description:'Registrar desperdicio de producto y su causa.'},
+    ruta:        {id:'ruta-mod',    label:'🧹 Mi Ruta', description:'Ejecutar la ruta asignada de Housekeeping.'},
+    cajaRec:     {id:'rec-caja-op', label:'💰 Caja', description:'Registrar traspaso o cierre de caja de Recepción.', action:'openRecCajaChoice'},
+    cajaLab:     {id:'lab-caja-op', label:'💰 Caja', description:'Registrar el cierre de caja de SYNCROLAB.', action:'openLabCajaChoice'},
+    mantmod:     {id:'mant-mod',    label:'🔧 Mantenimiento', description:'Priorizar y seguir el trabajo técnico del departamento.'},
+    hkPlan:      {id:'hk-plan',     label:'📅 Planificación HK', description:'Asignar habitaciones, zonas y tareas periódicas.'},
+    hkZonas:     {id:'hk-zonas',    label:'🧽 Zonas públicas', description:'Controlar limpieza e histórico de zonas comunes.'},
+    hkConfig:    {id:'hk-config',   label:'⚙ Configuración HK', description:'Configurar habitaciones, zonas, periódicas y tiempos.'},
+    hkRevision:  {id:'hk-revision', label:'🔍 Revisión HK', description:'Revisar trabajos terminados y pedir correcciones.'},
+    fichaje:     {id:'fichaje',     label:'📋 Fichajes', description:'Consultar marcajes y alertas de jornada de Bitrix24.'},
+    incentivos:  {id:'incentivos',  label:'💰 Incentivos', description:'Calcular incentivos dentro del alcance autorizado.'},
+    liquidaciones: {id:'liquidaciones', label:'💳 Liquidaciones', description:'Controlar incentivos pendientes y ya liquidados.'},
+    miRendimiento:{id:'mi-rendimiento', label:'📈 Mi Rendimiento', description:'Consultar producción, incentivos y evolución personal.'},
+    informes:    {id:'informes',    label:'📊 Informes', description:'Registrar datos y reportes por departamento.'},
+    horasMes:    {id:'horas-mes',   label:'⏱ Horas Mensuales', description:'Control mensual de horas reales según Bitrix24.'},
+    planificacion:{id:'planificacion-horaria', label:'📅 Planificación Horaria', description:'Consultar o preparar el cuadrante semanal, ausencias y vacaciones.'},
+    checklist:   {id:'chk-mod',     label:'✅ Checklist', description:'Completar controles obligatorios del puesto.', action:'openChkMidDay'},
+    nota:        {id:'notas-mod',   label:'💬 Nota', description:'Registrar una nota o sugerencia de mejora.'}
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -797,13 +806,15 @@ function getScreens(rol){
   // ════════════════════════════════════════════════════════════════
   if(isAdminU){
     return [
-      ITEMS.gestiones, ITEMS.incidencias, ITEMS.tareas, ITEMS.hypoxic,
-      {sep:true,label:'MI DEPARTAMENTO'},
-      ITEMS.validacion, ITEMS.mantmod, ITEMS.dashHK, ITEMS.liquidaciones,
-      {sep:true,label:'MANAGER BAR',dropdown:true},
-      ITEMS.fichaje, ITEMS.dashboard,
-      ITEMS.maestro, ITEMS.export, ITEMS.fio, ITEMS.informes,
-      ITEMS.horasMes, ITEMS.planificacion
+      navSection('OPERACIÓN', 'Seguimiento y supervisión transversal de la operativa.', 'operacion'),
+      navSubsection('SEGUIMIENTO'), ITEMS.gestiones, ITEMS.incidencias, ITEMS.tareas, ITEMS.hypoxic,
+      navSubsection('SUPERVISIÓN'), ITEMS.validacion, ITEMS.mantmod, ITEMS.dashHK, ITEMS.liquidaciones,
+      navSection('EQUIPO', 'Personas, jornada, planificación y disciplina.', 'equipo'),
+      navSubsection('JORNADA Y PLANIFICACIÓN'), ITEMS.planificacion, ITEMS.fichaje, ITEMS.horasMes,
+      navSubsection('PERSONAS Y DISCIPLINA'), ITEMS.maestro, ITEMS.fio,
+      navSection('DIRECCIÓN', 'Control ejecutivo, informes y salida de datos.', 'direccion'),
+      navSubsection('CONTROL'), ITEMS.dashboard, ITEMS.informes,
+      navSubsection('DATOS'), ITEMS.export
     ];
   }
 
@@ -812,13 +823,16 @@ function getScreens(rol){
   // ════════════════════════════════════════════════════════════════
   if(isAdjDir){
     return [
-      ITEMS.turno, ITEMS.gestiones, ITEMS.incidencias, ITEMS.tareas,
-      ITEMS.misfio, ITEMS.fichaje, ITEMS.nota,
-      {sep:true,label:'MI DEPARTAMENTO'},
-      ITEMS.validacion, ITEMS.dashHK, ITEMS.liquidaciones,
-      {sep:true,label:'MANAGER BAR',dropdown:true},
-      ITEMS.dashboard,
-      ITEMS.maestro, ITEMS.export, ITEMS.fio, ITEMS.informes, ITEMS.planificacion
+      navSection('MI DÍA', 'Registro personal y asuntos que requieren seguimiento.', 'mi-dia'),
+      navSubsection('REGISTRO'), ITEMS.turno, ITEMS.nota,
+      navSubsection('SEGUIMIENTO'), ITEMS.gestiones, ITEMS.incidencias, ITEMS.tareas, ITEMS.misfio,
+      navSection('MI DEPARTAMENTO', 'Planificación y control operativo del equipo.', 'mi-departamento'),
+      navSubsection('JORNADA Y PLANIFICACIÓN'), ITEMS.planificacion, ITEMS.validacion, ITEMS.fichaje,
+      navSubsection('CONTROL OPERATIVO'), ITEMS.dashHK, ITEMS.liquidaciones,
+      navSection('MANAGER', 'Personas, control ejecutivo e información de gestión.', 'manager'),
+      navSubsection('CONTROL'), ITEMS.dashboard, ITEMS.informes,
+      navSubsection('PERSONAS Y DISCIPLINA'), ITEMS.maestro, ITEMS.fio,
+      navSubsection('DATOS'), ITEMS.export
     ];
   }
 
@@ -827,7 +841,11 @@ function getScreens(rol){
   // Entra a los cierres pero NO valida (read-only, ver validacion.js)
   // ════════════════════════════════════════════════════════════════
   if(rol === 'contable'){
-    return [ ITEMS.validacion, ITEMS.dashboard, ITEMS.planificacion ];
+    return [
+      navSection('CONTROL CONTABLE', 'Cierres, consulta operativa y planificación.', 'control-contable'),
+      navSubsection('CIERRES'), ITEMS.validacion,
+      navSubsection('CONSULTA'), ITEMS.dashboard, ITEMS.planificacion
+    ];
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -835,7 +853,10 @@ function getScreens(rol){
   // ════════════════════════════════════════════════════════════════
 
   // ── MI DÍA ───────────────────────────────────────────────────────
-  var miDia = [];
+  var miDia = [
+    navSection('MI DÍA', 'Acciones personales para ejecutar y cerrar la jornada.', 'mi-dia'),
+    navSubsection('REGISTRO Y CIERRE')
+  ];
 
   if(isHK){
     // HK: Mi Ruta y Revisión (gobernanta) se anteponen a Mi Turno
@@ -856,19 +877,25 @@ function getScreens(rol){
     }
   }
 
+  miDia.push(navSubsection('SEGUIMIENTO'));
   miDia.push(ITEMS.gestiones);
-  miDia.push(ITEMS.tareas);
   miDia.push(ITEMS.incidencias);
+  miDia.push(ITEMS.tareas);
   if(isRecepcion || isMant) miDia.push(ITEMS.hypoxic); // Hypoxic: Recepción + Mantenimiento (admin lo tiene en su bloque)
   miDia.push(ITEMS.nota);                              // Nota/Sugerencia: todos los empleados
-  miDia.push(ITEMS.planificacion);                     // Cuadrante publicado: visible para toda la plantilla
+  // El cuadrante publicado pertenece al contexto del departamento.
 
   // ── MI DEPARTAMENTO ──────────────────────────────────────────────
-  var miDpto = [];
+  var miDpto = [
+    navSection('MI DEPARTAMENTO', 'Planificación, jornada y resultados del equipo.', 'mi-departamento'),
+    navSubsection('PLANIFICACIÓN Y JORNADA'),
+    ITEMS.planificacion
+  ];
   if(!isAdmon || (puesto === 'Técnico de Recursos Humanos' && isJefe)){
     if(isJefe) miDpto.push(ITEMS.validacion);           // Validación: primera para jefes
     if(isMant) miDpto.push(ITEMS.mantmod);
     miDpto.push(ITEMS.fichaje);
+    miDpto.push(navSubsection('RENDIMIENTO Y DISCIPLINA'));
     miDpto.push(ITEMS.misfio);
     if(!noIncMiDpto) miDpto.push(ITEMS.miRendimiento);
   }
@@ -876,30 +903,32 @@ function getScreens(rol){
   // ── MANAGER BAR (solo jefe) ──────────────────────────────────────
   var gestion = [];
   if(isJefe){
-    if(!isTecnicoRRHH) gestion.push(ITEMS.dashboard);
+    gestion.push(navSection('MANAGER', 'Control, personas y configuración dentro del alcance autorizado.', 'manager'));
+    if(!isTecnicoRRHH){
+      gestion.push(navSubsection('CONTROL'));
+      gestion.push(ITEMS.dashboard, ITEMS.informes);
+    }
+    gestion.push(navSubsection('PERSONAS Y DISCIPLINA'));
     gestion.push(ITEMS.maestro);   // jefe/coordinador: gestiona empleados de SU departamento
     gestion.push(ITEMS.fio);
-    if(!isTecnicoRRHH) gestion.push(ITEMS.informes);
   }
   // C4: Config HK en Manager Bar (después de inicializar gestion)
-  if(isHK && isJefe) gestion.push(ITEMS.hkConfig);
+  if(isHK && isJefe){
+    gestion.push(navSubsection('CONFIGURACIÓN'));
+    gestion.push(ITEMS.hkConfig);
+  }
 
   // ── Ensamblar ────────────────────────────────────────────────────
-  var out = miDia.slice();
-  if(miDpto.length){
-    out.push({sep:true,label:'MI DEPARTAMENTO'});
-    out = out.concat(miDpto);
-  }
+  var out = miDia.concat(miDpto);
   // ── C4: Gestión HK dropdown (Gobernante / Subgobernanta) ──
   if(isHK && isJefe){
-    out.push({sep:true,label:'GESTIÓN HK',dropdown:true});
+    out.push(navSubsection('OPERACIÓN HOUSEKEEPING'));
     out.push(ITEMS.hkRevision);
     out.push(ITEMS.dashHK);
     out.push(ITEMS.hkPlan);
     out.push(ITEMS.hkZonas);
   }
   if(gestion.length){
-    out.push({sep:true,label:'MANAGER BAR',dropdown:true});
     out = out.concat(gestion);
   }
   return out;
@@ -929,12 +958,15 @@ function buildNav(){
     ,'planificacion-horaria': _svg('<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>')
   };
   const SHORT={'readme':'Info','turno':'Turno','tareas':'Tareas','validacion':'Valid.','dashboard':'Panel','maestro':'Equipo','export':'Export','gestiones':'Gestiones','incidencias':'Incid.','hypoxic':'Hypoxic','caja':'Caja','rec-caja':'Caja Rec.','rec-caja-op':'Caja','merma-mod':'Merma','ajustes-mod':'Aj.Caja','ruta-mod':'Ruta','rec-mod':'Recep.','mant-mod':'Mant.','planificacion-horaria':'Planif.'};
+  const MOBILE_PRIORITY=['turno','ruta-mod','gestiones','incidencias','tareas','planificacion-horaria','validacion','dashboard'];
+  const availableIds=screens.filter(function(item){ return item.id; }).map(function(item){ return item.id; });
+  const mobileIds=MOBILE_PRIORITY.filter(function(id){ return availableIds.indexOf(id)!==-1; }).slice(0,5);
 
   // Pintar sidebar (escritorio) + bottom nav (móvil) + topbar legacy oculto
   const sideb = document.getElementById('sidebar-nav');
   if(sideb) sideb.innerHTML = '';
 
-  // ── TOPBAR V4.2: grupos planos (MI DÍA, MI DEPARTAMENTO) + GESTIÓN dropdown ──
+  // ── TOPBAR V4.3: sectores desplegables con subgrupos y descripciones ──
   var currentGroup = null;
   var currentGroupItems = null;
   var currentIsDropdown = false;
@@ -942,7 +974,7 @@ function buildNav(){
   function _startGroup(label, opts){
     opts = opts || {};
     var g = document.createElement('div');
-    var clsKey = label.toLowerCase().replace(/[^a-z]/g,'');
+    var clsKey = opts.key || label.toLowerCase().replace(/[^a-z]/g,'');
     g.className = 'nav-group nav-group-' + clsKey;
 
     if(opts.dropdown){
@@ -951,10 +983,21 @@ function buildNav(){
       var btn = document.createElement('button');
       btn.className = 'nav-btn-dropdown-toggle';
       btn.id = 'nav-' + clsKey + '-toggle';
+      btn.type = 'button';
+      btn.setAttribute('aria-expanded','false');
+      btn.setAttribute('aria-controls','nav-' + clsKey + '-menu');
       btn.innerHTML = '<span>' + label + '</span> <span class="chevron">▾</span>'
                     + '<span class="alert-dot" id="dot-' + clsKey + '-group"></span>';
       var menu = document.createElement('div');
       menu.className = 'nav-dropdown-menu';
+      menu.id = 'nav-' + clsKey + '-menu';
+      menu.setAttribute('role','menu');
+      if(opts.description){
+        var intro = document.createElement('div');
+        intro.className = 'nav-sector-description';
+        intro.textContent = opts.description;
+        menu.appendChild(intro);
+      }
       btn.onclick = function(ev){
         ev.stopPropagation();
         var willOpen = !btn.classList.contains('open');
@@ -962,11 +1005,13 @@ function buildNav(){
         Array.prototype.forEach.call(document.querySelectorAll('.nav-btn-dropdown-toggle.open'), function(b){
           if(b !== btn){
             b.classList.remove('open');
+            b.setAttribute('aria-expanded','false');
             var m = b.parentNode.querySelector('.nav-dropdown-menu');
             if(m) m.classList.remove('open');
           }
         });
         btn.classList.toggle('open', willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
         menu.classList.toggle('open', willOpen);
       };
       g.appendChild(btn);
@@ -992,12 +1037,9 @@ function buildNav(){
     currentGroupItems = items;
   }
 
-  // Arrancar primer grupo MI DÍA
-  _startGroup('MI DÍA');
-
   screens.forEach(s=>{
     if(s.sep){
-      _startGroup(s.label, {dropdown: !!s.dropdown});
+      _startGroup(s.label, {dropdown: !!s.dropdown, description:s.description, key:s.key});
       if(sideb){
         const sep = document.createElement('div');
         sep.className = 'sidebar-group-label';
@@ -1006,6 +1048,22 @@ function buildNav(){
       }
       return;
     }
+    if(s.sub){
+      if(currentGroupItems){
+        var sub = document.createElement('div');
+        sub.className = 'nav-subgroup-label';
+        sub.textContent = s.label;
+        currentGroupItems.appendChild(sub);
+      }
+      if(sideb){
+        var sideSub = document.createElement('div');
+        sideSub.className = 'sidebar-subgroup-label';
+        sideSub.textContent = s.label;
+        sideb.appendChild(sideSub);
+      }
+      return;
+    }
+    if(!currentGroupItems) return;
     const isPending = !!s.pending;
 
     // Sidebar (escritorio)
@@ -1029,7 +1087,12 @@ function buildNav(){
     const b=document.createElement('button');
     b.className='nav-btn' + (isPending ? ' is-pending' : '');
     b.id='nav-'+s.id;
-    b.innerHTML=s.label+'<span class="alert-dot" id="dot-'+s.id+'"></span>';
+    b.type='button';
+    b.setAttribute('role','menuitem');
+    b.setAttribute('title',s.description||s.label);
+    b.innerHTML='<span class="nav-item-copy"><span class="nav-item-label">'+s.label+'</span>'
+      +(s.description?'<span class="nav-item-description">'+s.description+'</span>':'')
+      +'</span><span class="alert-dot" id="dot-'+s.id+'"></span>';
     b.onclick=function(){
       // Si el botón está dentro de un dropdown, cerrarlo al hacer click
       var parentMenu = b.closest('.nav-dropdown-menu');
@@ -1037,7 +1100,10 @@ function buildNav(){
         parentMenu.classList.remove('open');
         var parentGroup = parentMenu.closest('.nav-group');
         var toggleBtn = parentGroup && parentGroup.querySelector('.nav-btn-dropdown-toggle');
-        if(toggleBtn) toggleBtn.classList.remove('open');
+        if(toggleBtn){
+          toggleBtn.classList.remove('open');
+          toggleBtn.setAttribute('aria-expanded','false');
+        }
       }
       if(isPending){ toast('Módulo en desarrollo','info'); return; }
       if(s.action){ if(typeof window[s.action] === 'function') window[s.action](); return; }
@@ -1046,7 +1112,7 @@ function buildNav(){
     currentGroupItems.appendChild(b);
 
     // Bottom nav (móvil) — plano siempre
-    if(bnav){
+    if(bnav && mobileIds.indexOf(s.id)!==-1){
       const bb=document.createElement('button');
       bb.className='bnav-btn' + (isPending ? ' is-pending' : '');
       bb.id='bnav-'+s.id;
@@ -1059,14 +1125,14 @@ function buildNav(){
       bnav.appendChild(bb);
     }
   });
-  // Limpia grupos vacíos (ej. MI DÍA si admin no tiene items antes del primer sep)
+  // Limpia sectores sin accesos reales (no cuentan descripciones ni subtítulos).
   Array.prototype.forEach.call(nav.querySelectorAll('.nav-group'), function(g){
     var items = g.querySelector('.nav-group-items, .nav-dropdown-menu');
-    if(!items || items.children.length === 0) g.parentNode.removeChild(g);
+    if(!items || !items.querySelector('.nav-btn')) g.parentNode.removeChild(g);
   });
   // Show bottom nav
   var bn=document.getElementById('bottom-nav');
-  if(bn) bn.style.display='block';
+  if(bn) bn.style.display=bnav && bnav.children.length ? 'block' : 'none';
 
   // Rellenar bloque usuario topbar (área · puesto · nombre)
   var deptEl   = document.getElementById('topbar-dept');
@@ -1083,6 +1149,7 @@ function buildNav(){
       Array.prototype.forEach.call(document.querySelectorAll('.nav-btn-dropdown-toggle.open'), function(btn){
         if(btn.parentNode.contains(e.target)) return;
         btn.classList.remove('open');
+        btn.setAttribute('aria-expanded','false');
         var menu = btn.parentNode.querySelector('.nav-dropdown-menu');
         if(menu) menu.classList.remove('open');
       });
@@ -1092,6 +1159,7 @@ function buildNav(){
       if(e.key !== 'Escape') return;
       Array.prototype.forEach.call(document.querySelectorAll('.nav-btn-dropdown-toggle.open'), function(btn){
         btn.classList.remove('open');
+        btn.setAttribute('aria-expanded','false');
         var menu = btn.parentNode.querySelector('.nav-dropdown-menu');
         if(menu) menu.classList.remove('open');
       });
@@ -1111,10 +1179,16 @@ async function showScreen(id){
   if(_ps && _ps.style.display!=='flex') { _ps.style.display='none'; _ps.style.pointerEvents='none'; }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.nav-btn-dropdown-toggle').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.bnav-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
   const s=document.getElementById('screen-'+id); if(s) s.classList.add('active');
   const nb=document.getElementById('nav-'+id); if(nb) nb.classList.add('active');
+  if(nb){
+    var navGroup=nb.closest('.nav-group');
+    var navToggle=navGroup && navGroup.querySelector('.nav-btn-dropdown-toggle');
+    if(navToggle) navToggle.classList.add('active');
+  }
   const bb=document.getElementById('bnav-'+id); if(bb) bb.classList.add('active');
   const sb=document.getElementById('side-'+id); if(sb) sb.classList.add('active');
   window.scrollTo(0,0);
