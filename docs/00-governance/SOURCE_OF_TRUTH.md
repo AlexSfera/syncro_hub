@@ -1,4 +1,7 @@
-# SYNCRO Shift — Fuentes oficiales de verdad
+# SYNCRO SHIFT — Fuentes oficiales de verdad
+
+**Estado:** ACTIVO
+**Corte:** 2026-10-02
 
 ## 1. Objetivo
 
@@ -8,14 +11,17 @@ Este documento define qué fuente debe considerarse válida cuando existan contr
 
 La prioridad técnica es la siguiente:
 
-1. Código aprobado en la rama `main` de GitHub.
-2. Estructura real de Supabase y migraciones versionadas.
-3. Documentación aprobada dentro del repositorio.
-4. Decisiones registradas en documentos de arquitectura o ADR.
-5. Tareas técnicas aprobadas.
-6. Conversaciones de Claude o Codex.
+1. Comportamiento reproducible y configuración real del entorno afectado.
+2. Código aprobado en la rama `main` de GitHub.
+3. Estructura LIVE comprobada y migraciones SQL versionadas.
+4. `docs/MASTER_DOCUMENTATION.md`, `CURRENT_STATE.md`,
+   `MODULE_STATUS.md` y `ARCHITECTURE.md`.
+5. Documentación funcional vigente y decisiones ADR.
+6. Registro histórico, tareas y conversaciones.
 
-Las conversaciones de Claude y Codex son material de trabajo. No sustituyen al código, a la documentación aprobada ni a una decisión registrada.
+Las conversaciones son material de trabajo. Un archivo no demuestra que el flujo
+funcione, una prueba local no demuestra LIVE y un deployment no demuestra que
+`main` contenga el código publicado.
 
 ## 3. Jerarquía operativa y de negocio
 
@@ -102,8 +108,8 @@ No se deben inventar estructuras, tablas, campos, integraciones, estados ni regl
 
 ## 10. Aprobación
 
-Responsable funcional: Alexander Kolobnev
+Responsable funcional: propietario del proyecto
 
-Estado del documento: BORRADOR
+Estado del documento: ACTIVO
 
-Fecha: 2026-07-31
+Última revisión: 2026-10-02

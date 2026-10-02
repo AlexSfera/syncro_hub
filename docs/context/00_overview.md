@@ -1,5 +1,10 @@
 # 00 — Overview: SYNCRO SHIFT
 
+> **Documento funcional histórico.** Fue actualizado en julio de 2026. Para el
+> corte verificable actual consulte `../MASTER_DOCUMENTATION.md` y
+> `../04-development/CURRENT_STATE.md`. Revalide tablas, estados e integraciones
+> antes de implementar.
+
 **Actualizado:** 2026-07-31
 **Plataforma:** syncro-shift.vercel.app (antes syncro-hub.vercel.app)
 **Stack:** Vanilla JS · Supabase (PostgreSQL) · Vercel auto-deploy

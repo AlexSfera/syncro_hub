@@ -1,5 +1,11 @@
 # SYNCRO SHIFT — AUDIT ACTION REGISTER
 
+> **AVISO DE CORTE (2026-10-02):** este registro contiene evidencia y estados
+> históricos acumulados. Para el estado vigente consulte primero
+> `docs/MASTER_DOCUMENTATION.md`, `docs/04-development/CURRENT_STATE.md` y
+> `docs/04-development/MODULE_STATUS.md`. Ninguna afirmación LIVE de este
+> archivo debe asumirse actual sin revalidación.
+
 ## Propósito
 
 Este documento es el registro maestro de hallazgos técnicos, riesgos,

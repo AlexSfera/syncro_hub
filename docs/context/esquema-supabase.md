@@ -1,5 +1,10 @@
 # Esquema Supabase — SYNCRO SHIFT
 
+> **EVIDENCIA HISTÓRICA, NO ESTADO LIVE.** Los conteos, filas, grants y policies
+> siguientes proceden de julio de 2026 y no se revalidaron el 2026-10-02. Use
+> `../MASTER_DOCUMENTATION.md` y compruebe Supabase en modo de solo lectura antes
+> de decidir o modificar.
+
 **Proyecto:** `tsfhrpdpbkciofvejrao` · **46 tablas en `public`** · Generado 2026-07-26 desde `pg_policies` + `list_tables`.
 
 ---
