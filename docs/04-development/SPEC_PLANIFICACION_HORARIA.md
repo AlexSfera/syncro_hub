@@ -63,6 +63,14 @@ inactivo antes de aceptar nuevas asignaciones.
 | Marketing | 45 | principal_departamento |
 | Dirección Comercial | 95 | principal_departamento |
 | C&C | 87 | principal_departamento |
+
+La lista visible de Planificación se obtiene de estos mapeos activos y no de
+una segunda lista escrita a mano. El selector de puestos del Maestro usa los
+mismos ámbitos para agrupar los puestos existentes. Comercial, Marketing y
+Dirección Comercial conservan `[NO DATA]` en puestos hasta que Dirección defina
+sus cargos; no se inventan opciones. `C&C` es el identificador observado en el
+mapeo Bitrix y su significado completo permanece `[NO DATA]`; el puesto actual
+asociado en el Maestro es `Contable`.
 | Todos | 85 | extra_recuperacion |
 
 Los horarios individuales permanecen fuera del mapeo automático hasta tener

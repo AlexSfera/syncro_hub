@@ -7,12 +7,6 @@ var _ph = {
   timer: null, modalEmployee: '', modalDate: ''
 };
 
-var PH_DEPARTMENTS = [
-  'Cocina', 'Sala', 'Housekeeping', 'Mantenimiento', 'Recepción',
-  'Recepción SYNCROLAB', 'Entrenadores', 'Fisioterapeutas', 'RRHH',
-  'Comercial', 'Marketing', 'Dirección Comercial', 'C&C'
-];
-
 function _phEsc(value){
   return String(value == null ? '' : value).replace(/[&<>"']/g, function(char){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char];
@@ -41,18 +35,13 @@ function _phMonday(ymd){
 }
 
 function _phInitialDepartment(){
-  var area = currentUser && currentUser.area || '';
-  var puesto = currentUser && currentUser.puesto || '';
-  if(area === 'Friegue') return 'Cocina';
-  if(area === 'Limpieza' || area === 'HK') return 'Housekeeping';
-  if(area === 'Recepción SFERA') return 'Recepción';
-  if(/syncrolab/i.test(area)){
-    if(/fisio/i.test(puesto)) return 'Fisioterapeutas';
-    if(/entrenador/i.test(puesto)) return 'Entrenadores';
-    return 'Recepción SYNCROLAB';
+  if(typeof _planningDepartmentForProfile === 'function'){
+    var resolved = _planningDepartmentForProfile(currentUser);
+    if(resolved && resolved !== 'Administración' && resolved !== 'F&B' && resolved !== 'SYNCROLAB') return resolved;
   }
-  if(area === 'Administración' || area === 'Recursos Humanos') return 'RRHH';
-  return PH_DEPARTMENTS.indexOf(area) >= 0 ? area : 'Cocina';
+  if(currentUser && ((currentUser.puesto||'') === 'F&B Manager' || currentUser.rol === 'fb')) return 'Cocina';
+  if(currentUser && (currentUser.puesto||'') === 'Club Manager') return 'Recepción SYNCROLAB';
+  return 'Cocina';
 }
 
 async function _phApi(path, options){
@@ -125,18 +114,26 @@ async function _phLoad(syncOnOpen){
   if(!root || _ph.loading) return;
   _ph.loading = true;
   var refreshAfterLoad = false;
+  var departmentChanged = false;
   root.innerHTML = '<div class="card"><p style="padding:16px 0;color:var(--text3)">Cargando planificación…</p></div>';
   try{
     var url = '/api/planning/bootstrap?week_start=' + encodeURIComponent(_ph.weekStart)
       + '&department=' + encodeURIComponent(_ph.department);
     _ph.data = await _phApi(url, {method:'GET'});
-    _ph.assignments = (_ph.data.assignments || []).map(function(item){
-      return Object.assign({}, item, {
-        tramos: (_ph.data.segments || []).filter(function(segment){ return String(segment.asignacion_id) === String(item.id); })
+    var available = _ph.data.availableDepartments || [];
+    if(available.length && available.indexOf(_ph.department) < 0){
+      _ph.department = available[0];
+      _ph.data = null;
+      departmentChanged = true;
+    }else{
+      _ph.assignments = (_ph.data.assignments || []).map(function(item){
+        return Object.assign({}, item, {
+          tramos: (_ph.data.segments || []).filter(function(segment){ return String(segment.asignacion_id) === String(item.id); })
+        });
       });
-    });
-    _phRender();
-    if(syncOnOpen && _ph.data.permissions.canEdit) refreshAfterLoad = await _phRefreshCatalog(true, false);
+      _phRender();
+      if(syncOnOpen && _ph.data.permissions.canEdit) refreshAfterLoad = await _phRefreshCatalog(true, false);
+    }
   }catch(error){
     var schemaPending = error.message === 'PLANNING_SCHEMA_NOT_READY';
     root.innerHTML = '<div class="card"><div class="ph-alert ' + (schemaPending ? 'warn' : 'err') + '">'
@@ -147,17 +144,20 @@ async function _phLoad(syncOnOpen){
   }finally{
     _ph.loading = false;
   }
+  if(departmentChanged) return _phLoad(syncOnOpen);
   if(refreshAfterLoad) await _phLoad(false);
 }
 
+function _phDepartmentLabel(department){
+  return department === 'C&C' ? 'C&C (Bitrix) · puesto actual: Contable' : department;
+}
+
 function _phDepartmentOptions(){
-  var list = PH_DEPARTMENTS.slice();
-  (_ph.data && _ph.data.mappings || []).forEach(function(item){
-    if(list.indexOf(item.departamento_id) < 0) list.push(item.departamento_id);
-  });
+  var list = _ph.data && _ph.data.availableDepartments || [];
+  if(!list.length && _ph.department) list = [_ph.department];
   return list.map(function(department){
     return '<option value="' + _phEsc(department) + '"' + (department === _ph.department ? ' selected' : '') + '>'
-      + _phEsc(department) + '</option>';
+      + _phEsc(_phDepartmentLabel(department)) + '</option>';
   }).join('');
 }
 

@@ -229,9 +229,29 @@ function _deptCatalogo(u){
   }
   return area;
 }
+function _planningDepartmentForProfile(u){
+  u = u || (typeof currentUser !== 'undefined' ? currentUser : null);
+  if(!u) return '';
+  var position = String(u.puesto||'').trim();
+  var role = String(u.rol||'').trim();
+  var area = String(u.area||'').trim();
+  if(position==='Técnico de Recursos Humanos' || role==='tecnico_rrhh') return 'RRHH';
+  if(position==='Contable' || role==='contable') return 'C&C';
+  if(/syncrolab|syncro lab/i.test(area)){
+    if(position==='Club Manager') return 'SYNCROLAB';
+    if(_esEntrenador(u)) return 'Entrenadores';
+    if(_esFisio(u)) return 'Fisioterapeutas';
+    return 'Recepción SYNCROLAB';
+  }
+  if(area==='Friegue') return 'Cocina';
+  if(area==='Limpieza' || area==='HK') return 'Housekeeping';
+  if(area==='Recepción SFERA') return 'Recepción';
+  return area;
+}
 window._esEntrenador = _esEntrenador;
 window._esFisio      = _esFisio;
 window._deptCatalogo = _deptCatalogo;
+window._planningDepartmentForProfile = _planningDepartmentForProfile;
 
 // ═══════════════════════════════════════════════════════════════════════
 // FEAT-TURNO-AUTO (spec 22 · docs/context/22_auto_turno_assignment.md)
@@ -3646,9 +3666,19 @@ var PUESTO_AREA_MAP = {
   'Recepción':['Jefe de Recepción','Subjefe de Recepción','Recepcionista','Ayudante de Recepción','Auditor de Noche'],
   'Housekeeping':['Gobernanta','Subgobernanta','Camarera de pisos','Ayudante camarera de pisos'],
   'Mantenimiento':['Jefe de Mantenimiento','Técnico'],
-  'SYNCROLAB':['Club Manager','Coordinador(a) de Atención al Cliente','Coordinador(a) de Entrenadores','Coordinador(a) de Fisioterapeutas','Atención al Cliente','Entrenador(a)','Fisioterapeuta'],
-  'F&B':['F&B Manager'],
-  'Administración':['Administrador','Adjunto Directivo','Contable','Técnico de Recursos Humanos']
+  'Recepción SYNCROLAB':['Coordinador(a) de Atención al Cliente','Atención al Cliente'],
+  'Entrenadores':['Coordinador(a) de Entrenadores','Entrenador(a)'],
+  'Fisioterapeutas':['Coordinador(a) de Fisioterapeutas','Fisioterapeuta'],
+  'RRHH':['Técnico de Recursos Humanos'],
+  'Comercial':[],
+  'Marketing':[],
+  'Dirección Comercial':[],
+  'C&C':['Contable']
+};
+var PUESTO_TRANSVERSAL_MAP = {
+  'F&B · supervisa Cocina y Sala':['F&B Manager'],
+  'SYNCROLAB · supervisa sus tres departamentos':['Club Manager'],
+  'Dirección transversal':['Administrador','Adjunto Directivo']
 };
 function _governanceForPosition(puesto,allowLegacy){
   var p=(puesto||'').trim();

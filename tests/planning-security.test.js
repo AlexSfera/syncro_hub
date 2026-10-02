@@ -79,6 +79,19 @@ test('interfaz conserva NO DATA y refresco periódico de cinco minutos', async (
   assert.match(ui, /if\(refreshAfterLoad\) await _phLoad\(false\)/);
   assert.match(ui, /timeman\.schedule\.get|catálogo oficial|catálogo de turnos/i);
   assert.match(ui, /API oficial documentada/);
+  assert.doesNotMatch(ui, /var PH_DEPARTMENTS/);
+  assert.match(ui, /availableDepartments/);
+});
+
+test('Maestro agrupa puestos por los departamentos de planificación Bitrix', async () => {
+  const shared = await read('shared.js');
+  const html = await read('index.html');
+  for(const department of ['Recepción SYNCROLAB','Entrenadores','Fisioterapeutas','RRHH','Comercial','Marketing','Dirección Comercial','C&C']){
+    assert.match(shared, new RegExp("'" + department.replace('&', '\\&') + "'"));
+  }
+  assert.match(html, /Recepción SYNCROLAB/);
+  assert.match(html, /Entrenadores · horarios individuales en Bitrix/);
+  assert.match(html, /C&amp;C \(Bitrix\) · significado completo \[NO DATA\]/);
 });
 
 test('bootstrap no expone motivos confidenciales ni IDs Bitrix de empleados', async () => {

@@ -2447,7 +2447,7 @@ tr:hover td{background:rgba(96,165,250,.06);}
         <option>Administración</option><option>F&amp;B</option>
       </select>
       <div class="fg sp2"><label>Puesto <span class="req">*</span> <span style="font-size:11px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;">— el área se asigna automáticamente</span></label><select id="emp-puesto" onchange="_syncAreaFromPuesto()">
-  <optgroup label="F&amp;B (superior de Cocina y Sala)">
+  <optgroup label="F&amp;B · supervisa Cocina y Sala">
     <option>F&amp;B Manager</option>
   </optgroup>
   <optgroup label="Cocina">
@@ -2466,7 +2466,7 @@ tr:hover td{background:rgba(96,165,250,.06);}
     <option>Ayudante camarero</option>
     <option>Ayudante camarera</option>
   </optgroup>
-  <optgroup label="Recepción / Hotel">
+  <optgroup label="Recepción">
     <option>Jefe de Recepción</option>
     <option>Subjefe de Recepción</option>
     <option>Recepcionista</option>
@@ -2483,20 +2483,39 @@ tr:hover td{background:rgba(96,165,250,.06);}
     <option>Jefe de Mantenimiento</option>
     <option>Técnico</option>
   </optgroup>
-  <optgroup label="SYNCROLAB">
+  <optgroup label="SYNCROLAB · supervisa sus tres departamentos">
     <option>Club Manager</option>
+  </optgroup>
+  <optgroup label="Recepción SYNCROLAB">
     <option>Coordinador(a) de Atención al Cliente</option>
-    <option>Coordinador(a) de Entrenadores</option>
-    <option>Coordinador(a) de Fisioterapeutas</option>
     <option>Atención al Cliente</option>
+  </optgroup>
+  <optgroup label="Entrenadores · horarios individuales en Bitrix">
+    <option>Coordinador(a) de Entrenadores</option>
     <option>Entrenador(a)</option>
+  </optgroup>
+  <optgroup label="Fisioterapeutas">
+    <option>Coordinador(a) de Fisioterapeutas</option>
     <option>Fisioterapeuta</option>
   </optgroup>
-  <optgroup label="Dirección">
+  <optgroup label="RRHH">
+    <option>Técnico de Recursos Humanos</option>
+  </optgroup>
+  <optgroup label="Comercial">
+    <option disabled>[NO DATA] · puesto pendiente de definir</option>
+  </optgroup>
+  <optgroup label="Marketing">
+    <option disabled>[NO DATA] · puesto pendiente de definir</option>
+  </optgroup>
+  <optgroup label="Dirección Comercial">
+    <option disabled>[NO DATA] · puesto pendiente de definir</option>
+  </optgroup>
+  <optgroup label="C&amp;C (Bitrix) · significado completo [NO DATA]">
+    <option>Contable</option>
+  </optgroup>
+  <optgroup label="Dirección transversal">
     <option>Administrador</option>
     <option>Adjunto Directivo</option>
-    <option>Contable</option>
-    <option>Técnico de Recursos Humanos</option>
   </optgroup>
 </select>
         <div id="emp-governance-summary" style="margin-top:8px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text2);font-size:11px;"></div>

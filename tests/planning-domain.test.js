@@ -83,6 +83,12 @@ test('aplica ventana retrospectiva exacta de 28 días', () => {
 test('resuelve ámbitos equivalentes de departamento', () => {
   assert.equal(employeeBelongsToPlanningDepartment({area:'Friegue'}, 'Cocina'), true);
   assert.equal(employeeBelongsToPlanningDepartment({area:'Limpieza'}, 'Housekeeping'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({area:'SYNCROLAB',puesto:'Entrenador(a)'}, 'Entrenadores'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({area:'SYNCROLAB',puesto:'Fisioterapeuta'}, 'Fisioterapeutas'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({area:'SYNCROLAB',puesto:'Atención al Cliente'}, 'Recepción SYNCROLAB'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({area:'Administración',puesto:'Técnico de Recursos Humanos'}, 'RRHH'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({area:'Administración',puesto:'Contable'}, 'C&C'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({area:'SYNCROLAB',puesto:'Entrenador(a)'}, 'Recepción SYNCROLAB'), false);
   assert.equal(employeeBelongsToPlanningDepartment({area:'Marketing'}, 'Cocina'), false);
   assert.equal(canEditPlanningDepartment({rol:'jefe', validador:1}, 'Cocina', ['Cocina','Friegue']), true);
   assert.equal(canEditPlanningDepartment({rol:'empleado', validador:0}, 'Cocina', ['Cocina']), false);
