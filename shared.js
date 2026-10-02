@@ -3649,6 +3649,11 @@ var PUESTO_GOVERNANCE = {
   'Atención al Cliente':{area:'SYNCROLAB',rol:'empleado',nivel:1,rank:10,validador:0},
   'Entrenador(a)':{area:'SYNCROLAB',rol:'empleado',nivel:1,rank:10,validador:0},
   'Fisioterapeuta':{area:'SYNCROLAB',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Head of Sales':{area:'Dirección Comercial',rol:'supervisor',nivel:2,rank:70,validador:1},
+  'CRM / Email Manager':{area:'Marketing',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Marketing':{area:'Marketing',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Coordinadora Experiencia del Huésped':{area:'Comercial',rol:'empleado',nivel:1,rank:10,validador:0},
+  'Business Development & Product Executive':{area:'Comercial',rol:'empleado',nivel:1,rank:10,validador:0},
   'Administrador':{area:'Administración',rol:'admin',nivel:5,rank:100,validador:1},
   'Adjunto Directivo':{area:'Administración',rol:'adjunto',nivel:4,rank:90,validador:1},
   'Contable':{area:'Administración',rol:'contable',nivel:1,rank:20,validador:0},
@@ -3670,9 +3675,9 @@ var PUESTO_AREA_MAP = {
   'Entrenadores':['Coordinador(a) de Entrenadores','Entrenador(a)'],
   'Fisioterapeutas':['Coordinador(a) de Fisioterapeutas','Fisioterapeuta'],
   'RRHH':['Técnico de Recursos Humanos'],
-  'Comercial':[],
-  'Marketing':[],
-  'Dirección Comercial':[],
+  'Comercial':['Coordinadora Experiencia del Huésped','Business Development & Product Executive'],
+  'Marketing':['CRM / Email Manager','Marketing'],
+  'Dirección Comercial':['Head of Sales'],
   'C&C':['Contable']
 };
 var PUESTO_TRANSVERSAL_MAP = {

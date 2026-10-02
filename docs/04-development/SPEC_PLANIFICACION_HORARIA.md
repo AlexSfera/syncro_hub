@@ -66,11 +66,15 @@ inactivo antes de aceptar nuevas asignaciones.
 
 La lista visible de Planificación se obtiene de estos mapeos activos y no de
 una segunda lista escrita a mano. El selector de puestos del Maestro usa los
-mismos ámbitos para agrupar los puestos existentes. Comercial, Marketing y
-Dirección Comercial conservan `[NO DATA]` en puestos hasta que Dirección defina
-sus cargos; no se inventan opciones. `C&C` es el identificador observado en el
-mapeo Bitrix y su significado completo permanece `[NO DATA]`; el puesto actual
-asociado en el Maestro es `Contable`.
+mismos ámbitos para agrupar los puestos existentes. El organigrama Bitrix de
+`Sales & Marketing` aportado el 2026-10-02 se distribuye operativamente así:
+`Head of Sales` en Dirección Comercial; `CRM / Email Manager` y `Marketing` en
+Marketing; `Coordinadora Experiencia del Huésped` y
+`Business Development & Product Executive` en Comercial. `IT Developer` queda
+fuera del selector por indicación expresa. Bitrix muestra `Head of Sales` como
+supervisor; esta evidencia no amplía por sí sola sus permisos transversales en
+SYNCRO SHIFT. `C&C` conserva el significado completo `[NO DATA]` y el puesto
+confirmado en el Maestro es `Contable`.
 | Todos | 85 | extra_recuperacion |
 
 Los horarios individuales permanecen fuera del mapeo automático hasta tener

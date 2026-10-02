@@ -23,6 +23,9 @@ test('active position catalog contains the approved organizational structure', (
     'Club Manager', 'Coordinador(a) de Atención al Cliente',
     'Coordinador(a) de Entrenadores', 'Coordinador(a) de Fisioterapeutas',
     'Atención al Cliente', 'Entrenador(a)', 'Fisioterapeuta',
+    'Head of Sales', 'CRM / Email Manager', 'Marketing',
+    'Coordinadora Experiencia del Huésped',
+    'Business Development & Product Executive',
     'Administrador', 'Adjunto Directivo', 'Contable',
     'Técnico de Recursos Humanos'
   ];
@@ -37,6 +40,19 @@ test('parent managers outrank departmental leadership and operational staff', ()
   assert.ok(positionRank(fnb) > positionRank(kitchenHead));
   assert.ok(positionRank(kitchenHead) > positionRank(kitchenDeputy));
   assert.ok(positionRank(kitchenDeputy) > positionRank(cook));
+});
+
+test('Sales & Marketing positions preserve the Bitrix department split', () => {
+  const head = canonicalizeEmployeeProfile({ puesto: 'Head of Sales' });
+  assert.equal(head.area, 'Dirección Comercial');
+  assert.equal(head.rol, 'supervisor');
+  assert.equal(head.validador, 1);
+  assert.ok(positionRank(head) > positionRank({ puesto: 'CRM / Email Manager' }));
+  assert.equal(canonicalizeEmployeeProfile({ puesto: 'CRM / Email Manager' }).area, 'Marketing');
+  assert.equal(canonicalizeEmployeeProfile({ puesto: 'Marketing' }).area, 'Marketing');
+  assert.equal(canonicalizeEmployeeProfile({ puesto: 'Coordinadora Experiencia del Huésped' }).area, 'Comercial');
+  assert.equal(canonicalizeEmployeeProfile({ puesto: 'Business Development & Product Executive' }).area, 'Comercial');
+  assert.equal(POSITION_GOVERNANCE['IT Developer'], undefined);
 });
 
 test('position governance preserves specialized operational permissions', () => {
@@ -70,7 +86,7 @@ test('historic position labels cannot elevate a stored role to Administrator or 
   assert.equal(positionRank(forgedAdmin), 10);
 });
 
-test('employee modal removes retired positions and adds Freelancer and HR technician', () => {
+test('employee modal removes retired positions and includes approved Bitrix positions', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const employeeModal = html.slice(
     html.indexOf('id="modal-empleado"'),
@@ -78,6 +94,12 @@ test('employee modal removes retired positions and adds Freelancer and HR techni
   );
   assert.match(employeeModal, /<option>Freelancer<\/option>/);
   assert.match(employeeModal, /<option>Técnico de Recursos Humanos<\/option>/);
+  assert.match(employeeModal, /<option>Head of Sales<\/option>/);
+  assert.match(employeeModal, /<option>CRM \/ Email Manager<\/option>/);
+  assert.match(employeeModal, /<option>Marketing<\/option>/);
+  assert.match(employeeModal, /<option>Coordinadora Experiencia del Huésped<\/option>/);
+  assert.match(employeeModal, /<option>Business Development &amp; Product Executive<\/option>/);
+  assert.doesNotMatch(employeeModal, /<option>IT Developer<\/option>/);
   assert.match(employeeModal, /<option value="tecnico_rrhh">Técnico RRHH<\/option>/);
   assert.doesNotMatch(employeeModal, /<option>Friegue<\/option>/);
   assert.doesNotMatch(employeeModal, /<option>Camarero de pisos<\/option>/);

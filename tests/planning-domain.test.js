@@ -88,6 +88,9 @@ test('resuelve ámbitos equivalentes de departamento', () => {
   assert.equal(employeeBelongsToPlanningDepartment({area:'SYNCROLAB',puesto:'Atención al Cliente'}, 'Recepción SYNCROLAB'), true);
   assert.equal(employeeBelongsToPlanningDepartment({area:'Administración',puesto:'Técnico de Recursos Humanos'}, 'RRHH'), true);
   assert.equal(employeeBelongsToPlanningDepartment({area:'Administración',puesto:'Contable'}, 'C&C'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({puesto:'Head of Sales'}, 'Dirección Comercial'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({puesto:'CRM / Email Manager'}, 'Marketing'), true);
+  assert.equal(employeeBelongsToPlanningDepartment({puesto:'Business Development & Product Executive'}, 'Comercial'), true);
   assert.equal(employeeBelongsToPlanningDepartment({area:'SYNCROLAB',puesto:'Entrenador(a)'}, 'Recepción SYNCROLAB'), false);
   assert.equal(employeeBelongsToPlanningDepartment({area:'Marketing'}, 'Cocina'), false);
   assert.equal(canEditPlanningDepartment({rol:'jefe', validador:1}, 'Cocina', ['Cocina','Friegue']), true);

@@ -92,6 +92,11 @@ test('Maestro agrupa puestos por los departamentos de planificación Bitrix', as
   assert.match(html, /Recepción SYNCROLAB/);
   assert.match(html, /Entrenadores · horarios individuales en Bitrix/);
   assert.match(html, /C&amp;C \(Bitrix\) · significado completo \[NO DATA\]/);
+  assert.match(html, /<option>Head of Sales<\/option>/);
+  assert.match(html, /<option>CRM \/ Email Manager<\/option>/);
+  assert.match(html, /<option>Coordinadora Experiencia del Huésped<\/option>/);
+  assert.match(html, /<option>Business Development &amp; Product Executive<\/option>/);
+  assert.doesNotMatch(html, /<option>IT Developer<\/option>/);
 });
 
 test('bootstrap no expone motivos confidenciales ni IDs Bitrix de empleados', async () => {
