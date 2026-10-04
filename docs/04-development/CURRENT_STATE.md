@@ -1,3 +1,12 @@
+## Continuación verificada de datos — 04/10/2026
+Esta sección prevalece sobre los recuentos inferiores. Tras confirmar Alexander las nueve correspondencias de identidad pendientes, se corrigieron dos vínculos existentes y se crearon siete referencias internas mínimas en Supabase LIVE.
+Resultado de la carga: **57 personas**, **114 aperturas anuales**, **49 ceros de 2025** y corte **30/09/2026**. De las 65 filas originales, cinco están excluidas por decisión de Alexander y tres mantienen contradicciones de saldo. Las 18 aperturas de esta continuación coinciden con los saldos y unidades de la plantilla; el lote conserva los 100 movimientos anteriores, incluidos los distintos de apertura.
+Las siete referencias nuevas quedan **Sin asignar**, con rol mínimo empleado, sin credenciales, invitaciones ni facultades de responsable o validador. No se modifica su estado a Activo o Baja porque la consulta directa de Bitrix24 está bloqueada en esta sesión. Esas referencias no aparecen en el filtro de empleados activos de Planificación Horaria. La identidad y el ID se respaldan con la plantilla y la confirmación expresa de Alexander.
+La pantalla autenticada y el estado actual de Bitrix24 siguen en **[NO DATA]**. La versión de pantalla del commit `ae4e3b7` permanece en Preview; no hubo cambio en el deployment de Producción ni en `main` en esta continuación.
+Reversión: restaurar únicamente los dos vínculos con los valores anteriores registrados en auditoría; compensar exclusivamente las aperturas nuevas no nulas y conservar las aperturas cero, referencias internas e historial. No aplicar el rollback del CHECK con aperturas cero existentes.
+
+---
+
 ## Actualización verificada — 04/10/2026
 
 Esta sección prevalece para Planificación Horaria sobre el inventario histórico inferior.
