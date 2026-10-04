@@ -1,3 +1,27 @@
+## Actualización verificada — 04/10/2026
+
+Esta sección prevalece para Planificación Horaria sobre el inventario histórico inferior.
+Alcance: saldos certificados de vacaciones con corte **30/09/2026**; no se usa la fecha de activación de Bitrix como fecha contractual.
+
+| Elemento | Estado | Evidencia |
+|---|---|---|
+| Aperturas 2026 y pendiente 2025 | VERIFICADO | 48 empleados conciliados con la fuente; 40 aperturas cero de 2025 incorporadas |
+| Ausencias futuras | VERIFICADO | 7 periodos importados, sin consumir el saldo de apertura |
+| Admisión de apertura cero | CONECTADO | Migración LIVE 20261004164824; consumos negativos y otros movimientos no nulos conservan sus restricciones |
+| Fecha de corte en pantalla | IMPLEMENTADO / TESTEADO | Bootstrap usa la fecha operativa de la auditoría; prueba de render con cero y corte |
+| Comprobación visual con sesión real | [NO DATA] | No se ha ejecutado una sesión autenticada de empleado o supervisor |
+| Horas trabajadas y fechas contractuales | [NO DATA] | La fuente aportada no acredita esos datos |
+
+La importación cubre **48 de 65 filas**. Permanecen 17 sin cargar: 5 incompletas, 9 sin vínculo inequívoco con un empleado existente y 3 con contradicciones o liquidación pendiente. No se inventan ceros para filas sin datos.
+La pantalla conserva el filtro existente de empleados activos: los saldos históricos de empleados con otro estado no aparecen en ese listado.
+
+Reglas vigentes: [PROJECT_RULES.md](../../PROJECT_RULES.md).
+Rama de entrega: `codex/vacaciones-cero-corte-20260930`, basada en la revisión operativa `9e21b8acf64f25d369fe8584315235e131846ee1`; `main` se conserva.
+Reversión de pantalla: deployment anterior `dpl_9rQJeELKiCbrXUbPH6iHZwKD3ArV`.
+La reversión del CHECK SQL está protegida y se detiene si existen aperturas cero: no elimina ni modifica el historial certificado.
+
+---
+
 # SYNCRO Shift — Estado actual del proyecto
 
 ## 1. Objetivo
@@ -188,3 +212,4 @@ Responsable funcional: Alexander Kolobnev
 Estado del documento: BORRADOR
 
 Fecha: 2026-07-31
+

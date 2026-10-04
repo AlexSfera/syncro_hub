@@ -188,7 +188,7 @@ function _phRender(){
     + (canEdit && week ? '<button class="btn" onclick="_phPublishWeek()">Comprobar publicación</button>' : '')
     + '</div></div>'
     + '<div class="ph-status"><span class="ph-pill">Estado: ' + _phEsc(state) + '</span><span class="ph-pill">Versión: ' + version + '</span>'
-    + '<span class="ph-pill">Catálogo Bitrix24: ' + _phEsc(refreshed) + '</span><span class="ph-pill">Vacaciones: [NO DATA] hasta completar condiciones laborales</span></div>'
+    + '<span class="ph-pill">Catálogo Bitrix24: ' + _phEsc(refreshed) + '</span><span class="ph-pill">' + _phEsc(_phOpeningLabel()) + '</span></div>'
     + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Publicación protegida:</strong> la escritura de ShiftPlan en Bitrix24 permanece bloqueada porque no existe una API oficial documentada. No se usan clics internos ni endpoints no oficiales.</div>' : '')
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th>'
     + (_ph.data.dates || []).map(function(date){ return '<th>' + _phEsc(_phDayLabel(date)) + '<div class="ph-muted">' + _phEsc(date.slice(5)) + '</div></th>'; }).join('')
@@ -221,6 +221,45 @@ function _phExtra(employeeId, date){
   return (_ph.data.extras || []).filter(function(item){
     return String(item.empleado_id) === String(employeeId) && item.fecha === date;
   });
+}
+
+function _phDateLabel(value){
+  return /^\d{4}-\d{2}-\d{2}$/.test(value || '')
+    ? value.slice(8,10) + '/' + value.slice(5,7) + '/' + value.slice(0,4)
+    : '[NO DATA]';
+}
+
+function _phBalanceValue(value, unit){
+  if(value === null || value === undefined || value === '[NO DATA]') return '[NO DATA]';
+  var suffix = unit === 'natural' ? ' días naturales' : unit === 'laborable' ? ' días laborables' : '';
+  return Number(value).toLocaleString('es-ES', {maximumFractionDigits:2}) + suffix;
+}
+
+function _phOpeningLabel(){
+  var cuts = Array.from(new Set((_ph.data.balances || []).flatMap(function(balance){
+    return [balance.opening_as_of, balance.previous_opening_as_of].filter(Boolean);
+  })));
+  if(cuts.length === 1) return 'Saldos de apertura al ' + _phDateLabel(cuts[0]);
+  return cuts.length ? 'Saldos de apertura: fecha indicada por empleado' : 'Saldos de apertura: [NO DATA]';
+}
+
+function _phBalanceLines(balance){
+  if(!balance) return '<div class="ph-muted">Saldo: [NO DATA]</div>';
+  var html = '<div class="ph-muted">Derecho ' + _phEsc(balance.exercise) + ': '
+    + _phEsc(_phBalanceValue(balance.entitlement, balance.entitlement_unit || balance.unit)) + '</div>'
+    + '<div class="ph-muted">Saldo ' + _phEsc(balance.exercise) + ': '
+    + _phEsc(_phBalanceValue(balance.value, balance.unit)) + '</div>';
+  if(balance.opening_as_of){
+    html += '<div class="ph-muted">Apertura al ' + _phEsc(_phDateLabel(balance.opening_as_of))
+      + ': ' + _phEsc(_phBalanceValue(balance.opening_value, balance.unit)) + '</div>';
+  }
+  html += '<div class="ph-muted">Pendiente ' + _phEsc(Number(balance.exercise) - 1) + ': '
+    + _phEsc(_phBalanceValue(balance.previous_value, balance.previous_unit));
+  if(balance.previous_opening_as_of){
+    html += ' · Apertura al ' + _phEsc(_phDateLabel(balance.previous_opening_as_of))
+      + ': ' + _phEsc(_phBalanceValue(balance.previous_opening_value, balance.previous_unit));
+  }
+  return html + '</div>';
 }
 
 function _phEmployeeRow(employee){
@@ -260,8 +299,7 @@ function _phEmployeeRow(employee){
       ? ' onclick="_phOpenCell(\'' + _phEsc(String(employee.id)) + '\',\'' + date + '\')"' : '') + '>' + html + '</div></td>';
   }).join('');
   return '<tr><td><div class="ph-name">' + _phEsc(employee.nombre) + '</div><div class="ph-muted">' + _phEsc(employee.puesto || employee.area || '')
-    + '</div><div class="ph-muted">Derecho ' + _phEsc(balance ? balance.exercise : '') + ': ' + _phEsc(balance ? balance.entitlement : '[NO DATA]')
-    + ' · Saldo: ' + _phEsc(balance ? balance.value : '[NO DATA]') + ' · Pendiente anterior: ' + _phEsc(balance ? balance.previous_value : '[NO DATA]') + '</div></td>' + cells + '</tr>';
+    + '</div>' + _phBalanceLines(balance) + '</td>' + cells + '</tr>';
 }
 
 function _phTime(value){

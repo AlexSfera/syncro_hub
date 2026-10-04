@@ -14,6 +14,9 @@ Si falta evidencia, indicar `[NO DATA]`.
 
 ## Forma de trabajar
 
+- Leer `PROJECT_RULES.md` al iniciar cada tarea. Las autorizaciones expresas de
+  Alexander prevalecen y se limitan al alcance concedido.
+
 - Trabajar de forma autónoma en comprobaciones de lectura y pasos normales de
   implementación ya autorizados.
 - Se pueden ejecutar varios comandos relacionados sin esperar al usuario tras
@@ -115,3 +118,4 @@ y comunicar el bloqueo con evidencia.
 En tareas largas, comunicar brevemente dónde estamos, qué se comprobó, qué
 cambió y cuál es el siguiente paso. No detener el trabajo por actualizaciones
 intermedias que no requieran una decisión del usuario.
+
