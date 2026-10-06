@@ -356,6 +356,30 @@ function buildChkHTML(sections,items){
   return html;
 }
 
+var CHK_HK_GOB_SECTIONS = [
+  {title:'PLANIFICACIÓN',count:4},
+  {title:'CONTROL DE HABITACIONES Y MEWS',count:5},
+  {title:'EQUIPO E INCIDENCIAS',count:4},
+  {title:'MATERIAL',count:2}
+];
+var CHK_HK_GOB_ITEMS = [
+  'Repartir las tareas del día siguiente',
+  'Revisar peticiones en reservas',
+  'Revisar próximas llegadas',
+  'Revisar ocupación diaria y semanal',
+  'Rellenar el informe diario de estados de habitación',
+  'Cotejar y actualizar MEWS con el informe de estados y la tipología de cama',
+  'Contabilizar habitaciones limpiadas y no limpiadas',
+  'Pasar el informe de habitaciones a Recepción',
+  'Revisar las tareas diarias del departamento',
+  'Rellenar el informe de total de limpieza',
+  'Revisar horas extra y devolución de horas',
+  'Revisar tareas de Mantenimiento en habitaciones',
+  'Informar de las incidencias del día',
+  'Comprobar que los móviles tienen batería',
+  'Comprobar las plantillas impresas de lencería y amenities'
+];
+
 function chkOpen(pendingData){
   if(pendingData != null) _chkPendingData=pendingData;
   var isFriegue=(currentUser&&(currentUser.area==='Friegue'||currentUser.puesto==='Friegue'));
@@ -365,12 +389,27 @@ function chkOpen(pendingData){
   var recTurno=isRec?getRecTurnoValue():'';
   var isLabRec=(currentUser&&/syncrolab/i.test(currentUser.area||''));
   var isClubManager=_chkIsClubManager(currentUser);
+  var isHK=(currentUser&&/^(hk|housekeeping|limpieza)$/i.test(currentUser.area||''));
+  var isHKGob=isHK&&((typeof hkIsGobernanta==='function'&&hkIsGobernanta(currentUser))
+    || ['admin','gobernante','subgobernante','jefe','jefe_departamento'].indexOf(currentUser.rol)>=0);
+  if(isHK&&!isHKGob){
+    if(pendingData != null){
+      _chkSavedState=[];
+      _chkPendingData=null;
+      if(typeof _doSaveTurno==='function') _doSaveTurno();
+    } else if(typeof toast==='function'){
+      toast('Tu trabajo diario se gestiona desde Mi Ruta','ok');
+    }
+    return;
+  }
   // FEAT-TURNO-AUTO (spec 22): radio marcado manda; sin radio → turno auto
   var labTurno=isLabRec?(function(){var r=document.querySelector('input[name="servicio-lab"]:checked');if(r)return r.value;if(typeof autoAssignTurno==='function'){var a=autoAssignTurno(currentUser.area,currentUser.puesto);if(a)return a.turno;}return '';})():'';
   var isEntr=(typeof _esEntrenador==='function')&&_esEntrenador(currentUser);
   var entrTurno=isEntr?(function(){var r=document.querySelector('input[name="turno-entr"]:checked');if(r)return r.value;if(typeof autoAssignTurno==='function'){var a=autoAssignTurno(currentUser.area,currentUser.puesto);if(a)return a.turno;}return 'Mañana';})():'';
   var sections,items;
-  if(isClubManager){
+  if(isHKGob){
+    sections=CHK_HK_GOB_SECTIONS;items=CHK_HK_GOB_ITEMS;
+  } else if(isClubManager){
     sections=CHK_CLUB_MANAGER_SECTIONS;items=CHK_CLUB_MANAGER_ITEMS;
   } else if(isEntr){
     if(entrTurno==='Tarde'){sections=CHK_ENTR_TARDE_SECTIONS;items=CHK_ENTR_TARDE_ITEMS;}

@@ -27,6 +27,6 @@
       "maxDuration": 300
     }
   },
-  "buildCommand": "node --check lib/planning-server.js && node --check planificacion_horaria.js && node --test tests/planning-*.test.js",
+  "buildCommand": "npm run check && npm test",
   "outputDirectory": "."
 }

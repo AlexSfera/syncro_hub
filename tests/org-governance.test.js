@@ -131,7 +131,7 @@ test('HR technician keeps leadership tools without restricted modules', () => {
     'utf8'
   );
 
-  assert.match(shared, /if\(!isTecnicoRRHH\) gestion\.push\(ITEMS\.dashboard\)/);
+  assert.match(shared, /if\(!isTecnicoRRHH\)\{[\s\S]*gestion\.push\(ITEMS\.dashboard, ITEMS\.informes\)/);
   assert.match(shared, /gestion\.push\(ITEMS\.maestro\)/);
   assert.match(shared, /gestion\.push\(ITEMS\.fio\)/);
   assert.match(shared, /\['dashboard','liquidaciones','hypoxic','informes'\]\.indexOf\(id\)/);

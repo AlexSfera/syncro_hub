@@ -1,3 +1,14 @@
+## Reconciliación de interfaz y planificación — 06/10/2026
+Esta sección prevalece sobre los estados históricos inferiores.
+- IMPLEMENTADO: navegación V4.3 y Housekeeping recuperados sobre f1040da, conservando planificación, saldos y permisos posteriores.
+- TESTEADO: suite completa y Chrome local, 22 perfiles y 88 escenarios de escritorio/tablet/móvil sin errores; datos ficticios.
+- Vercel valida sintaxis y toda la suite antes de compilar.
+- Sesión autenticada LIVE y nueva Producción: [NO DATA] hasta la comprobación de publicación.
+- Sin cambios de datos LIVE, migraciones, Bitrix24 ni main.
+- Detalle, rutas de consulta y reversión: docs/04-development/RELEASE_RECONCILIACION_20261006.md.
+
+---
+
 ## Actualizacion de saldos y consulta — 06/10/2026
 Esta seccion prevalece sobre los recuentos historicos inferiores.
 - Datos: 60 empleados conciliados, 52 saldos cero de 2025, 129 movimientos totales y siete periodos de ausencia conservados. Cinco exclusiones por instruccion de Alexander.
