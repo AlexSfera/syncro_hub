@@ -92,7 +92,8 @@ test('bootstrap entrega el corte auditado al render y conserva privacidad por de
       planificacion_audit:[{entidad_id:'movement-1',fecha_operativa:'2026-09-30'}]
     };
     let data = fixture[table] || [];
-    if (table === 'planificacion_audit') {
+    if (table === 'planificacion_audit' && url.searchParams.get('accion') === 'eq.CONFIRMAR_SALDO_FESTIVOS') data=[];
+    if (table === 'planificacion_audit' && url.searchParams.get('accion') === 'eq.IMPORTAR_SALDO_VACACIONES') {
       assert.equal(url.searchParams.get('entidad_id'),'in.(movement-1)');
       assert.equal(url.searchParams.get('select'),'entidad_id,fecha_operativa');
     }
@@ -108,8 +109,8 @@ test('bootstrap entrega el corte auditado al render y conserva privacidad por de
     assert.equal(actual.balances[0].opening_as_of,'2026-09-30');
     assert.equal(actual.balances[0].opening_value,0);
     const privateResult=await loadPlanningBootstrap({actor:{id:'other-employee',area:'Cocina',rol:'cocina'},weekStart:'2026-09-28',department:'Cocina'});
-    assert.equal(privateResult.balances[0].opening_as_of,null);
-    assert.equal(privateResult.balances[0].opening_value,'[NO DATA]');
+    assert.equal(privateResult.balances.length,0);
+    assert.equal(privateResult.balanceEmployees.length,0);
   } finally {
     if(prior.url===undefined)delete process.env.SUPABASE_URL;else process.env.SUPABASE_URL=prior.url;
     if(prior.key===undefined)delete process.env.SUPABASE_SERVICE_KEY;else process.env.SUPABASE_SERVICE_KEY=prior.key;

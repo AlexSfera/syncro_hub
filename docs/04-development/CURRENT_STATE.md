@@ -1,3 +1,17 @@
+## Actualizacion de saldos y consulta — 06/10/2026
+Esta seccion prevalece sobre los recuentos historicos inferiores.
+- Datos: 60 empleados conciliados, 52 saldos cero de 2025, 129 movimientos totales y siete periodos de ausencia conservados. Cinco exclusiones por instruccion de Alexander.
+- Confirmacion CEO: compensacion adicional, correccion de un saldo, reparto de 27 dias entre 2023 y 2024 y cuatro saldos de festivos/compensacion confirmados a cero. El detalle personal permanece exclusivamente en la auditoria de Supabase.
+- Consulta: tabla **Saldos de vacaciones** dentro de Planificacion Horaria, con años anteriores y festivos confirmados. Incluye fichas con saldo aunque esten Sin asignar o Baja, sin habilitarlas para asignar turnos ni modificar sus estados.
+- Permisos: direccion y RRHH consultan todos los saldos; los responsables consultan su departamento y cada empleado su saldo. La parrilla semanal conserva el filtro de empleados activos.
+- Ayuda: boton ⓘ Cómo consultar. El cero certificado se distingue de [NO DATA].
+- Pruebas: casos de historia anual, ceros, permisos, ficha sin asignar y escape HTML; la compilacion del deployment ejecuta los tests de planificacion.
+- Produccion previa recuperable: dpl_9rQJeELKiCbrXUbPH6iHZwKD3ArV. La revision publicada se acredita mediante el deployment READY y su commit en Vercel.
+- Reversion de datos: movimientos compensatorios y confirmaciones auditadas posteriores; nunca borrar historial. Reversion de pantalla: volver al deployment previo.
+- Pantalla autenticada real: [NO DATA] hasta comprobar una sesion. No se aplican migraciones, condiciones contractuales ni cambios de Bitrix24.
+
+---
+
 ## Continuación verificada de datos — 04/10/2026
 Esta sección prevalece sobre los recuentos inferiores. Tras confirmar Alexander las nueve correspondencias de identidad pendientes, se corrigieron dos vínculos existentes y se crearon siete referencias internas mínimas en Supabase LIVE.
 Resultado de la carga: **57 personas**, **114 aperturas anuales**, **49 ceros de 2025** y corte **30/09/2026**. De las 65 filas originales, cinco están excluidas por decisión de Alexander y tres mantienen contradicciones de saldo. Las 18 aperturas de esta continuación coinciden con los saldos y unidades de la plantilla; el lote conserva los 100 movimientos anteriores, incluidos los distintos de apertura.

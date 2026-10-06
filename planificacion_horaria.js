@@ -194,7 +194,8 @@ function _phRender(){
     + (_ph.data.dates || []).map(function(date){ return '<th>' + _phEsc(_phDayLabel(date)) + '<div class="ph-muted">' + _phEsc(date.slice(5)) + '</div></th>'; }).join('')
     + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
     + '<div class="ph-muted" style="margin-top:10px">Los turnos se eligen únicamente desde el catálogo oficial de Bitrix24. Los turnos partidos admiten dos tramos.</div>'
-    + '</div><div class="ph-modal-layer" id="ph-modal"><div class="ph-modal-card" id="ph-modal-card"></div></div>';
+    + '</div>' + _phBalancesPanel()
+    + '<div class="ph-modal-layer" id="ph-modal"><div class="ph-modal-card" id="ph-modal-card"></div></div>';
 }
 
 function _phDayLabel(date){
@@ -261,6 +262,46 @@ function _phBalanceLines(balance){
   }
   return html + '</div>';
 }
+
+
+function _phBalancesPanel(){
+  var employees = _ph.data.balanceEmployees || _ph.data.employees || [];
+  var balances = _ph.data.balances || [];
+  var exercise = Number(_ph.weekStart.slice(0,4));
+  var rows = employees.map(function(employee){
+    var balance = balances.find(function(item){ return String(item.employee_id) === String(employee.id); });
+    if(!balance) return '';
+    var historical = (balance.historical_values || []).map(function(item){
+      return _phEsc(item.exercise) + ': ' + _phEsc(_phBalanceValue(item.value,item.unit));
+    }).join('<br>') || '—';
+    return '<tr><td><strong>' + _phEsc(employee.nombre) + '</strong></td>'
+      + '<td>' + _phEsc(employee.area || 'Sin departamento asignado') + '</td>'
+      + '<td>' + _phEsc(employee.estado || '[NO DATA]') + '</td>'
+      + '<td>' + _phEsc(_phBalanceValue(balance.value,balance.unit)) + '</td>'
+      + '<td>' + _phEsc(_phBalanceValue(balance.previous_value,balance.previous_unit)) + '</td>'
+      + '<td>' + historical + '</td>'
+      + '<td>' + _phEsc(_phBalanceValue(balance.holiday_pending_value,null)) + '</td></tr>';
+  }).join('');
+  return '<div class="card" id="ph-vacation-balances" style="margin-top:16px">'
+    + '<div class="ph-toolbar"><h3 style="margin:0">Saldos de vacaciones</h3>'
+    + '<button class="btn" aria-label="Instrucciones de saldos" onclick="_phBalanceHelp()">ⓘ Cómo consultar</button></div>'
+    + '<p class="ph-muted">Consulta de saldos confirmados. Las fichas sin asignar o de baja se muestran para consultar su saldo.</p>'
+    + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th><th>Departamento</th><th>Estado de ficha</th>'
+    + '<th>Vacaciones ' + exercise + '</th><th>Pendiente ' + (exercise - 1) + '</th><th>Años anteriores</th><th>Festivos pendientes</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="7">[NO DATA]</td></tr>') + '</tbody></table></div></div>';
+}
+
+function _phBalanceHelp(){
+  var card = document.getElementById('ph-modal-card');
+  card.innerHTML = '<div class="ph-modal-title">Cómo consultar los saldos</div>'
+    + '<p>Vacaciones muestra los días pendientes del año seleccionado. Pendiente muestra el ejercicio anterior. Años anteriores conserva los saldos de cada año por separado.</p>'
+    + '<p>Festivos pendientes muestra únicamente cantidades confirmadas. Un 0 es un saldo confirmado; [NO DATA] indica que falta confirmación.</p>'
+    + '<p>La semana selecciona el año de consulta. Dirección y RRHH ven todos los saldos; los jefes ven su departamento y cada empleado ve su saldo.</p>'
+    + '<p>Los periodos de vacaciones y otras ausencias aparecen en las fechas del calendario. Usa Ausencia para registrar un periodo con sus fechas.</p>'
+    + '<div class="ph-modal-footer"><button class="btn" onclick="_phCloseModal()">Cerrar</button></div>';
+  document.getElementById('ph-modal').classList.add('open');
+}
+window._phBalanceHelp = _phBalanceHelp;
 
 function _phEmployeeRow(employee){
   var balance = (_ph.data.balances || []).find(function(item){ return String(item.employee_id) === String(employee.id); });
