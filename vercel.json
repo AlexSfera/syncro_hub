@@ -26,5 +26,6 @@
     "api/bitrix-sync-history.js": {
       "maxDuration": 300
     }
-  }
+  },
+  "buildCommand": "node --check lib/planning-server.js && node --check planificacion_horaria.js && node --test tests/planning-domain.test.js tests/planning-security.test.js tests/planning-vacation-opening.test.js tests/planning-vacation-visibility.test.js"
 }
