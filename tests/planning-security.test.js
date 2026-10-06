@@ -101,7 +101,8 @@ test('Maestro agrupa puestos por los departamentos de planificación Bitrix', as
 
 test('bootstrap no expone motivos confidenciales ni IDs Bitrix de empleados', async () => {
   const server = await read('lib/planning-server.js');
-  assert.match(server, /employees\?estado=eq\.Activo&select=id,nombre,area,puesto,rol,estado&order=nombre\.asc/);
+  assert.match(server, /employees\?select=id,nombre,area,puesto,rol,estado&order=nombre\.asc/);
+  assert.match(server, /employee\.estado === 'Activo'/);
   assert.doesNotMatch(server, /justificante_ref/);
   assert.doesNotMatch(server, /motivo_cambio/);
   assert.match(server, /conditions: capabilities\.canManageLaborConditions \? visibleConditions : \[\]/);
