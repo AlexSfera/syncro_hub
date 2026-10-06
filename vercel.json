@@ -27,5 +27,6 @@
       "maxDuration": 300
     }
   },
-  "buildCommand": "node -e \"const r=require('node:child_process').spawnSync(process.execPath,['--test','tests/planning-domain.test.js','tests/planning-security.test.js','tests/planning-vacation-opening.test.js','tests/planning-vacation-visibility.test.js'],{encoding:'utf8'});require('node:fs').writeFileSync('diagnostic.tap',(r.stdout||'')+(r.stderr||''));console.log('Diagnostic test exit: '+r.status)\""
+  "buildCommand": "node --check lib/planning-server.js && node --check planificacion_horaria.js && node --test tests/planning-*.test.js",
+  "outputDirectory": "."
 }
