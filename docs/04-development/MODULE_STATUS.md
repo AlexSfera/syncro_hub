@@ -1,7 +1,9 @@
 ## Navegación operativa y permisos — 07/10/2026
 Esta sección prevalece sobre los estados históricos inferiores.
 - IMPLEMENTADO: siete áreas de trabajo; Jornada reúne planificación, fichajes y balance mensual; producción se separa de informes y pagos.
-- TESTEADO localmente: sintaxis, regresión y pruebas de permisos/caché, más 30 escenarios Chrome con datos ficticios. No representan sesiones LIVE.
+- Código guardado en GitHub: codex/navegacion-permisos-20261007, revisión de código 8f0c1d7cb758c9376d16d710af1a0d5418ee75f9.
+- TESTEADO localmente: sintaxis, 188 pruebas superadas y una E2E omitida; 30 escenarios Chrome con datos ficticios. No representan sesiones LIVE.
+- PREVIEW: revisión de código 8f0c1d7 READY, dpl_HUz39jFx6WYQSHBwbRMy2eEHm4B3, según Vercel. La lectura de la aplicación por el conector devolvió 403; login y flujo autenticado: [NO DATA].
 - BLOQUEO DE PRODUCCIÓN: RLS financiero actual demasiado amplio. Protección preparada en supabase/changes/navigation_incentives_access.sql, SIN aplicar y pendiente de autorización específica.
 - Producción sigue en ce78f88 y dpl_Dnx8sJTTsmT2RHMN5YUg5ipF5P5g; main sigue en 38074d9. No se fusiona ni se cambian datos LIVE, cron o integraciones.
 - Evidencia, alcance y reversión: docs/04-development/IMPLEMENTACION_NAVEGACION_20261007.md.

@@ -78,7 +78,9 @@ La lectura HTTP de /api/pending-incentives en Preview no alcanzó la aplicación
 
 Tras el primer commit se ajustó el SQL preparado para impedir la lectura directa de employees a contabilidad y se añadió una prueba de su proyección filtrada. Se revisaron las escrituras de empleados de la interfaz: alta, edición, estado y PIN usan las APIs seguras existentes. La importación de alertas conserva alertas y matching; solo admin crea una ficha mínima sin asignar. Para los demás perfiles la ficha desconocida queda pendiente de revisión en Equipo, sin intentar una escritura REST denegada ni ampliar permisos. No se modifica Supabase.
 
-Producción comprobada por Vercel antes del cambio: dpl_Dnx8sJTTsmT2RHMN5YUg5ipF5P5g, ce78f88, dominio syncro-shift.vercel.app. No se solicitó otra publicación en Producción.
+La revisión final de código 8f0c1d7cb758c9376d16d710af1a0d5418ee75f9 está guardada en GitHub y tiene Preview READY en dpl_HUz39jFx6WYQSHBwbRMy2eEHm4B3, https://syncro-pzz1e0paa-akolobnev-1789s-projects.vercel.app/. Las revisiones posteriores de este cierre son exclusivamente documentales.
+
+Producción comprobada de nuevo por Vercel después del push inicial: dpl_Dnx8sJTTsmT2RHMN5YUg5ipF5P5g, ce78f88, dominio syncro-shift.vercel.app. No se solicitó otra publicación en Producción.
 
 Reversión del código: nuevo commit que revierta los cambios de esta rama; no reescribir historial ni modificar datos. Si se publica tras completar permisos, conservar ce78f88 como referencia anterior y verificar el dominio después de volver a esa revisión.
 
