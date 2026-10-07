@@ -45,7 +45,6 @@ test('reglas UX Housekeeping reflejan carga, destripe, inspección y multiselecc
 test('sesión caduca a los 40 minutos y Housekeeping inicia en Mi Ruta', () => {
   const source = read('shared.js');
   assert.match(source, /SESSION_IDLE_MS=40\*60\*1000/);
-  assert.match(source, /showScreen\(_isHKStart\?'ruta-mod':'readme'\)/);
   assert.match(source, /if\(isJefe\) miDia\.push\(ITEMS\.checklist\)/);
 });
 

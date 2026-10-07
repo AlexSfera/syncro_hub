@@ -44,7 +44,7 @@ test('tabla y ayuda muestran historico, cero y ficha sin asignar con escape HTML
   context._ph.weekStart='2026-10-05';
   context._ph.data={balanceEmployees:[{...employee,nombre:'<img src=x>',estado:'Sin asignar',area:''}],balances:[calculate()]};
   const html=context._phBalancesPanel();
-  assert.match(html,/Saldos de vacaciones/);
+  assert.match(html,/Vacaciones y festivos pendientes de compensar/);
   assert.match(html,/2023: 13 días laborables/);
   assert.match(html,/2024: 14 días laborables/);
   assert.match(html,/Sin asignar/);
@@ -53,7 +53,7 @@ test('tabla y ayuda muestran historico, cero y ficha sin asignar con escape HTML
   assert.match(html,/Festivos pendientes/);
   assert.match(html,/<td>0<\/td>/);
   context._phBalanceHelp();
-  assert.match(modal.innerHTML,/Un 0 es un saldo confirmado/);
+  assert.match(modal.innerHTML,/un 0 es confirmado/);
 });
 
 test('bootstrap separa consulta de saldos de empleados habilitados para turnos',async t=>{

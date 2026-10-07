@@ -551,6 +551,7 @@ function recalcMermaTotal(){
 }
 
 async function runLocalStorageMigration(){
+  if(!currentUser || currentUser.rol!=='admin'){toast('Acceso restringido.','err');return;}
   const el=document.getElementById('migration-status');
   if(el) el.textContent='Migrando datos locales...';
   const count=await migrateFromLocalStorage();

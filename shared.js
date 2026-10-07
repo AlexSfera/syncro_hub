@@ -64,11 +64,13 @@ async function dbUpsert(table, rows) {
 // ── CACHE LAYER — keep data in memory for fast reads ──
 const _cache = {};
 const _cacheTs = {};
+const _cacheOwners = {};
 const CACHE_TTL = 30000; // 30 seconds
 
 async function getDB(table) {
   const now = Date.now();
-  if (_cache[table] && (now - (_cacheTs[table]||0)) < CACHE_TTL) {
+  const owner = currentUser ? [currentUser.id,currentUser.rol,currentUser.area,currentUser.puesto].join('|') : '';
+  if (_cacheOwners[table] === owner && _cache[table] && (now - (_cacheTs[table]||0)) < CACHE_TTL) {
     return _cache[table];
   }
   let data;
@@ -88,8 +90,11 @@ async function getDB(table) {
       return s.estado !== 'Sin declarar' && s.sync_status !== 'merged_into_manual';
     });
   }
+  const activeOwner = currentUser ? [currentUser.id,currentUser.rol,currentUser.area,currentUser.puesto].join('|') : '';
+  if(activeOwner !== owner) throw new Error('La sesión ha cambiado.');
   _cache[table] = data;
   _cacheTs[table] = now;
+  _cacheOwners[table] = owner;
   return data;
 }
 
@@ -735,6 +740,8 @@ window.stopSessionIdleGuard=stopSessionIdleGuard;
 
 function logout(reason){
   stopSessionIdleGuard(true);
+  Object.keys(_cache).forEach(function(key){delete _cache[key];delete _cacheTs[key];delete _cacheOwners[key];});
+  if(typeof workflowClearSession==='function')workflowClearSession();
   if(window.SyncroAuth && window.SyncroAuth.enabled){
     window.SyncroAuth.logout().catch(function(e){ console.warn('secure logout failed', e); });
   }
@@ -784,7 +791,7 @@ async function startApp(){
   buildNav();
   // Show loading state
   var _isHKStart=currentUser&&/^(hk|housekeeping|limpieza)$/i.test(currentUser.area||'');
-  showScreen(_isHKStart?'ruta-mod':'readme');
+  showScreen(typeof workflowInitialScreen==='function' ? workflowInitialScreen(currentUser) : (_isHKStart?'ruta-mod':'readme'));
   // Preload employees into cache
   try { await getDB('employees'); } catch(e) { console.warn('preload error', e); }
   await populateDashEmpDropdowns();
@@ -798,7 +805,7 @@ function navSubsection(label){
   return {sub:true, label:label};
 }
 
-function getScreens(rol){
+function _legacyScreens(rol){
   // V4.3: arquitectura de información por alcance de trabajo.
   // Los permisos se conservan; solo cambia la agrupación y el orden visual.
   var area   = (currentUser && currentUser.area)   || '';
@@ -999,6 +1006,69 @@ function getScreens(rol){
     out = out.concat(gestion);
   }
   return out;
+}
+
+function canControlIncentivesUI(user){ return !!user && ['admin','contable'].indexOf(user.rol)!==-1; }
+function canMarkLiquidationUI(user){ return !!user && user.rol==='admin'; }
+
+function getScreens(rol){
+  var legacy=_legacyScreens(rol).filter(function(item){ return item.id; });
+  var byId={}; legacy.forEach(function(item){ byId[item.id]=Object.assign({},item); });
+  var groups=[
+    ['mi-dia','MI DÍA','Trabajo y registros personales.'],
+    ['operacion','OPERACIÓN','Seguimiento y revisión del trabajo.'],
+    ['jornada-saldos','JORNADA Y SALDOS','Planificación, tiempo registrado y descansos.'],
+    ['produccion-incentivos','PRODUCCIÓN E INCENTIVOS','Ventas, cajas y pendientes dentro de tu permiso.'],
+    ['resultados-informes','RESULTADOS E INFORMES','Resumen, detalle y explicación de resultados.'],
+    ['equipo','EQUIPO','Plantilla y observaciones laborales.'],
+    ['configuracion','CONFIGURACIÓN','Parámetros y accesos autorizados.']
+  ];
+  var buckets={}; groups.forEach(function(g){ buckets[g[0]]=[]; });
+  function put(group,id,label,description){
+    var item=byId[id]; if(!item) return;
+    if(label) item.label=label; if(description) item.description=description;
+    buckets[group].push(item);
+  }
+  function add(group,id,label,description,action){
+    var item={id:id,label:label,description:description}; if(action) item.action=action;
+    buckets[group].push(item);
+  }
+  ['turno','ruta-mod','chk-mod','notas-mod','mis-fio'].forEach(function(id){ put('mi-dia',id); });
+  ['gestiones','tareas','incidencias','hypoxic','merma-mod','validacion','mant-mod','hk-plan','hk-zonas','hk-revision','hk-dash'].forEach(function(id){ put('operacion',id); });
+  buckets.operacion.forEach(function(item){
+    var labels={'hypoxic':'Sala hipóxica','validacion':'Partes y revisión','hk-plan':'Asignaciones HK','hk-dash':'Seguimiento HK'};
+    if(labels[item.id]) item.label=labels[item.id];
+  });
+  if(byId['planificacion-horaria']) add('jornada-saldos','jornada','Jornada y saldos','Planificación, incidencias de marcaje, horas registradas y saldos.');
+  if(byId['validacion'] && (rol==='admin'||rol==='adjunto'||rol==='adjunto_directivo'||rol==='contable'||/recep|sala|syncrolab/i.test((currentUser&&currentUser.area)||''))) {
+    add('produccion-incentivos','cajas-revision','Cajas y revisión','Consultar o revisar cierres según tu permiso.');
+  }
+  put('produccion-incentivos','rec-caja-op'); put('produccion-incentivos','lab-caja-op');
+  if(byId.informes) add('produccion-incentivos','produccion','Producción y ventas','Registrar datos oficiales existentes por departamento.');
+  put('produccion-incentivos','mi-rendimiento','Mis incentivos pendientes','Solo tus incentivos pendientes de pagar.');
+  if(typeof _esEntrenador==='function' && _esEntrenador(currentUser)) add('mi-dia','produccion-propia','Mi producción declarada','Consultar la actividad registrada en tus partes.');
+  if(canControlIncentivesUI(currentUser)) add('produccion-incentivos','control-incentivos','Control de incentivos','Consulta interna de pendientes y liquidados.');
+  if(canMarkLiquidationUI(currentUser)) add('produccion-incentivos','liquidaciones','Liquidaciones internas','Registrar liquidaciones con autorización específica.');
+  put('resultados-informes','dashboard','Resumen de resultados');
+  put('resultados-informes','informes','Informes de departamento','Redactar y consultar informes; los datos se registran en Producción.');
+  put('resultados-informes','export','Exportaciones');
+  put('equipo','maestro','Plantilla'); put('equipo','fio','FIO y revisión');
+  if(byId.maestro) add('equipo','condiciones-laborales','Condiciones laborales','Consultar o gestionar condiciones dentro del ámbito autorizado.');
+  put('configuracion','hk-config');
+  if(rol==='admin') add('configuracion','configuracion','Configuración y accesos','Reglas, acceso a fichas y herramientas técnicas existentes.');
+  // Accounting enters its financial workspace rather than operational validation.
+  if(rol==='contable') buckets.operacion=buckets.operacion.filter(function(i){ return i.id!=='validacion'; });
+  var out=[]; groups.forEach(function(g){ if(buckets[g[0]].length) out.push.apply(out,[navSection(g[1],g[2],g[0])].concat(buckets[g[0]])); });
+  return out;
+}
+
+function workflowInitialScreen(user){
+  if(!user) return 'readme';
+  if(user.rol==='admin'||user.rol==='adjunto'||user.rol==='adjunto_directivo') return 'dashboard';
+  if(user.rol==='contable') return 'control-incentivos';
+  if(typeof isTecnicoRrhh==='function' && isTecnicoRrhh(user)) return 'jornada';
+  if(typeof isSupervisor==='function' && isSupervisor(user)) return 'validacion';
+  return /^(hk|housekeeping|limpieza)$/i.test(user.area||'') ? 'ruta-mod' : 'turno';
 }
 
 function _positionNavDropdown(button, menu){
@@ -4705,6 +4775,7 @@ async function exportCSV(type){
 }
 async function exportFiltered(){ const desde=document.getElementById('exp-desde').value; const hasta=document.getElementById('exp-hasta').value; let shifts=await getDB('shifts'); if(desde) shifts=shifts.filter(s=>s.fecha>=desde); if(hasta) shifts=shifts.filter(s=>s.fecha<=hasta); dl(toCSV(shifts,['id','fecha','servicio','nombre','area','puesto','horas','responsable_nombre','follow_up','merma_declarada','incidencia_declarada','observacion','estado','validado_por','validado_ts','created_at']),`BDS_Export_${desde||'inicio'}_${hasta||'hoy'}.csv`); toast('CSV filtrado descargado','ok'); }
 async function exportBackup(){
+  if(!currentUser || currentUser.rol!=='admin'){toast('Acceso restringido.','err');return;}
   const tables={
     employees: await getDB('employees'),
     shifts: await getDB('shifts'),
@@ -4721,6 +4792,7 @@ async function exportBackup(){
   toast('Backup JSON exportado','ok');
 }
 async function importBackup(event){
+  if(!currentUser || currentUser.rol!=='admin'){toast('Acceso restringido.','err');return;}
   const file=event.target.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=async function(e){

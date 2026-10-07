@@ -17,6 +17,7 @@ import {
   normalizeDepartment,
   supervisorDepartments
 } from '../lib/authz-server.js';
+import { canControlIncentives, canMarkLiquidation } from '../lib/incentive-access.js';
 
 export const config = { runtime: 'edge' };
 
@@ -115,10 +116,8 @@ function isHousekeepingArea(area) {
     || normalized === normalizeDepartment('HK');
 }
 
-function canReadHousekeeping(profile) {
-  if (!profile) return false;
-  if (isAdminProfile(profile) || isAdjuntoProfile(profile)) return true;
-  return supervisorDepartments(profile).some(isHousekeepingArea);
+export function canReadHousekeeping(profile) {
+  return canControlIncentives(profile);
 }
 
 export function canRecordAbsences(profile) {
@@ -127,8 +126,8 @@ export function canRecordAbsences(profile) {
   return supervisorDepartments(profile).some(isHousekeepingArea);
 }
 
-function canLiquidateHousekeeping(profile) {
-  return isAdminProfile(profile) || isAdjuntoProfile(profile);
+export function canLiquidateHousekeeping(profile) {
+  return canMarkLiquidation(profile);
 }
 
 function cleanNotes(value) {
@@ -184,7 +183,7 @@ export default async function handler(req) {
     const period = parseSemesterPeriod(url.searchParams.get('periodo'));
     if (!period) return jsonResponse({ error: 'Periodo semestral inválido' }, 400);
     try {
-      if (isSemesterCompleted(period)) {
+      if (isSemesterCompleted(period) && canMarkLiquidation(actor.profile)) {
         await adminRequest('rpc/refresh_housekeeping_semester_incentives', {
           method: 'POST',
           body: JSON.stringify({

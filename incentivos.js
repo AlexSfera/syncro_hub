@@ -253,10 +253,11 @@ var _incentivosSelectedMonth = '';
 var _incentivosSelectedDept  = 'Sala';
 
 async function renderIncentivos(){
+  if(!canControlIncentivesUI(currentUser)){toast('Acceso restringido.','err');return;}
   var el = document.getElementById('incentivos-content');
   if(!el) return;
 
-  var isGestor = canActAsAdmin(currentUser) ||
+  var isGestor = canMarkLiquidationUI(currentUser) ||
     (typeof isSupervisor === 'function' && isSupervisor(currentUser));
   var isEmpleado = !isGestor;
 
@@ -283,6 +284,7 @@ function _incDeptActivo(){
 // ── VISTA EMPLEADO ───────────────────────────────────────────────────
 
 async function renderIncentivosEmpleado(el){
+  return renderMiRendimiento();
   var area = currentUser.area || '';
   var esSala = area === 'Sala' || area === 'Jefe de Sala';
   var esRecepcion = area === 'Recepción';
@@ -326,6 +328,7 @@ async function onIncEmpleadoMonthChange(val){
 window.onIncEmpleadoMonthChange = onIncEmpleadoMonthChange;
 
 async function loadIncentivosEmpleado(){
+  return renderMiRendimiento();
   var el = document.getElementById('inc-emp-content');
   if(!el) return;
   el.innerHTML = '<p style="color:var(--text3);">Calculando…</p>';
@@ -446,6 +449,7 @@ async function loadIncentivosEmpleado(){
 // Fuente: tabla recepcion_ventas (una fila por venta)
 
 async function loadIncentivosEmpleadoRecepcion(){
+  return renderMiRendimiento();
   var el = document.getElementById('inc-emp-content');
   if(!el) return;
   el.innerHTML = '<p style="color:var(--text3);">Calculando…</p>';
@@ -635,10 +639,10 @@ async function renderIncentivosGestor(el){
   if(dept === 'Sala'){
     tabs = tabBtn('calcular','📊 Calcular mes')
       + tabBtn('importar','📥 Importar Excel')
-      + (canActAsAdmin(currentUser) ? tabBtn('reglas','⚙ Reglas') : '');
+      + (canMarkLiquidationUI(currentUser) ? tabBtn('reglas','⚙ Reglas') : '');
   } else if(dept === 'Recepción'){
     tabs = tabBtn('calcular','📊 Calcular mes')
-      + (canActAsAdmin(currentUser) ? tabBtn('reglas','⚙ Reglas') : '');
+      + (canMarkLiquidationUI(currentUser) ? tabBtn('reglas','⚙ Reglas') : '');
   } else if(dept === 'Entrenadores'){
     // Config de métodos vive en mi_rendimiento.js — aquí solo aviso
     el.innerHTML = '<div class="card"><p style="color:var(--text3);padding:12px 0;">⚙️ La configuración de métodos de incentivos de Entrenadores se gestiona desde <strong>Mi Rendimiento → Mi equipo</strong>.</p></div>';
@@ -726,7 +730,7 @@ async function _incGestorCocina(el){
     +'<div class="fg" style="min-width:180px;"><label>Mes</label>'
     +'<select id="inc-cocina-month" onchange="window._incentivosSelectedMonth=this.value;renderIncentivos()">'+selMonth+'</select></div>'
     +'</div>'
-    +(canActAsAdmin(currentUser) ? '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;">'
+    +(canMarkLiquidationUI(currentUser) ? '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;">'
       +'<div class="fg"><label>Ventas comida (€)</label><input type="number" id="inc-coc-ventas" step="0.01" min="0" placeholder="0.00" value="'+(costeData?costeData.ventas_comida:'')+'"></div>'
       +'<div class="fg"><label>Coste materia prima (€)</label><input type="number" id="inc-coc-coste" step="0.01" min="0" placeholder="0.00" value="'+(costeData?costeData.coste_mp:'')+'"></div>'
       +'<div style="display:flex;align-items:flex-end;">'
@@ -738,6 +742,7 @@ async function _incGestorCocina(el){
 window._incGestorCocina = _incGestorCocina;
 
 async function _incGuardarCocina(){
+  if(!canMarkLiquidationUI(currentUser)){toast('Acceso restringido.','err');return;}
   var ym      = _incentivosSelectedMonth;
   var ventas  = parseFloat(document.getElementById('inc-coc-ventas').value||'0');
   var coste   = parseFloat(document.getElementById('inc-coc-coste').value||'0');
@@ -774,6 +779,7 @@ window._incGuardarCocina = _incGuardarCocina;
 
 // Redirigir calcularIncentivosGestor al nuevo contenedor
 async function calcularIncentivosGestor(){
+  if(!canMarkLiquidationUI(currentUser)){toast('Acceso restringido.','err');return;}
   var el = document.getElementById('inc-calc-result') || document.getElementById('inc-gest-content');
   if(!el) return;
   el.innerHTML = '<p style="color:var(--text3);">Calculando…</p>';
@@ -1205,7 +1211,7 @@ window.incImportarExcel = incImportarExcel;
 async function renderIncReglas() {
   var c = document.getElementById('inc-gest-content');
   if(!c) return;
-  if(!canActAsAdmin(currentUser)) {
+  if(!canMarkLiquidationUI(currentUser)) {
     c.innerHTML = '<p style="color:var(--text3);">Solo administradores pueden editar reglas.</p>';
     return;
   }
@@ -1334,7 +1340,7 @@ window.incToggleRegla = incToggleRegla;
 // ═══════════════════════════════════════════════════════════════════════
 
 async function incLiquidarMes(empId, empNombre, ym, incBruto, penEur, incFinal){
-  if(!canActAsAdmin(currentUser)){
+  if(!canMarkLiquidationUI(currentUser)){
     toast('Solo administradores pueden liquidar incentivos','warn');
     return;
   }

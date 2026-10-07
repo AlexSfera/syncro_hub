@@ -1198,6 +1198,7 @@ tr:hover td{background:rgba(96,165,250,.06);}
         <span class="topbar-name"   id="topbar-name"></span>
         <span id="user-name-top" style="display:none;"></span>
         <span class="user-badge" id="user-role-top" style="display:none;"></span>
+        <button class="btn-logout" onclick="showScreen('readme')">AYUDA</button>
         <button class="btn-logout" onclick="logout()">SALIR</button>
       </div>
     </div>
@@ -1672,7 +1673,6 @@ tr:hover td{background:rgba(96,165,250,.06);}
         <button class="dash-tab" role="tab" data-tab="fio" onclick="_activateDashTab('fio')">FIO</button>
         <button class="dash-tab" role="tab" data-tab="tareas" onclick="_activateDashTab('tareas')">Tareas</button>
         <button class="dash-tab" role="tab" data-tab="costes" onclick="_activateDashTab('costes')">Costes</button>
-        <button class="dash-tab" role="tab" data-tab="prevision" onclick="_activateDashTab('prevision');renderDashPrevision()">Previsión</button>
       </div>
 
       <!-- Panel: Turnos -->
@@ -1833,7 +1833,7 @@ tr:hover td{background:rgba(96,165,250,.06);}
 
 
 <div class="screen" id="screen-export">
-      <div class="page-header"><div class="page-title">⬇ Exportar</div><div class="page-sub">CSV + Backup JSON con versionado de schema</div></div>
+      <div class="page-header"><div class="page-title">⬇ Exportar</div><div class="page-sub">Exportación de datos operativos</div></div>
       <div class="three-col" style="margin-bottom:14px;">
         <div class="card"><div class="card-title">INPUT DIARIO</div><p style="font-size:12px;color:var(--text2);margin-bottom:12px;">Turnos con estado de validación.</p><button class="btn btn-secondary" onclick="exportCSV('shifts')">⬇ CSV</button></div>
         <div class="card"><div class="card-title">INCIDENCIAS</div><p style="font-size:12px;color:var(--text2);margin-bottom:12px;">Todas las incidencias con filtros.</p><button class="btn btn-secondary" onclick="exportCSV('incidencias')">⬇ CSV</button></div>
@@ -1849,8 +1849,8 @@ tr:hover td{background:rgba(96,165,250,.06);}
           <button class="btn btn-primary" onclick="exportFiltered()">⬇ Todo filtrado</button>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">BACKUP Y MIGRACIÓN A SUPABASE</div>
+      <div class="card" id="workflow-backup-tools" style="display:none">
+        <div class="card-title">HERRAMIENTAS DE COPIA Y DATOS</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">JSON completo con schema v3.0. Compatible con importación directa a Supabase.</p>
         <div class="btn-row">
           <button class="btn btn-warn" onclick="exportBackup()">📦 Backup JSON v3</button>
@@ -2713,5 +2713,6 @@ tr:hover td{background:rgba(96,165,250,.06);}
 <script src="planificacion_horaria.js"></script>
 <script src="merma.js"></script>
 <script src="adjuntos.js?v=20260929-incidencias-acceso-2"></script>
+<script src="workflow-ui.js"></script>
 </body>
 </html>

@@ -30,7 +30,7 @@ import {
   requireMethod,
   adminRequest
 } from '../lib/auth-server.js';
-import { loadManagementActor } from '../lib/authz-server.js';
+import { loadManagementActor, targetIsInScope } from '../lib/authz-server.js';
 
 export const config = { runtime: 'edge' };
 
@@ -87,12 +87,20 @@ function franjaDeMinutos(horaMin) {
   return 'Noche';
 }
 
-async function computeAggregate(desde, hasta) {
-  const employees = await adminRequest(
+export function monthlyHoursInScope(actor, employee) {
+  return actor.id === employee.id || actor.rol === 'admin'
+    || ['adjunto', 'adjunto_directivo', 'tecnico_rrhh'].includes(actor.rol)
+    || targetIsInScope(actor, employee);
+}
+
+async function computeAggregate(desde, hasta, actor) {
+  const candidates = await adminRequest(
     'employees?select=id,nombre,area,puesto,estado,bitrix_user_id'
     + '&bitrix_user_id=not.is.null'
     + '&order=nombre.asc'
   );
+  const employees = candidates.filter(employee => monthlyHoursInScope(actor, employee));
+  const ids = new Set(employees.map(employee => employee.id));
 
   const desdeYm = desde.slice(0, 7);
   const hastaYm = hasta.slice(0, 7);
@@ -101,7 +109,7 @@ async function computeAggregate(desde, hasta) {
   const allRecords = [];
   const PAGE = 1000;
   let from = 0;
-  while (true) {
+  while (ids.size) {
     const path = 'bitrix_time_records'
       + '?select=employee_id,fecha_operativa,duration_seconds,start_ts,end_ts,servicio'
       + `&fecha_operativa=gte.${desde}`
@@ -109,7 +117,7 @@ async function computeAggregate(desde, hasta) {
       + '&order=fecha_operativa.asc';
     const pageRows = await adminRequest(path + `&limit=${PAGE}&offset=${from}`);
     if (!pageRows || !pageRows.length) break;
-    allRecords.push(...pageRows);
+    allRecords.push(...pageRows.filter(row => ids.has(row.employee_id)));
     if (pageRows.length < PAGE) break;
     from += PAGE;
     if (from > 200000) break;
@@ -298,6 +306,8 @@ async function computeAggregate(desde, hasta) {
     months,
     employees: empArr,
     n_records: allRecords.length,
+    scope: actor.rol === 'admin' ? 'company' : 'authorized_employees',
+    states: { registered: 'Bitrix24', validated: '[NO DATA]', closed: '[NO DATA]' },
     computed_at: new Date().toISOString()
   };
 }
@@ -312,10 +322,6 @@ export default async function handler(req) {
   try { actor = await loadManagementActor(req); }
   catch (_) { return jsonResponse({ error: 'Authentication unavailable' }, 503); }
   if (!actor) return jsonResponse({ error: 'Unauthorized' }, 401);
-
-  if (!actor.profile || actor.profile.rol !== 'admin') {
-    return jsonResponse({ error: 'Forbidden' }, 403);
-  }
 
   const url = new URL(req.url, 'http://x');
   const desde = url.searchParams.get('desde') || '2026-01-01';
@@ -335,15 +341,19 @@ export default async function handler(req) {
   const cacheKey = desde + '_' + hasta;
   const now2 = Date.now();
 
-  if (!forceFresh && _cache && _cacheKey === cacheKey && (now2 - _cacheTs) < CACHE_TTL_MS) {
+  // Scoped users are recomputed to avoid retaining a former department's data.
+  const cacheAllowed = actor.profile.rol === 'admin';
+  if (cacheAllowed && !forceFresh && _cache && _cacheKey === cacheKey && (now2 - _cacheTs) < CACHE_TTL_MS) {
     return jsonResponse({ ..._cache, cache: 'hit' });
   }
 
   try {
-    const data = await computeAggregate(desde, hasta);
-    _cache    = data;
-    _cacheKey = cacheKey;
-    _cacheTs  = now2;
+    const data = await computeAggregate(desde, hasta, actor.profile);
+    if (cacheAllowed) {
+      _cache = data;
+      _cacheKey = cacheKey;
+      _cacheTs = now2;
+    }
     return jsonResponse({ ...data, cache: 'miss' });
   } catch (e) {
     return jsonResponse({ error: String(e.message || e) }, 500);

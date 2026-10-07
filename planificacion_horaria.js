@@ -95,15 +95,15 @@ async function renderPlanificacionHoraria(){
   if(!_ph.weekStart) _ph.weekStart = _phMonday(_phToday());
   if(!_ph.department) _ph.department = _phInitialDepartment();
   _phStartTimer();
-  await _phLoad(true);
+  await _phLoad(typeof window._workflowJornadaTab==='undefined' || window._workflowJornadaTab==='planificacion');
 }
 window.renderPlanificacionHoraria = renderPlanificacionHoraria;
 
 function _phStartTimer(){
   if(_ph.timer) return;
   _ph.timer = setInterval(function(){
-    var screen = document.getElementById('screen-planificacion-horaria');
-    if(screen && screen.classList.contains('active') && _ph.data && _ph.data.permissions.canEdit){
+    var screen = document.getElementById('screen-jornada') || document.getElementById('screen-planificacion-horaria');
+    if(screen && screen.classList.contains('active') && (!window._workflowJornadaTab || window._workflowJornadaTab==='planificacion') && _ph.data && _ph.data.permissions.canEdit){
       _phRefreshCatalog(true);
     }
   }, 5 * 60 * 1000);
@@ -173,6 +173,17 @@ function _phRender(){
   }).map(function(item){ return new Date(item.ultima_lectura_at).toLocaleString('es-ES'); })[0] || '[NO DATA]';
   var rows = (_ph.data.employees || []).map(_phEmployeeRow).join('');
   if(!rows) rows = '<tr><td colspan="8"><div class="ph-alert warn">No hay empleados activos vinculados a este departamento. [NO DATA]</div></td></tr>';
+
+  if(window._workflowJornadaTab==='saldos'||window._workflowJornadaTab==='conditions'){
+    var isConditions=window._workflowJornadaTab==='conditions';
+    root.innerHTML='<div class="card"><div class="ph-toolbar"><div class="fg"><label>Departamento</label><select onchange="_phChangeDepartment(this.value)">'+_phDepartmentOptions()+'</select></div>'
+      +'<div class="fg"><label>Semana y año de consulta</label><input type="date" value="'+_phEsc(_ph.weekStart)+'" onchange="_phChangeWeek(this.value)"></div>'
+      +(isConditions?(_ph.data.permissions.canManageLaborConditions?'<button class="btn" onclick="_phOpenOperation(\'labor\')">Gestionar condición laboral</button>':'<p>Consulta de condiciones dentro de tu ámbito. La modificación necesita permiso de gestión.</p>')
+        :(canEdit?'<button class="btn" onclick="_phOpenOperation(\'absence\')">Registrar ausencia o compensación</button><button class="btn" onclick="_phOpenOperation(\'extra\')">Extra / recuperación</button>':''))
+      +'</div><p class="ph-muted">'+(isConditions?'Las condiciones laborales mantienen su fuente y aprobación existentes.':'Festivo trabajado: genera descanso pendiente. Descanso compensatorio disfrutado: consume ese mismo derecho. Los saldos mostrados son confirmaciones auditadas; no un cálculo automático de fichajes.')+'</p></div>'
+      +_phBalancesPanel()+'<div class="ph-modal-layer" id="ph-modal"><div class="ph-modal-card" id="ph-modal-card"></div></div>';
+    return;
+  }
 
   root.innerHTML = '<div class="card">'
     + '<div class="ph-toolbar">'
@@ -283,7 +294,7 @@ function _phBalancesPanel(){
       + '<td>' + _phEsc(_phBalanceValue(balance.holiday_pending_value,null)) + '</td></tr>';
   }).join('');
   return '<div class="card" id="ph-vacation-balances" style="margin-top:16px">'
-    + '<div class="ph-toolbar"><h3 style="margin:0">Saldos de vacaciones</h3>'
+    + '<div class="ph-toolbar"><h3 style="margin:0">Vacaciones y festivos pendientes de compensar</h3>'
     + '<button class="btn" aria-label="Instrucciones de saldos" onclick="_phBalanceHelp()">ⓘ Cómo consultar</button></div>'
     + '<p class="ph-muted">Consulta de saldos confirmados. Las fichas sin asignar o de baja se muestran para consultar su saldo.</p>'
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th><th>Departamento</th><th>Estado de ficha</th>'
@@ -295,7 +306,7 @@ function _phBalanceHelp(){
   var card = document.getElementById('ph-modal-card');
   card.innerHTML = '<div class="ph-modal-title">Cómo consultar los saldos</div>'
     + '<p>Vacaciones muestra los días pendientes del año seleccionado. Pendiente muestra el ejercicio anterior. Años anteriores conserva los saldos de cada año por separado.</p>'
-    + '<p>Festivos pendientes muestra únicamente cantidades confirmadas. Un 0 es un saldo confirmado; [NO DATA] indica que falta confirmación.</p>'
+    + '<p>Trabajar un festivo genera un día pendiente de compensar. El descanso compensatorio disfrutado reduce ese mismo saldo. La pantalla muestra cantidades confirmadas y su corte; un 0 es confirmado y [NO DATA] indica falta de evidencia. No se suman vacaciones y festivos ni se vuelven a contar movimientos anteriores al corte.</p>'
     + '<p>La semana selecciona el año de consulta. Dirección y RRHH ven todos los saldos; los jefes ven su departamento y cada empleado ve su saldo.</p>'
     + '<p>Los periodos de vacaciones y otras ausencias aparecen en las fechas del calendario. Usa Ausencia para registrar un periodo con sus fechas.</p>'
     + '<div class="ph-modal-footer"><button class="btn" onclick="_phCloseModal()">Cerrar</button></div>';

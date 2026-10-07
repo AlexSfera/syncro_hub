@@ -65,7 +65,7 @@ function _hmRender(){
   if(!el || !_hmData) return;
 
   var areas = _hmUniqueAreas();
-  var areaOpts = '<option value="">Todas las áreas</option>' + areas.map(function(a){
+  var areaOpts = '<option value="">Áreas autorizadas</option>' + areas.map(function(a){
     return '<option value="' + _hmEsc(a) + '"' + (a === _hmFilterArea ? ' selected' : '') + '>' + _hmEsc(a) + '</option>';
   }).join('');
 
@@ -76,7 +76,7 @@ function _hmRender(){
   };
 
   var empsDisponibles = _hmFilterEmployees();
-  var empOpts = '<option value="">Todos los empleados</option>'
+  var empOpts = '<option value="">Personas autorizadas</option>'
     + empsDisponibles.slice().sort(function(a,b){ return a.nombre.localeCompare(b.nombre, 'es'); }).map(function(e){
         return '<option value="' + _hmEsc(e.id) + '"' + (e.id === _hmSelectedEmp ? ' selected' : '') + '>'
              + _hmEsc(e.nombre) + (e.estado !== 'Activo' ? ' · ' + e.estado : '') + '</option>';
@@ -88,7 +88,7 @@ function _hmRender(){
   var hayHistoria = _hmData.employees.some(function(e){
     return (e.monthly['2026-01'] || 0) > 0 || (e.monthly['2026-02'] || 0) > 0;
   });
-  var avisoBackfill = hayHistoria ? '' : '<div style="background:rgba(251,191,36,.1);border:1px solid var(--amber);border-radius:6px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--amber);">⚠ <strong>Faltan datos históricos.</strong> Sólo se ven registros del cron nocturno. Para ver enero-junio, ejecuta el backfill una vez con el botón <strong>⚙ Backfill histórico</strong>.</div>';
+  var avisoBackfill = hayHistoria ? '' : '<div style="background:rgba(251,191,36,.1);border:1px solid var(--amber);border-radius:6px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--amber);">⚠ <strong>Faltan datos históricos.</strong> Sólo se ven registros del cron nocturno. La ausencia de registros no demuestra ausencia de trabajo. Las herramientas históricas están en Configuración.</div>';
 
   var extraControles = '';
   if(_hmActiveTab === 'porMes' && !_hmSelectedEmp){
@@ -117,7 +117,6 @@ function _hmRender(){
     +     '<button class="btn" onclick="_hmForceReload()" style="font-size:11px;padding:6px 12px;">🔄 Recargar</button>'
     +     '<button class="btn" onclick="_hmExportCsv()" style="font-size:11px;padding:6px 12px;">⬇ CSV</button>'
     +     '<button class="btn" onclick="showScreen(\'planificacion-horaria\')" style="font-size:11px;padding:6px 12px;">📅 Planificación</button>'
-    +     '<button class="btn" onclick="_hmAbrirBackfill()" style="font-size:11px;padding:6px 12px;background:var(--bg4);border:1px solid var(--amber);color:var(--amber);">⚙ Backfill histórico</button>'
     +   '</div>'
     + '</div></div>'
     + '<div class="card" style="margin-bottom:0;padding:0;overflow:hidden;">'
@@ -589,6 +588,7 @@ function _hmHideTip(){ var tip = document.getElementById('hm-tooltip'); if(tip) 
 window._hmHideTip = _hmHideTip;
 
 function _hmAbrirBackfill(){
+  if(!currentUser || currentUser.rol!=='admin'){toast('Herramienta reservada a administración.','err');return;}
   var overlay = document.createElement('div');
   overlay.id = 'hm-backfill-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
@@ -651,6 +651,7 @@ function _hmMesesBackfillDesde(ymDesde){
 }
 
 async function _hmLanzarBackfill(){
+  if(!currentUser || currentUser.rol!=='admin'){toast('Herramienta reservada a administración.','err');return;}
   if(_hmBackfillEnCurso) return;
   _hmBackfillEnCurso = true;
   var btn = document.getElementById('hm-backfill-go');

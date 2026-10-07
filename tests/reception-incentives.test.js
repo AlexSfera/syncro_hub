@@ -83,12 +83,12 @@ test('calcula el incentivo desde ventas de cierres y mantiene a cero a quien no 
 
 test('limita revisión y liquidación a los perfiles autorizados', () => {
   assert.equal(canReadReceptionIncentives({ rol: 'admin' }), true);
-  assert.equal(canReadReceptionIncentives({ rol: 'adjunto', area: 'Administración' }), true);
-  assert.equal(canReadReceptionIncentives({ rol: 'jefe', area: 'Recepción' }), true);
+  assert.equal(canReadReceptionIncentives({ rol: 'adjunto', area: 'Administración' }), false);
+  assert.equal(canReadReceptionIncentives({ rol: 'jefe', area: 'Recepción' }), false);
   assert.equal(canReadReceptionIncentives({ rol: 'chef', area: 'Cocina' }), false);
   assert.equal(canReadReceptionIncentives({ rol: 'empleado', area: 'Recepción' }), false);
   assert.equal(canLiquidateReceptionIncentives({ rol: 'admin' }), true);
-  assert.equal(canLiquidateReceptionIncentives({ rol: 'adjunto' }), true);
+  assert.equal(canLiquidateReceptionIncentives({ rol: 'adjunto' }), false);
   assert.equal(canLiquidateReceptionIncentives({ rol: 'jefe', area: 'Recepción' }), false);
 });
 

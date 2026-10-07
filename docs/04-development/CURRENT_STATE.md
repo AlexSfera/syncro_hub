@@ -1,3 +1,13 @@
+## Navegación operativa y permisos — 07/10/2026
+Esta sección prevalece sobre los estados históricos inferiores.
+- IMPLEMENTADO: siete áreas de trabajo; Jornada reúne planificación, fichajes y balance mensual; producción se separa de informes y pagos.
+- TESTEADO localmente: sintaxis, regresión y pruebas de permisos/caché, más 30 escenarios Chrome con datos ficticios. No representan sesiones LIVE.
+- BLOQUEO DE PRODUCCIÓN: RLS financiero actual demasiado amplio. Protección preparada en supabase/changes/navigation_incentives_access.sql, SIN aplicar y pendiente de autorización específica.
+- Producción sigue en ce78f88 y dpl_Dnx8sJTTsmT2RHMN5YUg5ipF5P5g; main sigue en 38074d9. No se fusiona ni se cambian datos LIVE, cron o integraciones.
+- Evidencia, alcance y reversión: docs/04-development/IMPLEMENTACION_NAVEGACION_20261007.md.
+
+---
+
 ## Publicación comprobada — 07/10/2026
 Esta sección prevalece sobre los estados históricos inferiores.
 - PRODUCCIÓN según el control de Vercel: el código `0391a0fdd0704af3014383a15c796a0f2e4bd4de`, interfaz V4.3, alcanzó READY en `dpl_AJ7BW1uy64AeD8GN3L9B4jnW5tBy`; `https://syncro-shift.vercel.app/` resolvió al mismo deployment y commit. Las revisiones posteriores de este cierre son exclusivamente documentales.

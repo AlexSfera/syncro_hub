@@ -59,6 +59,7 @@ window.onMrMonthChange = onMrMonthChange;
 
 // ── CARGA Y CÁLCULO ─────────────────────────────────────────────────
 async function _mrLoadData(tipo){
+  if(!canControlIncentivesUI(currentUser)) return renderMiRendimiento();
   var el = document.getElementById('mr-content');
   if(!el) return;
   el.innerHTML = '<p style="color:var(--text3);">Calculando…</p>';
@@ -461,6 +462,7 @@ var _MR_ENTR_KPI_LBL = {
 };
 
 async function _mrEntrenador(el){
+  if(!canControlIncentivesUI(currentUser)) return renderMiRendimiento();
   var monthOpts = getMonthOptions(6);
   // Inicializar con el mes más reciente que tenga actividad propia o informe
   // oficial. Antes solo se miraba VirtuGym y un registro nuevo podía quedar
@@ -487,7 +489,7 @@ async function _mrEntrenador(el){
   var selOpts = monthOpts.map(function(o){
     return '<option value="'+o.value+'"'+(o.value===_mrEntrMonth?' selected':'')+'>'+o.label+'</option>';
   }).join('');
-  var esCoord = (typeof canActAsAdmin === 'function' && canActAsAdmin(currentUser))
+  var esCoord = canMarkLiquidationUI(currentUser)
     || (currentUser && currentUser.rol === 'coord_entrenadores');
   function tab(id,lbl){
     var on = (_mrEntrTab===id);
@@ -595,7 +597,7 @@ async function _mrEntrMis(){
   var total = _MR_ENTR_KPI_KEYS.reduce(function(a,k){ return a+sum[k]; },0);
   var comparador = await _mrEntrComparador(sum);
   return '<div style="font-size:12px;color:var(--text3);margin-bottom:6px;">'
-      + 'Suma de lo que registraste en tus '+nTurnos+' turno(s) de este mes. Es autocontrol: el incentivo lo calcula el jefe con VirtuGym.</div>'
+      + 'Suma de lo que registraste en tus '+nTurnos+' turno(s) de este mes. Es autocontrol de producción: no acredita aprobación ni pago de incentivos.</div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;">'
     +   '<div style="flex:1;min-width:300px;">'+_mrEntrBarras(pares)+'</div>'
     +   '<div style="min-width:140px;background:var(--bg2);border-radius:8px;padding:12px 16px;">'
@@ -612,7 +614,7 @@ async function _mrEntrMis(){
 // Cruza por KPI y marca las desviaciones. Solo del propio usuario.
 async function _mrEntrComparador(sum){
   var filas;
-  try { filas = await getDB('entrenadores_incentivos_mes'); }
+  try { var response=await syncroSupabaseFetch('/api/trainer-production?mes='+encodeURIComponent(_mrEntrMonth),{method:'GET'});if(!response.ok)return '';filas=(await response.json()).records; }
   catch(e){ return ''; }
   var mia = (filas||[]).find(function(r){
     return r.ym === _mrEntrMonth &&
@@ -658,6 +660,7 @@ async function _mrEntrComparador(sum){
 
 // INFORME 2 — oficial del jefe
 async function _mrEntrJefe(){
+  if(!canControlIncentivesUI(currentUser)) return '<p>Consulta tus incentivos pendientes en la vista personal.</p>';
   var filas;
   try { filas = await getDB('entrenadores_incentivos_mes'); }
   catch(e){ return '<div style="color:var(--text3);padding:20px 0;">No se pudo cargar el informe del mes.</div>'; }
@@ -738,6 +741,7 @@ async function _mrEntrJefe(){
 
 // INFORME 3 — equipo (coordinador/admin)
 async function _mrEntrEquipo(){
+  if(!canControlIncentivesUI(currentUser)) return '<p>Acceso restringido.</p>';
   var filas;
   try { filas = await getDB('entrenadores_incentivos_mes'); }
   catch(e){ return '<div style="color:var(--text3);padding:20px 0;">No se pudo cargar el informe del equipo.</div>'; }
@@ -790,7 +794,7 @@ async function _mrEntrEquipo(){
         ? '<span class="badge b-green" title="Coincide con VirtuGym">✓ OK</span>'
         : '<span class="badge b-yellow" title="'+nDesv+' KPI no coinciden con VirtuGym">⚠ '+nDesv+'</span>';
     }
-    var _esAdmin = (typeof canActAsAdmin==='function' && canActAsAdmin(currentUser));
+    var _esAdmin = canMarkLiquidationUI(currentUser);
     // Comprobante si ya está liquidado
     var _f = [];
     try { _f = Array.isArray(r.liquidado_fotos) ? r.liquidado_fotos : (r.liquidado_fotos ? JSON.parse(r.liquidado_fotos) : []); } catch(e){ _f=[]; }
@@ -816,7 +820,7 @@ async function _mrEntrEquipo(){
       + (_esAdmin ? '<td style="text-align:center;padding:8px 4px;">'+accionCell+'</td>' : '')
       + '</tr>';
   }).join('');
-  var _esAdminH = (typeof canActAsAdmin==='function' && canActAsAdmin(currentUser));
+  var _esAdminH = canMarkLiquidationUI(currentUser);
   return '<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">'
       + delMes.length+' entrenadores · '+nLiq+'/'+delMes.length+' liquidados · Total bruto del mes: <b style="color:var(--amber);">'+_mrEntrNum(totBruto)+'€</b></div>'
     + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:'+(_esAdminH?'700':'620')+'px;">'
@@ -835,7 +839,7 @@ async function _mrEntrEquipo(){
 
 // ── LIQUIDACIÓN INDIVIDUAL (solo admin) ──────────────────────────────
 window._mrLiquidarUno = function(empId, empNombreEnc){
-  if(!(typeof canActAsAdmin==='function' && canActAsAdmin(currentUser))){ toast('Solo un Administrador puede liquidar','err'); return; }
+  if(!canMarkLiquidationUI(currentUser)){ toast('Solo un Administrador puede liquidar','err'); return; }
   var empNombre = decodeURIComponent(empNombreEnc||'');
   _ensureMrLiqModal();
   document.getElementById('mr-liq-emp').textContent = empNombre;
@@ -855,7 +859,7 @@ function _ensureMrLiqModal(){
   ov.innerHTML = '<div class="modal-box" style="max-width:460px;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;margin-top:32px;">'
     + '<div style="font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--text);margin-bottom:4px;">✓ Liquidar incentivo</div>'
     + '<div style="font-size:13px;color:var(--text2);margin-bottom:4px;"><b id="mr-liq-emp"></b> · <span id="mr-liq-mes"></span></div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Marcas a este entrenador como pagado este mes. Lo verá en su Mi Rendimiento.</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Marcas a este entrenador como pagado este mes. Dejará de aparecer en sus incentivos pendientes.</div>'
     + '<div class="fg" style="margin-bottom:12px;">'
     +   '<label style="display:block;font-size:12px;color:var(--text2);margin-bottom:4px;">Comprobante (opcional) — justificante de pago, captura, etc.</label>'
     +   '<input type="file" id="mr-liq-fotos-input" accept="image/*" capture="environment" multiple onchange="handleCajaFotosInput(this,\'mr-liq-fotos\',\'syncrolab\')" style="color:var(--text);font-size:13px;padding:6px 0;">'
@@ -872,7 +876,7 @@ function _ensureMrLiqModal(){
 }
 
 window._mrLiquidarConfirm = async function(){
-  if(!(typeof canActAsAdmin==='function' && canActAsAdmin(currentUser))){ toast('Solo un Administrador puede liquidar','err'); return; }
+  if(!canMarkLiquidationUI(currentUser)){ toast('Solo un Administrador puede liquidar','err'); return; }
   var modal = document.getElementById('modal-mr-liq');
   var empId = modal.dataset.empId || '';
   var empNombre = modal.dataset.empNombre || '';
@@ -882,13 +886,9 @@ window._mrLiquidarConfirm = async function(){
     var fotos = (typeof getCajaFotosUrls === 'function') ? (getCajaFotosUrls('mr-liq-fotos')||[]) : [];
     var ts = localTs();
     var por = (currentUser&&currentUser.nombre)||'';
-    // Filtro por mes + entrenador concreto (employee_id si hay; si no, por nombre)
-    var filtro = 'ym=eq.'+encodeURIComponent(ym)+'&'
-      + (empId ? 'employee_id=eq.'+encodeURIComponent(empId)
-               : 'employee_nombre=eq.'+encodeURIComponent(empNombre));
-    var res = await sbRequest('PATCH','entrenadores_incentivos_mes',
-      {liquidado:true, liquidado_ts:ts, liquidado_por:por, liquidado_fotos:fotos}, filtro);
-    if(res===null){ if(errEl) errEl.textContent='Error al guardar. Revisa la consola.'; return; }
+    if(!empId) throw new Error('Confirma la correspondencia con la ficha del empleado antes de liquidar.');
+    var response=await syncroSupabaseFetch('/api/trainer-production',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'liquidate',employee_id:empId,mes:ym,fotos:fotos})});
+    var result=await response.json();if(!response.ok)throw new Error(result.error||'No se pudo liquidar.');
     invalidateCache('entrenadores_incentivos_mes');
     await auditLog('ENTR_INC_LIQUIDADO_UNO', por+' liquidó incentivo de '+empNombre+' · '+ym+' ('+fotos.length+' foto/s)');
     modal.style.display='none';

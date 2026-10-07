@@ -210,6 +210,12 @@ async function renderInformes(){
   } catch(e){}
 
   var visibles = _infDeptsVisibles(currentUser);
+  var workflowCatalog=INF_DEPT_CATALOG;
+  if(typeof workflowAllowedReportTabs==='function'){
+    workflowCatalog=INF_DEPT_CATALOG.map(function(d){return Object.assign({},d,{subtabs:workflowAllowedReportTabs(d.key)});}).filter(function(d){return !d.coming&&d.subtabs.length;});
+    visibles=visibles.filter(function(key){return workflowCatalog.some(function(d){return d.key===key;});});
+    if(!visibles.length){el.innerHTML='<div class="card"><p>No hay entradas de datos implementadas para tu departamento en esta vista. Las funciones pendientes no aparecen como disponibles.</p></div>';return;}
+  }
 
   // Si el dept activo no es visible, resetear al primero disponible
   if(!_infDept || visibles.indexOf(_infDept)<0){
@@ -237,10 +243,10 @@ async function renderInformes(){
     return '<button '+click+' style="'+base+color+'" '+(disabled?'disabled':'')+'>'+d.icon+' '+d.label+badge+'</button>';
   }
 
-  var chipsHtml = INF_DEPT_CATALOG.map(chipDepto).join('');
+  var chipsHtml = workflowCatalog.filter(function(d){return visibles.indexOf(d.key)>=0;}).map(chipDepto).join('');
 
   // Sub-tab L2 del dept activo
-  var deptDef = INF_DEPT_CATALOG.find(function(d){ return d.key===_infDept; });
+  var deptDef = workflowCatalog.find(function(d){ return d.key===_infDept; });
   var subTabsHtml = '';
   if(deptDef && deptDef.subtabs && deptDef.subtabs.length){
     if(!_infSubTab || deptDef.subtabs.indexOf(_infSubTab)<0){
@@ -285,6 +291,10 @@ async function _infRenderSubTab(){
 
   var dept = _infDept;
   var sub  = _infSubTab;
+
+  if(typeof workflowAllowedReportTabs==='function'&&workflowAllowedReportTabs(dept).indexOf(sub)<0){
+    tc.innerHTML='<div class="card"><p>Esta función tiene su acceso en el área correspondiente.</p></div>';return;
+  }
 
   if(!dept){ tc.innerHTML=''; return; }
 
@@ -2140,11 +2150,7 @@ async function _renderInformesEntrenadores(el){
     +    '<div style="font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--text);">🏋 Importar producción Entrenadores</div>'
     +    '<div style="font-size:11px;color:var(--text3);margin-top:3px;">Export VirtuGym → guardar como <strong>CSV</strong> → arrastrar aquí</div>'
     +  '</div>'
-    +  '<div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">'
-    +    'Umbral: <strong style="color:var(--amber);">'+INF_ENTR_UMBRAL+'</strong> ses./mes'
-    +    ' &nbsp;·&nbsp; Sesión extra: <strong style="color:var(--amber);">'+INF_ENTR_EUR_SESION+'€</strong>'
-    +    ' &nbsp;·&nbsp; Plan online: <strong style="color:var(--amber);">'+INF_ENTR_EUR_PLAN+'€</strong>'
-    +  '</div>'
+    +  '<div style="font-size:11px;color:var(--text3);">Actividad oficial y planes online. El control interno de incentivos tiene acceso separado.</div>'
     +'</div>'
     +'<div id="inf-entr-dropzone" onclick="document.getElementById(\'inf-entr-input\').click()" '
     +  'ondragover="event.preventDefault();this.style.borderColor=\'var(--amber)\'" '
@@ -2190,7 +2196,9 @@ window._infEntrLoadCSV=function(file){
       } catch(e2){}
       // Si el mes ya está en BD, precargar planes desde BD (tiene prioridad sobre localStorage)
       try {
-        var _bdRows = await getDB('entrenadores_incentivos_mes');
+        var _productionResponse=await syncroSupabaseFetch('/api/trainer-production?mes='+encodeURIComponent(_ym),{method:'GET'});
+        if(!_productionResponse.ok)throw new Error('Producción no disponible');
+        var _bdRows=(await _productionResponse.json()).records;
         var _bdMes = (_bdRows||[]).filter(function(r){ return r.ym === _ym; });
         if(_bdMes.length){
           _bdMes.forEach(function(r){
@@ -2274,6 +2282,11 @@ function _renderEntrTabla(data){
   var el=document.getElementById('inf-entr-result');
   if(!el) return;
   var instructores=data.instructores, porInstr=data.porInstr;
+  if(!canControlIncentivesUI(currentUser)){
+    var keys=['dir_efectiva','dir_no_efectiva','pt','pt_duo','pt_30','val_funcional','visbody','banera_hielo'];
+    el.innerHTML='<p>Producción oficial · '+_escHtml(data.ymPrincipal)+'</p><div style="overflow-x:auto"><table><thead><tr><th>Entrenador</th>'+keys.map(function(k){return '<th>'+_escHtml(k)+'</th>';}).join('')+'<th>Planes online</th></tr></thead><tbody>'+instructores.map(function(n){var r=porInstr[n];var code=btoa(encodeURIComponent(n));return '<tr><td>'+_escHtml(n)+(!r.employee_id?' (sin correspondencia)':'')+'</td>'+keys.map(function(k){return '<td>'+r.kpi[k]+'</td>';}).join('')+'<td><input type="number" min="0" step="1" value="'+Number(_infEntrPlanes[n]||0)+'" data-person="'+code+'" onchange="_infEntrSetPlanes(this.dataset.person,this.value)"></td></tr>';}).join('')+'</tbody></table></div><button class="btn" onclick="_infEntrGuardar()">Guardar producción</button>';
+    return;
+  }
   if(!instructores.length){
     el.innerHTML='<div style="color:var(--text3);text-align:center;padding:24px;">Sin sesiones válidas en el archivo (solo carril piscina / reservas sin instructor).</div>';
     return;
@@ -2353,79 +2366,25 @@ function _renderEntrTabla(data){
     +'<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">'
     +  '<button onclick="window._infEntrGuardar()" style="padding:10px 20px;border-radius:6px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:700;font-family:var(--font-mono);font-size:12px;">💾 Guardar mes como base de incentivos</button>'
     +  '<button onclick="window._infEntrConfigOpen()" style="padding:10px 20px;border-radius:6px;border:1px solid var(--border2);cursor:pointer;background:transparent;color:var(--text2);font-weight:700;font-family:var(--font-mono);font-size:12px;">⚙ Configurar métodos</button>'
-    +  '<span style="font-size:11px;color:var(--text3);">La liquidación de cada entrenador se hace desde Mi Rendimiento → Mi equipo.</span>'
+    +  '<span style="font-size:11px;color:var(--text3);">Consulta y liquidación en Producción e incentivos → Control de incentivos.</span>'
     +'</div>';
 }
 
 // Guarda el mes en entrenadores_incentivos_mes (upsert por nombre+ym)
 window._infEntrGuardar=async function(){
-  if(!_infEntrData||!_infEntrData.instructores.length){ toast('Nada que guardar','err'); return; }
+  if(!_infEntrData||!_infEntrData.instructores.length){toast('Nada que guardar','err');return;}
+  if(_infEntrData.meses.length!==1){toast('Importa un único mes por archivo.','err');return;}
   var ym=_infEntrData.ymPrincipal;
-  if(!ym){ toast('No se pudo determinar el mes del archivo','err'); return; }
-  if(!confirm('¿Guardar '+_infEntrData.instructores.length+' entrenadores como base de incentivos de '+ym+'?\nSe sobrescribe cualquier cálculo previo de ese mes.')) return;
-
-  try {
-    // Preservar estado de liquidación si el mes ya estaba liquidado (re-subida)
-    var _prevLiq = {};
-    try {
-      var _prev = await getDB('entrenadores_incentivos_mes');
-      (_prev||[]).forEach(function(r){
-        if(r.ym === ym && r.liquidado === true){
-          var key = r.employee_id || r.employee_nombre;
-          _prevLiq[key] = {liquidado:true, liquidado_ts:r.liquidado_ts||null, liquidado_por:r.liquidado_por||null};
-        }
-      });
-    } catch(ePrev){ /* tabla sin columna liquidado aún → ignorar */ }
-    // Borrar registros previos del mes (reescritura limpia)
-    await sbRequest('DELETE','entrenadores_incentivos_mes',null,'ym=eq.'+encodeURIComponent(ym));
-
-    var rows=_infEntrData.instructores.map(function(n){
-      var rec=_infEntrData.porInstr[n];
-      var c=_infEntrCalc(rec);
-      var k=rec.kpi;
-      var _liq = _prevLiq[rec.employee_id] || _prevLiq[rec.nombre] || null;
-      return {
-        id: genId(),
-        employee_id: rec.employee_id,
-        employee_nombre: rec.nombre,
-        ym: ym,
-        n_dir_efectivas: k.dir_efectiva,
-        n_dir_no_efect:  k.dir_no_efectiva,
-        n_pt:            k.pt,
-        n_pt_duo:        k.pt_duo,
-        n_pt_30:         k.pt_30,
-        n_val_funcional: k.val_funcional,
-        n_visbody:       k.visbody,
-        n_banera_hielo:  k.banera_hielo,
-        sesiones_efectivas: c.efect,
-        umbral: c.metodo==='umbral' ? c.umbral : 0,
-        sesiones_extra: c.extra,
-        incentivo_sesiones: c.incSes,
-        planes_online: c.planes,
-        incentivo_planes: c.incPlan,
-        incentivo_bruto: c.bruto,
-        metodo_calculo: c.metodo,
-        horas_efectivas: c.horas,
-        precio_hora: c.precio_hora,
-        base_neto: c.base_neto,
-        incentivo_horas: c.incHoras,
-        liquidado:     _liq ? true : false,
-        liquidado_ts:  _liq ? _liq.liquidado_ts : null,
-        liquidado_por: _liq ? _liq.liquidado_por : null,
-        subido_por: (currentUser&&currentUser.nombre)||'',
-        fuente_archivo: _infEntrData.fuente||'',
-        created_at: localTs()
-      };
-    });
-
-    var res=await dbInsert('entrenadores_incentivos_mes', rows);
-    if(res===null){ toast('Error al guardar (revisa consola). ¿Existe la tabla?','err'); return; }
+  var rows=_infEntrData.instructores.map(function(n){var r=_infEntrData.porInstr[n];return {employee_id:r.employee_id,kpi:r.kpi,planes_online:parseInt(_infEntrPlanes[n]||0,10)||0};});
+  if(rows.some(function(r){return !r.employee_id;})){toast('Confirma la correspondencia de todas las personas con su ficha.','err');return;}
+  if(!confirm('¿Guardar la producción de '+ym+'? Los incentivos liquidados están protegidos.'))return;
+  try{
+    var response=await syncroSupabaseFetch('/api/trainer-production',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'import',mes:ym,rows:rows,fuente:_infEntrData.fuente||''})});
+    var result=await response.json();if(!response.ok)throw new Error(result.error||'No se pudo guardar.');
     invalidateCache('entrenadores_incentivos_mes');
-    await auditLog('ENTR_INCENTIVOS_SAVE', (currentUser&&currentUser.nombre)+' guardó incentivos Entrenadores '+ym+' ('+rows.length+' entrenadores) desde '+(_infEntrData.fuente||'CSV'));
-    toast('Base de incentivos guardada para '+ym,'ok');
-    // Limpiar localStorage del mes (ya está en BD)
-    try { localStorage.removeItem('infEntrPlanes_'+ym); } catch(e){}
-  } catch(e){ toast('Error: '+e.message,'err'); }
+    toast('Producción registrada para '+ym,'ok');
+    try{localStorage.removeItem('infEntrPlanes_'+ym);}catch(_){}
+  }catch(e){toast(e.message,'err');}
 };
 
 function _escHtml(s){
@@ -2438,6 +2397,7 @@ function _escHtml(s){
 // del CSV cargado. Guarda en su ficha (employees) y recalcula al instante.
 // ═══════════════════════════════════════════════════════════════════════
 window._infEntrConfigOpen = function(){
+  if(!canMarkLiquidationUI(currentUser)){toast('Acceso restringido.','err');return;}
   if(!_infEntrData || !_infEntrData.instructores.length){
     toast('Carga primero un archivo para ver los entrenadores','err'); return;
   }
@@ -2515,6 +2475,7 @@ window._infEntrCfgToggle=function(b64){
 };
 
 window._infEntrConfigGuardar=async function(){
+  if(!canMarkLiquidationUI(currentUser)){toast('Acceso restringido.','err');return;}
   var errEl=document.getElementById('inf-entr-cfg-err');
   errEl.textContent='';
   var aGuardar=[];
@@ -2543,12 +2504,8 @@ window._infEntrConfigGuardar=async function(){
   }
   // PATCH ficha de cada entrenador con match
   try {
-    for(var j=0;j<aGuardar.length;j++){
-      var g=aGuardar[j];
-      await sbRequest('PATCH','employees',
-        {inc_metodo:g.inc_metodo, inc_umbral:g.inc_umbral, inc_precio_hora:g.inc_precio_hora, inc_base_neto:g.inc_base_neto},
-        'id=eq.'+encodeURIComponent(g.id));
-    }
+    var response=await syncroSupabaseFetch('/api/trainer-production',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'configure',rows:aGuardar})});
+    var result=await response.json();if(!response.ok)throw new Error(result.error||'No se pudo guardar.');
     invalidateCache('employees');
     _infEmployeesCache=await getDB('employees'); // refrescar para recálculo
     await auditLog('ENTR_INC_CONFIG', (currentUser&&currentUser.nombre)+' configuró métodos de incentivo de '+aGuardar.length+' entrenadores');

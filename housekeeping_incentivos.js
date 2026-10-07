@@ -187,6 +187,7 @@ function _hkLiquidationsDepartmentHtml() {
 
 async function renderLiquidacionesPorDepartamento(el) {
   if(!el) return;
+  if(!canControlIncentivesUI(currentUser)){el.innerHTML='<p>Acceso restringido.</p>';return;}
   _hkSemesterState.view = 'department-liquidation';
   var department = _hkSemesterState.department || 'Entrenadores';
   if(department==='Entrenadores' && typeof _liqEntrMonth!=='undefined' && !_liqEntrMonth) {
@@ -211,7 +212,7 @@ async function renderLiquidacionesPorDepartamento(el) {
   if(!details) return;
   details.innerHTML = '<div class="card"><p style="color:var(--text3);padding:16px 0;">Cargando datos de liquidación…</p></div>';
   if(department==='Entrenadores') {
-    if(!(typeof canActAsAdmin==='function' && canActAsAdmin(currentUser))) {
+    if(!canControlIncentivesUI(currentUser)) {
       details.innerHTML = '<div class="card"><p style="color:var(--text3);padding:16px 0;">Solo BOSS puede liquidar Entrenadores.</p></div>';
       return;
     }
@@ -264,6 +265,7 @@ async function hkSyncReportAbsences(reportId, absences) {
 window.hkSyncReportAbsences = hkSyncReportAbsences;
 
 function hkOpenLiquidation(employeeId) {
+  if(!canMarkLiquidationUI(currentUser)){toast('Acceso restringido.','err');return;}
   var record = (_hkSemesterState.data&&_hkSemesterState.data.records||[]).find(function(row){ return row.employee_id===employeeId; });
   if(!record) return;
   var existing = document.getElementById('hk-liquidation-overlay');
@@ -284,6 +286,7 @@ function hkOpenLiquidation(employeeId) {
 window.hkOpenLiquidation = hkOpenLiquidation;
 
 async function hkConfirmLiquidation(employeeId) {
+  if(!canMarkLiquidationUI(currentUser)){toast('Acceso restringido.','err');return;}
   var notes = (document.getElementById('hk-liquidation-notes')||{}).value || '';
   try {
     await _hkApi('POST', {action:'liquidate', employee_id:employeeId, periodo:_hkSemesterState.period, notas:notes});

@@ -2,170 +2,69 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-
-const source = fs.readFileSync(new URL('../shared.js', import.meta.url), 'utf8');
-const start = source.indexOf('function navSection');
-const end = source.indexOf('function buildNav');
-
-assert.ok(start >= 0 && end > start, 'navigation source must be extractable');
-
-const supervisorRoles = new Set([
-  'jefe', 'chef', 'fb', 'jefe_recepcion', 'supervisor',
-  'coord_recepcion_syncrolab', 'coord_entrenadores', 'coord_fisioterapeutas',
-  'gobernante', 'subgobernante', 'jefe_mantenimiento', 'tecnico_rrhh'
-]);
-
-const context = {
-  currentUser: null,
-  isAdjuntoDirectivo: user => ['adjunto', 'adjunto_directivo'].includes(user?.rol),
-  isTecnicoRrhh: user => user?.rol === 'tecnico_rrhh',
-  isSupervisor: user => !!user && supervisorRoles.has(user.rol),
-  _esEntrenador: user => user?.rol === 'coord_entrenadores'
-    || ['Entrenador(a)', 'Coordinador(a) de Entrenadores'].includes(user?.puesto)
+const source=fs.readFileSync(new URL('../shared.js',import.meta.url),'utf8');
+const context={
+  currentUser:null,
+  isAdjuntoDirectivo:u=>['adjunto','adjunto_directivo'].includes(u?.rol),
+  isTecnicoRrhh:u=>u?.rol==='tecnico_rrhh',
+  isSupervisor:u=>['jefe','chef','fb','jefe_recepcion','supervisor','coord_entrenadores','gobernante','subgobernante','jefe_mantenimiento','tecnico_rrhh','coord_recepcion_syncrolab','coord_fisioterapeutas'].includes(u?.rol),
+  _esEntrenador:u=>u?.rol==='coord_entrenadores'||['Entrenador(a)','Coordinador(a) de Entrenadores'].includes(u?.puesto)
 };
-
-vm.createContext(context);
-vm.runInContext(source.slice(start, end), context);
-
-function navigationFor(profile) {
-  context.currentUser = profile;
-  return context.getScreens(profile.rol);
-}
-
-function idsFor(profile) {
-  return Array.from(navigationFor(profile).filter(item => item.id), item => item.id).sort();
-}
-
-function assertAccess(profile, expected) {
-  assert.deepEqual(idsFor(profile), expected.slice().sort());
-}
-
-test('navigation keeps the approved access set for representative roles', () => {
-  assertAccess(
-    { rol:'admin', area:'Administración', puesto:'Administrador' },
-    ['gestiones','incidencias','tareas','hypoxic','validacion','mant-mod','hk-dash',
-      'liquidaciones','fichaje','dashboard','maestro','export','fio','informes',
-      'horas-mes','planificacion-horaria']
-  );
-
-  assertAccess(
-    { rol:'adjunto', area:'Administración', puesto:'Adjunto Directivo' },
-    ['turno','gestiones','incidencias','tareas','mis-fio','fichaje','notas-mod',
-      'validacion','hk-dash','liquidaciones','dashboard','maestro','export','fio',
-      'informes','planificacion-horaria']
-  );
-
-  assertAccess(
-    { rol:'contable', area:'Administración', puesto:'Contable' },
-    ['validacion','dashboard','planificacion-horaria']
-  );
-
-  assertAccess(
-    { rol:'tecnico_rrhh', area:'Administración', puesto:'Técnico de Recursos Humanos' },
-    ['turno','chk-mod','gestiones','tareas','incidencias','notas-mod',
-      'planificacion-horaria','validacion','fichaje','mis-fio','maestro','fio']
-  );
-
-  assertAccess(
-    { rol:'chef', area:'Cocina', puesto:'Jefe de Cocina' },
-    ['turno','merma-mod','chk-mod','gestiones','tareas','incidencias','notas-mod',
-      'planificacion-horaria','validacion','fichaje','mis-fio','mi-rendimiento',
-      'dashboard','maestro','fio','informes']
-  );
-
-  assertAccess(
-    { rol:'gobernante', area:'Housekeeping', puesto:'Gobernanta' },
-    ['ruta-mod','chk-mod','turno','gestiones','tareas','incidencias','notas-mod',
-      'planificacion-horaria','validacion','fichaje','mis-fio','mi-rendimiento',
-      'hk-revision','hk-dash','hk-plan','hk-zonas','dashboard','maestro','fio',
-      'informes','hk-config']
-  );
-
-  assertAccess(
-    { rol:'jefe_mantenimiento', area:'Mantenimiento', puesto:'Jefe de Mantenimiento' },
-    ['turno','chk-mod','gestiones','tareas','incidencias','hypoxic','notas-mod',
-      'planificacion-horaria','validacion','mant-mod','fichaje','mis-fio',
-      'dashboard','maestro','fio','informes']
-  );
-
-  assertAccess(
-    { rol:'jefe', area:'SYNCROLAB', puesto:'Club Manager' },
-    ['turno','chk-mod','lab-caja-op','gestiones','tareas','incidencias','notas-mod',
-      'planificacion-horaria','validacion','fichaje','mis-fio','mi-rendimiento',
-      'dashboard','maestro','fio','informes']
-  );
-
-  assertAccess(
-    { rol:'empleado', area:'Cocina', puesto:'Cocinero' },
-    ['turno','merma-mod','chk-mod','gestiones','tareas','incidencias','notas-mod',
-      'planificacion-horaria','fichaje','mis-fio','mi-rendimiento']
-  );
-
-  assertAccess(
-    { rol:'empleado', area:'Recepción', puesto:'Recepcionista' },
-    ['turno','chk-mod','rec-caja-op','gestiones','tareas','incidencias','hypoxic',
-      'notas-mod','planificacion-horaria','fichaje','mis-fio','mi-rendimiento']
-  );
-});
-
-test('each role receives unique screens inside described dropdown sectors', () => {
-  const profiles = [
-    { rol:'admin', area:'Administración', puesto:'Administrador' },
-    { rol:'adjunto', area:'Administración', puesto:'Adjunto Directivo' },
-    { rol:'contable', area:'Administración', puesto:'Contable' },
-    { rol:'tecnico_rrhh', area:'Administración', puesto:'Técnico de Recursos Humanos' },
-    { rol:'fb', area:'F&B', puesto:'F&B Manager' },
-    { rol:'chef', area:'Cocina', puesto:'Jefe de Cocina' },
-    { rol:'supervisor', area:'Sala', puesto:'Jefe de Sala' },
-    { rol:'jefe_recepcion', area:'Recepción', puesto:'Jefe de Recepción' },
-    { rol:'gobernante', area:'Housekeeping', puesto:'Gobernanta' },
-    { rol:'subgobernante', area:'Housekeeping', puesto:'Subgobernanta' },
-    { rol:'jefe_mantenimiento', area:'Mantenimiento', puesto:'Jefe de Mantenimiento' },
-    { rol:'coord_recepcion_syncrolab', area:'SYNCROLAB', puesto:'Coordinador(a) de Atención al Cliente' },
-    { rol:'coord_entrenadores', area:'SYNCROLAB', puesto:'Coordinador(a) de Entrenadores' },
-    { rol:'coord_fisioterapeutas', area:'SYNCROLAB', puesto:'Coordinador(a) de Fisioterapeutas' },
-    { rol:'empleado', area:'Housekeeping', puesto:'Camarera de pisos' },
-    { rol:'empleado', area:'SYNCROLAB', puesto:'Entrenador(a)' }
-  ];
-
-  for (const profile of profiles) {
-    const navigation = navigationFor(profile);
-    const screens = navigation.filter(item => item.id);
-    const sectors = navigation.filter(item => item.sep);
-    assert.equal(new Set(screens.map(item => item.id)).size, screens.length, profile.puesto);
-    assert.ok(screens.every(item => item.description), `${profile.puesto}: missing screen description`);
-    assert.ok(sectors.length >= 1 && sectors.length <= 3, `${profile.puesto}: invalid sector count`);
-    assert.ok(sectors.every(item => item.dropdown && item.description && item.key), `${profile.puesto}: invalid sector metadata`);
+vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function navSection'),source.indexOf('function buildNav')),context);
+const profiles=[
+  ['admin','Administración','Administrador'],['adjunto','Administración','Adjunto Directivo'],
+  ['adjunto_directivo','Administración','Adjunto Directivo'],['contable','Administración','Contable'],
+  ['tecnico_rrhh','Administración','Técnico de Recursos Humanos'],['chef','Cocina','Jefe de Cocina'],
+  ['fb','F&B','F&B Manager'],['supervisor','Sala','Jefe de Sala'],['gobernante','Housekeeping','Gobernanta'],
+  ['subgobernante','Housekeeping','Subgobernanta'],['jefe_recepcion','Recepción','Jefe de Recepción'],
+  ['jefe_mantenimiento','Mantenimiento','Jefe de Mantenimiento'],['jefe','SYNCROLAB','Club Manager'],
+  ['coord_entrenadores','SYNCROLAB','Coordinador(a) de Entrenadores'],
+  ['coord_recepcion_syncrolab','SYNCROLAB','Coordinador(a) de Atención al Cliente'],
+  ['coord_fisioterapeutas','SYNCROLAB','Coordinador(a) de Fisioterapeutas'],
+  ['empleado','Cocina','Cocinero'],['empleado','Sala','Camarero(a)'],
+  ['empleado','Housekeeping','Camarera de pisos'],['empleado','Recepción','Recepcionista'],
+  ['empleado','SYNCROLAB','Entrenador(a)'],['empleado','Mantenimiento','Técnico de Mantenimiento']
+].map(([rol,area,puesto])=>({rol,area,puesto}));
+function navigation(profile){context.currentUser=profile;return context.getScreens(profile.rol);}
+test('NAV-01: seven areas preserve all previously accessible domain functions',()=>{
+  const areas=['MI DÍA','OPERACIÓN','JORNADA Y SALDOS','PRODUCCIÓN E INCENTIVOS','RESULTADOS E INFORMES','EQUIPO','CONFIGURACIÓN'];
+  for(const profile of profiles){
+    const nav=navigation(profile);const screens=nav.filter(i=>i.id);const ids=new Set(screens.map(i=>i.id));
+    assert.equal(ids.size,screens.length,profile.puesto);
+    assert.ok(nav.filter(i=>i.sep).every(i=>areas.includes(i.label)&&i.dropdown&&i.key&&i.description));
+    assert.ok(nav.filter(i=>i.sep).length<=7);assert.ok(screens.every(i=>i.description));
+    assert.ok(ids.has('jornada'),profile.puesto);
+    for(const old of context._legacyScreens(profile.rol).filter(i=>i.id)){
+      if(['readme','fichaje','horas-mes','planificacion-horaria','incentivos','liquidaciones'].includes(old.id))continue;
+      if(old.id==='validacion'&&profile.rol==='contable'){assert.ok(ids.has('cajas-revision'));continue;}
+      assert.ok(ids.has(old.id),profile.puesto+': lost '+old.id);
+    }
+    for(const removed of ['readme','fichaje','horas-mes','planificacion-horaria','incentivos'])assert.ok(!ids.has(removed));
   }
 });
-
-test('administrator and department leader navigation follows the new logical order', () => {
-  const admin = navigationFor({ rol:'admin', area:'Administración', puesto:'Administrador' });
-  assert.deepEqual(Array.from(admin.filter(item => item.sep), item => item.label), ['OPERACIÓN','EQUIPO','DIRECCIÓN']);
-
-  const chef = navigationFor({ rol:'chef', area:'Cocina', puesto:'Jefe de Cocina' });
-  assert.deepEqual(Array.from(chef.filter(item => item.sep), item => item.label), ['MI DÍA','MI DEPARTAMENTO','MANAGER']);
-
-  const housekeeping = navigationFor({ rol:'gobernante', area:'Housekeeping', puesto:'Gobernanta' });
-  assert.equal(housekeeping.filter(item => item.sep).some(item => item.label === 'GESTIÓN HK'), false);
-  assert.equal(housekeeping.some(item => item.sub && item.label === 'OPERACIÓN HOUSEKEEPING'), true);
+test('PERM-06/07/08: operational authority does not grant finance control',()=>{
+  for(const p of profiles){
+    const ids=new Set(navigation(p).map(i=>i.id));
+    assert.equal(ids.has('control-incentivos'),['admin','contable'].includes(p.rol),p.puesto);
+    assert.equal(ids.has('liquidaciones'),p.rol==='admin',p.puesto);
+    assert.equal(ids.has('configuracion'),p.rol==='admin',p.puesto);
+  }
 });
-
-test('dropdown stays inside the viewport and above the mobile navigation', () => {
-  for (const width of [320,390,768,1366]) {
-    const height=900;
-    const bottomHeight=width<768?60:0;
+test('NAV-02: first screen follows each responsibility',()=>{
+  for(const [rol,expected] of [['admin','dashboard'],['adjunto','dashboard'],['contable','control-incentivos'],['tecnico_rrhh','jornada'],['chef','validacion'],['empleado','turno']])assert.equal(context.workflowInitialScreen({rol,area:'Cocina'}),expected);
+  assert.equal(context.workflowInitialScreen({rol:'empleado',area:'Housekeeping'}),'ruta-mod');
+  const ids=navigation({rol:'empleado',area:'SYNCROLAB',puesto:'Entrenador(a)'}).map(i=>i.id);
+  assert.ok(ids.includes('produccion-propia'));assert.ok(ids.includes('mi-rendimiento'));
+});
+test('navigation dropdown fits desktop, tablet and mobile viewports',()=>{
+  for(const width of [320,390,768,1366]){
+    const height=900,bottomHeight=width<768?60:0;
     context.window={innerWidth:width,innerHeight:height};
     context.document={getElementById:()=>({getBoundingClientRect:()=>({height:bottomHeight})})};
-    for (const left of [0,width/2,width-100]) {
-      const button={getBoundingClientRect:()=>({left,bottom:180})};
-      const menu={style:{}};
-      context._positionNavDropdown(button,menu);
-      const positionedLeft=parseFloat(menu.style.left);
-      const positionedWidth=parseFloat(menu.style.width);
-      const top=parseFloat(menu.style.top);
-      assert.ok(positionedLeft>=12 && positionedLeft+positionedWidth<=width-12);
-      assert.ok(top+parseFloat(menu.style.maxHeight)<=height-bottomHeight-12);
+    for(const left of [0,width/2,width-100]){
+      const menu={style:{}};context._positionNavDropdown({getBoundingClientRect:()=>({left,bottom:180})},menu);
+      const x=parseFloat(menu.style.left),w=parseFloat(menu.style.width),top=parseFloat(menu.style.top);
+      assert.ok(x>=12&&x+w<=width-12);assert.ok(top+parseFloat(menu.style.maxHeight)<=height-bottomHeight-12);
     }
   }
 });

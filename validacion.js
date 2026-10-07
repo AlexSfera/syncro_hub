@@ -531,6 +531,7 @@ function _valTabStyleInactive(btn){
 }
 
 function switchValTab(tab) {
+  if(typeof workflowValidationTabs==='function'&&workflowValidationTabs().indexOf(tab)<0) tab=workflowValidationTabs()[0];
   // Contable: solo puede estar en la pestaña de Caja
   if(typeof isContable==='function' && isContable(currentUser)) tab = 'caja';
   if(tab === 'caja' && !canSeeCajaTab(currentUser)) tab = 'followup';

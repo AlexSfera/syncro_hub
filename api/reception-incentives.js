@@ -17,6 +17,7 @@ import {
   normalizeDepartment,
   supervisorDepartments
 } from '../lib/authz-server.js';
+import { canControlIncentives, canMarkLiquidation } from '../lib/incentive-access.js';
 
 export const config = { runtime: 'edge' };
 
@@ -71,12 +72,11 @@ function isReceptionDepartment(value) {
 }
 
 export function canReadReceptionIncentives(profile) {
-  if (isAdminProfile(profile) || isAdjuntoProfile(profile)) return true;
-  return supervisorDepartments(profile).some(isReceptionDepartment);
+  return canControlIncentives(profile);
 }
 
 export function canLiquidateReceptionIncentives(profile) {
-  return isAdminProfile(profile) || isAdjuntoProfile(profile);
+  return canMarkLiquidation(profile);
 }
 
 export function calculateReceptionIncentives({
