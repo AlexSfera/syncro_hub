@@ -117,6 +117,8 @@ function fichajeMatchEmpleado(alertaNombre, employees) {
 // ── CREAR PERFIL MÍNIMO ─────────────────────────────────────────────────
 // Genera un empleado sin rol/área para que el admin lo complete
 async function fichajeCrearPerfilMinimo(nombre) {
+  // Alerts remain imported; only administration can create an unmatched staff profile.
+  if (!currentUser || typeof isAdmin !== 'function' || !isAdmin(currentUser)) return null;
   var pinTmp = 'AUTO' + Date.now().toString().slice(-6);
   var newEmp = {
     id:          'E' + Date.now(),
@@ -467,7 +469,7 @@ function renderFichajeMatchPanel(matchResult) {
     } else if (r.status === 'creado') {
       statusHtml = '<span style="background:var(--amber-dim);color:var(--amber);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;">🆕 Perfil creado</span>';
     } else {
-      statusHtml = '<span style="background:var(--red-dim);color:var(--red);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;">✗ Error al crear</span>';
+      statusHtml = '<span style="background:var(--red-dim);color:var(--red);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;">Ficha pendiente · revisar en Equipo</span>';
     }
     var empInfo = r.empNombre
       ? '<span style="font-size:11px;color:var(--text2);">' + r.empNombre + (r.empArea ? ' · ' + r.empArea : '') + '</span>'

@@ -26,7 +26,8 @@ BEGIN
     'entrenadores_incentivos_mes','incentivos_liquidaciones','dept_incentive_rules'] LOOP
     EXECUTE format('CREATE POLICY syncro_finance_read_ceiling ON public.%I AS RESTRICTIVE
       FOR SELECT TO anon, authenticated
-      USING ((SELECT public.syncro_auth_context()->>''role'') IN (''admin'',''contable''))',target);
+      USING ((SELECT public.syncro_auth_context()->>''role'') IN (''admin'',''contable'')
+        AND (%L <> ''employees'' OR (SELECT public.syncro_auth_context()->>''role'') = ''admin''))',target,target);
     EXECUTE format('CREATE POLICY syncro_finance_insert_ceiling ON public.%I AS RESTRICTIVE
       FOR INSERT TO anon, authenticated
       WITH CHECK ((SELECT public.syncro_auth_context()->>''role'') = ''admin'')',target);
@@ -42,7 +43,8 @@ END
 $policies$;
 
 -- employees is protected too: otherwise a client could change its own role.
--- Employee/team access continues through /api/auth/employees with projection.
+-- Employee/team/accounting access continues through /api/auth/employees with projection.
+-- Accounting cannot read raw employees (identity secrets and unrelated personal fields).
 -- HK table and its four SECURITY DEFINER RPCs already have service-only grants.
 
 CREATE FUNCTION public.syncro_preserve_settled_trainer_incentive()

@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
 import {canControlIncentives,canMarkLiquidation,pendingIncentivesFor} from '../lib/incentive-access.js';
 import {calculateTrainerProduction,trainerProductionProjection} from '../lib/trainer-production.js';
 import {monthlyHoursInScope} from '../api/monthly-hours.js';
@@ -170,4 +172,30 @@ test('personal Reception pending reuses closure sales and hides already settled 
   assert.equal(records.length,1);assert.equal(records[0].period,'2026-10');assert.equal(records[0].amount,10);
   assert.ok(records.every(r=>!Object.keys(r).some(k=>k.startsWith('liquidado'))));
  });
+});
+
+
+test('accounting reads an employee projection without identity or personal incentive configuration',()=>{
+ const row={...employee,pin:'fixture-secret',email:'fixture@example.test',direccion:'fixture-address',coste:25,inc_precio_hora:100};
+ const actor={id:'accountant',rol:'contable',area:'Administración',puesto:'Contable'};
+ const projected=employeeListForActor([row],actor)[0];
+ assert.equal(projected.coste,25);
+ for(const field of ['pin','email','direccion','inc_precio_hora'])assert.ok(!(field in projected));
+ assert.equal(projected.id,employee.id);
+});
+
+
+test('alert matching retains unmatched alerts without granting staff creation to operational roles',async()=>{
+ const source=readFileSync(new URL('../fichaje.js',import.meta.url),'utf8');
+ for(const rol of ['admin','adjunto','tecnico_rrhh','contable','empleado']){
+  const writes=[];
+  const context=vm.createContext({window:{},currentUser:{rol},isAdmin:user=>user.rol==='admin',
+   getDB:async()=>[],dbInsert:async(table,row)=>{writes.push({table,row});return row;},invalidateCache:()=>{}});
+  vm.runInContext(source,context);
+  await context.fichajeEjecutarMatching([{nombre_empleado:'Persona sin ficha'}]);
+  assert.equal(context._fichajeMatchResult.length,1);
+  assert.equal(context._fichajeMatchResult[0].status,rol==='admin'?'creado':'sin_perfil');
+  assert.equal(writes.length,rol==='admin'?1:0);
+  if(writes.length){assert.equal(writes[0].table,'employees');assert.equal(writes[0].row.estado,'Sin asignar');assert.equal(writes[0].row.rol,'empleado');}
+ }
 });

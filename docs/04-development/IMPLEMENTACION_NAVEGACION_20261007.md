@@ -1,6 +1,6 @@
 # Navegación operativa y permisos — implementación del 07/10/2026
 
-Estado: IMPLEMENTADO y TESTEADO localmente. Publicación en Producción BLOQUEADA por permisos de Supabase pendientes de autorización específica. No atribuir este cambio a la aplicación LIVE.
+Estado: IMPLEMENTADO, guardado en GitHub y TESTEADO localmente. Vercel confirma Preview READY. Publicación en Producción BLOQUEADA por permisos de Supabase pendientes de autorización específica. No atribuir este cambio a la aplicación LIVE.
 
 ## Base y alcance
 
@@ -53,7 +53,7 @@ La caché del navegador identifica usuario y ámbito, rechaza respuestas de una 
 ## Comprobaciones
 
 - npm run check: sintaxis de aplicación, endpoints y nuevos archivos.
-- npm test: 186 pruebas superadas, una omitida (E2E de autenticación con Supabase local no disponible); regresión existente y pruebas de capacidades, IDOR, pendientes/liquidados, duplicados, ámbito de importación, cálculo confiable, reimportación pagada y caché de horas/sesión.
+- npm test: 188 pruebas superadas, una omitida (E2E de autenticación con Supabase local no disponible); regresión existente y pruebas de capacidades, IDOR, pendientes/liquidados, duplicados, ámbito de importación, cálculo confiable, reimportación pagada y caché de horas/sesión.
 - scripts/check-navigation-browser.js: 30 escenarios Chrome local, 10 perfiles × 390/768/1366 px. HTML/CSS, catálogo y controlador reales; renderizadores de dominio y datos simulados. Comprueba montaje/restauración, una pantalla activa, configuración, pendientes, denegaciones y menús dentro del viewport. No es un flujo autenticado LIVE.
 - La comprobación Chrome detectó contenedores duplicados y colocación incorrecta de copias. Se corrigieron y los 30 escenarios pasaron.
 - Árbol/diff: no se cambian integración, cron, main ni datos de negocio.
@@ -64,7 +64,7 @@ La caché del navegador identifica usuario y ámbito, rechaza respuestas de una 
 Lectura de pg_policies confirmó políticas permisivas para cualquier sesión válida en employee_incentives, entrenadores_incentivos_mes, incentivos_liquidaciones y dept_incentive_rules. employees también permite mutaciones con una sesión válida, por lo que ocultar el menú o filtrar una API no basta: un cliente podría consultar REST o cambiar su rol.
 
 Protección preparada, SIN aplicar:
-- supabase/changes/navigation_incentives_access.sql: techos restrictivos de lectura admin/contable y escritura admin sobre esas cuatro tablas y employees; el listado autorizado sigue por /api/auth/employees. Trigger impide alterar/borrar un incentivo Entrenadores ya liquidado, también ante una carrera de importación.
+- supabase/changes/navigation_incentives_access.sql: techos restrictivos de lectura admin/contable y escritura admin sobre esas cuatro tablas. employees permite acceso directo solo admin; empleados, responsables y contabilidad usan /api/auth/employees con campos filtrados y sin PIN. Trigger impide alterar/borrar un incentivo Entrenadores ya liquidado, también ante una carrera de importación.
 - supabase/changes/navigation_incentives_access_rollback.sql: revierte únicamente los nuevos techos/trigger; no borra registros. Restablecer acceso amplio requiere aprobación.
 - HK ya dispone de RLS y permisos de tabla/RPC solo para service_role; sus cuatro RPC financieros no son ejecutables por anon/authenticated. No se cambian sus grants.
 - No se aplicó una migración. El SQL preparado debe probarse antes de dar por cumplidas las garantías de acceso directo.
@@ -72,7 +72,11 @@ Protección preparada, SIN aplicar:
 
 ## Publicación y reversión
 
-Guardar esta rama en GitHub permite revisar el código y puede generar una Preview automática de Vercel. Esa Preview no acredita protección de Supabase ni comportamiento LIVE. No promover a Producción mientras el bloqueo de permisos siga pendiente.
+El primer commit de implementación bb6f09bd998d3e58e39ba85264e4d84f70765c77 se guardó en GitHub y generó la Preview automática dpl_5aT6dXwdYzLnUEDikDEBTHcc9Kds, READY, https://syncro-kogn7fsfe-akolobnev-1789s-projects.vercel.app/. Esa Preview no acredita protección de Supabase ni comportamiento LIVE. No promover a Producción mientras el bloqueo de permisos siga pendiente.
+
+La lectura HTTP de /api/pending-incentives en Preview no alcanzó la aplicación: el conector Vercel devolvió 403 al consultar protección. Los logs de compilación devolvieron 404, también con el slug del equipo. Se conserva la evidencia READY del control de Vercel; no se presenta como prueba de login o de endpoints desplegados. La comprobación autenticada requiere que la conexión Vercel tenga acceso a este proyecto/equipo.
+
+Tras el primer commit se ajustó el SQL preparado para impedir la lectura directa de employees a contabilidad y se añadió una prueba de su proyección filtrada. Se revisaron las escrituras de empleados de la interfaz: alta, edición, estado y PIN usan las APIs seguras existentes. La importación de alertas conserva alertas y matching; solo admin crea una ficha mínima sin asignar. Para los demás perfiles la ficha desconocida queda pendiente de revisión en Equipo, sin intentar una escritura REST denegada ni ampliar permisos. No se modifica Supabase.
 
 Producción comprobada por Vercel antes del cambio: dpl_Dnx8sJTTsmT2RHMN5YUg5ipF5P5g, ce78f88, dominio syncro-shift.vercel.app. No se solicitó otra publicación en Producción.
 
