@@ -36,3 +36,15 @@ Esta revisión integra esos cambios sobre `f1040da` y conserva planificación, s
 Rama de trabajo: `codex/reconciliar-interfaz-planificacion-20261006`. La evidencia operativa exige deployment READY y resolución del dominio de Producción al mismo commit. El estado final se consigna en la documentación del proyecto después de consultar Vercel; un Preview no acredita Producción.
 
 Reversión de interfaz: devolver Producción a `dpl_9rQJeELKiCbrXUbPH6iHZwKD3ArV`. No revertir saldos, borrar auditoría ni reescribir Git.
+
+## Publicación reproducible — 07/10/2026
+
+1. Leer el candidato y el deployment del dominio de Producción. Confirmar proyecto, SHA y READY; conservar el deployment previo para revertir. Revisar cualquier nueva revisión antes de publicar una más antigua.
+2. Si el candidato es Preview (target null), crear un deployment del mismo proyecto con `deploymentId` del candidato, `target: production` y `withLatestCommit: false`. Esto reconstruye el mismo código para el entorno de Producción. No cambiar rama ni fusionar main.
+3. Esperar READY. Comprobar que la revisión coincide con el candidato y que el dominio operativo resuelve a ese deployment. No declarar publicación por la mera creación de un Preview.
+4. Usar Promote sin reconstrucción únicamente para una revisión ya construida para Production. La llamada directa aplicada al Preview de este cierre devolvió HTTP 422.
+5. Ante una futura denegación de aprobación, leer primero el permiso real de Vercel. El 07/10/2026 ya figuraba Allow all actions. No atribuir una denegación histórica a la configuración actual sin comprobarla ni repetir la petición sin nueva evidencia.
+
+Evidencia del código publicado: `0391a0fdd0704af3014383a15c796a0f2e4bd4de`, deployment `dpl_AJ7BW1uy64AeD8GN3L9B4jnW5tBy`, READY y `syncro-shift.vercel.app` asignado. Los commits posteriores de documentación conservan íntegramente ese código y se vuelven a publicar con el mismo procedimiento.
+
+La comprobación mediante Vercel no acredita por sí sola una sesión autenticada ni una operación LIVE. La lectura HTTP en esta sesión quedó [NO DATA] por acceso de red local y 403 del lector de protección. No se modifican permisos de terceros para probar la interfaz.
