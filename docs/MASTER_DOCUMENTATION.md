@@ -5,7 +5,8 @@ Esta sección prevalece sobre el estado anterior del módulo.
 - Permisos y fórmulas conservados: admin/contable consultan; solo admin liquida. Los detalles se limpian al cerrar sesión.
 - Pruebas: sintaxis PASS; 196 pruebas PASS, 0 FAIL y 1 E2E omitida; 30 escenarios Chrome de diez perfiles y tres anchos, con clics de autocontrol y datos ficticios.
 - Integración directa de reservas de alojamiento vendidas y conciliación MEWS: [NO DATA]. Recepción usa las referencias de reserva declaradas en ventas cross-sell de cierres. Desglose de Sala/Cocina y fechas individuales de Housekeeping no incluidos en los registros consultados: [NO DATA].
-- Despliegue de esta corrección pendiente de confirmar. Sin cambios de Supabase, datos LIVE, main, cron ni Bitrix24.
+- PRODUCCIÓN según Vercel: dpl_2EHAywYVzE31zudUusoneofgwRQf, READY, target production, código bf1907fa9e35daf44d4e4c2e47fe16268520a5d2 desde 2026-10-08T13:54:01.889Z. El dominio syncro-shift.vercel.app devuelve el mismo deployment y revisión. Preview dpl_4NVwYKLEnjbHBMptVmbVvLDPFQyG también READY; build de ambos confirma 196 PASS, 0 FAIL y 1 omitida.
+- Reversión de aplicación: dpl_G5LMLN86SbsJbTigVCcxNAddYTjL (1ecbe1da9c31e1f38d7608ce4021d7f7ed74f717). Sin cambios de Supabase, datos LIVE, main, cron ni Bitrix24. Pantalla con sesión real posterior a este despliegue: [NO DATA].
 - Detalle y reversión: docs/04-development/FINAL_REPORT_AUTOCONTROL_20261008.md.
 
 ---

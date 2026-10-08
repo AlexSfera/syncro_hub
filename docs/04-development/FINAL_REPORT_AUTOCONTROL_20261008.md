@@ -24,6 +24,6 @@ Consulta financiera exclusivamente para Administrador y Contabilidad. Marcar liq
 
 ## Publicación y reversión
 Rama codex/incentivos-autocontrol-20261008. main no se fusiona.
-Despliegue pendiente de confirmar con Preview y Producción READY antes de cerrar.
+PRODUCCIÓN confirmada por Vercel: dpl_2EHAywYVzE31zudUusoneofgwRQf, READY, target production, código bf1907fa9e35daf44d4e4c2e47fe16268520a5d2 desde 2026-10-08T13:54:01.889Z. Consulta del dominio syncro-shift.vercel.app devuelve el mismo deployment y commit. Preview dpl_4NVwYKLEnjbHBMptVmbVvLDPFQyG READY; se reconstruyó exactamente esa revisión para Producción con withLatestCommit:false. Build de ambos: 196 PASS, 0 FAIL, 1 omitida. El estado READY confirma la publicación; el flujo autenticado real sigue [NO DATA].
 Reversión: volver al deployment anterior dpl_G5LMLN86SbsJbTigVCcxNAddYTjL, código 1ecbe1da9c31e1f38d7608ce4021d7f7ed74f717. Conservar la protección Supabase existente y todo el historial.
 No hace falta una nueva decisión para este despliegue ya autorizado. Una integración directa nueva con MEWS no está implementada en este cambio.
