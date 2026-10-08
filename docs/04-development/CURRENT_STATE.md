@@ -1,3 +1,14 @@
+## Permisos de incentivos — 08/10/2026
+Esta sección prevalece para este cambio.
+- IMPLEMENTADO y TESTEADO en Preview: solo Administrador controla y liquida; los jefes consultan pendientes de su ámbito; cada persona consulta únicamente sus pendientes.
+- Código 0cceb9cc0aa06a539cf7cf049fd9cb97ced60ae7, Preview dpl_9XbNiXHjXyXvJkTMZcwpSpd6e44R READY; sintaxis y 205 pruebas PASS, 0 FAIL y 1 E2E omitida.
+- Protección de lectura admin-only para cuatro tablas financieras PREPARADA, SIN aplicar. La política LIVE anterior aún permite Contabilidad; falta autorización específica del ajuste Supabase antes de publicar.
+- Producción conserva dpl_2EHAywYVzE31zudUusoneofgwRQf y bf1907fa9e35daf44d4e4c2e47fe16268520a5d2. main sin cambios. Sin migraciones ni datos LIVE nuevos.
+- Pruebas de aislamiento, IDOR, nueve ámbitos de jefes, proyección personal y ocultación de pagos superadas con fixtures. Navegador nuevo y sesión LIVE: [NO DATA].
+- Evidencia, reversión y autorización pendiente: docs/04-development/FINAL_REPORT_PERMISOS_INCENTIVOS_20261008.md.
+
+---
+
 ## Incentivos y autocontrol — 08/10/2026
 Esta sección prevalece sobre el estado anterior del módulo.
 - IMPLEMENTADO y TESTEADO: una sola entrada Incentivos y liquidaciones; un selector de departamento; autocontrol con detalle de ocho indicadores y partes en Entrenadores, referencias de reserva declaradas y ventas en Recepción, criterios guardados en Housekeeping y cálculo guardado en Sala/Cocina.
