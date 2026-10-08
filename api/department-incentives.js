@@ -22,7 +22,7 @@ export default async function handler(req){
     }
     const profiles=all.filter(profile=>targetIsInScope(actor.profile,profile));
     const allowed=departmentIncentiveNames(actor.profile);
-    const records=(await pendingForProfiles(profiles)).filter(row=>allowed.has(incentiveDepartmentName(row.department)));
+    const records=(await pendingForProfiles(profiles)).filter(row=>allowed.has(incentiveDepartmentName(row.department).toLocaleLowerCase('es')));
     return jsonResponse({department:effectiveDepartment(actor.profile),records,permissions:{can_liquidate:false}});
   }catch(_){return jsonResponse({error:'No se pudieron comprobar los incentivos del departamento.'},503);}
 }

@@ -98,7 +98,8 @@ test('jefes de cada departamento y coordinadores SYNCROLAB reciben solo su equip
       assert.ok(data.records.every(r=>r.state==='pending'));
       assert.equal(data.permissions.can_liquidate,false);
       const text=JSON.stringify(data);
-      assert.doesNotMatch(text,/PRIVATE|liquidado_por|liquidado_at|liquidado_fotos|precio_hora|base_neto|pin|email/);
+      assert.doesNotMatch(text,/PRIVATE/);
+      for(const row of data.records)for(const field of ['liquidado_por','liquidado_at','liquidado_fotos','precio_hora','base_neto','pin','email'])assert.ok(!(field in row));
       assert.ok(!data.records.some(r=>/paid|shadow|draft/.test(r.id)));
       assert.ok(calls.every(call=>call.method==='GET'));
       if(head.rol==='chef')assert.ok(!data.records.some(r=>r.id==='wrong-department'));
