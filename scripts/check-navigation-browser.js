@@ -52,8 +52,17 @@ const server=http.createServer((req,res)=>{
    await workflowJourney('saldos');check(document.getElementById('screen-fichaje').contains(document.getElementById('fichaje-content')),'alerts restored');
    if(currentUser.rol==='admin'){await showScreen('configuracion');check(document.getElementById('screen-configuracion').contains(document.getElementById('workflow-backup-tools')),'backup moved');await showScreen('jornada');check(document.getElementById('screen-export').contains(document.getElementById('workflow-backup-tools')),'backup restored');await showScreen('liquidaciones');}
    else{var before=__denials;await showScreen('liquidaciones');check(__denials===before+1,'settlement denied');}
-   if(currentUser.rol==='contable'){await showScreen('control-incentivos');check(document.getElementById('screen-control-incentivos').classList.contains('active'),'accounting readonly control');}
-   if(['admin','contable'].includes(currentUser.rol)){
+   if(currentUser.rol!=='admin'){var before=__denials;await showScreen('control-incentivos');check(__denials===before+1,'general financial control denied');}
+   if(canReadDepartmentIncentivesUI(currentUser)){
+    var savedFetch=syncroSupabaseFetch;
+    syncroSupabaseFetch=async()=>({ok:true,json:async()=>({department:currentUser.area,records:[{employee_name:'Equipo de prueba',department:currentUser.area,period:'2026-10',amount:10}]})});
+    await showScreen('incentivos-departamento');
+    var deptScreen=document.getElementById('screen-incentivos-departamento');
+    check(deptScreen.textContent.includes('Equipo de prueba'),'department head sees scoped records');
+    check(!deptScreen.querySelector('select')&&!deptScreen.querySelector('button'),'department consultation has no selector or payment actions');
+    syncroSupabaseFetch=savedFetch;
+   }else check(!getScreens(currentUser.rol).some(i=>i.id==='incentivos-departamento'),'non-head has no team incentives');
+   if(currentUser.rol==='admin'){
     check(!getScreens(currentUser.rol).some(i=>i.id==='liquidaciones'),'one finance entry');
     await showScreen('control-incentivos');
     check(document.getElementById('screen-control-incentivos').textContent.includes('Incentivos y liquidaciones'),'unified title');

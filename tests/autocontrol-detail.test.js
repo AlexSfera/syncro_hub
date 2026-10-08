@@ -6,7 +6,7 @@ import vm from 'node:vm';
 function ui(){
   const context=vm.createContext({
     window:{},document:{},currentUser:{id:'reviewer',rol:'admin'},toast(){},
-    canControlIncentivesUI:user=>['admin','contable'].includes(user?.rol),
+    canControlIncentivesUI:user=>user?.rol==='admin',
     canMarkLiquidationUI:user=>user?.rol==='admin',
     getMonthDateRange:()=>({inicio:'2026-08-01',fin:'2026-08-31'}),fmtDate:v=>v,formatDisplayValue:v=>v
   });
@@ -53,17 +53,17 @@ test('sin partes, fallo de lectura y archivo incompleto no se presentan como coi
   assert.equal(incomplete.differences,null);
 });
 
-test('detalle de entrenadores limita el acceso al actor y conserva la consulta contable',()=>{
+test('detalle de liquidaciones limita el acceso al Administrador y al actor',()=>{
   const ctx=ui();let shown=0;
   ctx.window.workflowEvidence=()=>shown++;
   ctx._mrEntrReviewState={actor:'reviewer',ym:'2026-08',rows:[report()],shifts:parts,available:true};
   ctx.window.mrRevisarEntrenador('trainer');assert.equal(shown,1);
   ctx.currentUser={id:'reviewer',rol:'contable'};
-  ctx.window.mrRevisarEntrenador('trainer');assert.equal(shown,2);
+  ctx.window.mrRevisarEntrenador('trainer');assert.equal(shown,1);
   ctx.currentUser={id:'different',rol:'admin'};
-  ctx.window.mrRevisarEntrenador('trainer');assert.equal(shown,2);
+  ctx.window.mrRevisarEntrenador('trainer');assert.equal(shown,1);
   ctx.currentUser={id:'reviewer',rol:'empleado'};
-  ctx.window.mrRevisarEntrenador('trainer');assert.equal(shown,2);
+  ctx.window.mrRevisarEntrenador('trainer');assert.equal(shown,1);
 });
 
 test('fila de entrenadores abre el detalle y distingue un error de lectura',async()=>{

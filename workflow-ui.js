@@ -122,6 +122,21 @@
   // Personal legacy entry points must not load settlement history either.
   window.renderMiRendimiento=pending;
 
+  async function departmentIncentives(){
+    if(!canReadDepartmentIncentivesUI(currentUser)){denied();return;}
+    var version=++seq,actor=currentUser.id;
+    var body=frame('incentivos-departamento','Incentivos de mi departamento','Consulta del equipo autorizado. La liquidación es exclusiva del Administrador.');
+    body.innerHTML=message('Comprobando incentivos del departamento…');
+    try{
+      var response=await syncroSupabaseFetch('/api/department-incentives',{method:'GET'});
+      if(!response.ok)throw new Error('No se pudieron consultar los incentivos del departamento.');
+      var data=await response.json();
+      if(version!==seq||!currentUser||currentUser.id!==actor||!canReadDepartmentIncentivesUI(currentUser))return;
+      var rows=data.records||[];
+      body.innerHTML='<div class="card"><h3>'+esc(data.department)+'</h3>'+(rows.length?'<div class="tbl-wrap"><table><thead><tr><th>Persona</th><th>Departamento</th><th>Periodo</th><th>Incentivo pendiente</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+esc(r.employee_name)+'</td><td>'+esc(r.department)+'</td><td>'+esc(r.period)+'</td><td>'+Number(r.amount).toLocaleString('es-ES',{style:'currency',currency:'EUR'})+'</td></tr>';}).join('')+'</tbody></table></div>':'<p>No hay incentivos pendientes registrados en tu departamento.</p>')+'</div>';
+    }catch(error){if(version===seq)body.innerHTML=message(error.message);}
+  }
+
   async function control(marking){
     if(!canControlIncentivesUI(currentUser)||marking&&!canMarkLiquidationUI(currentUser)){denied();return;}
     restore();var id='control-incentivos';financeRows=[];
@@ -171,6 +186,7 @@
       try{await journey(tab);}catch(e){toast(e.message,'err');}return;
     }
     if(id==='mi-rendimiento'){if(!allowed(id)){denied();return;}await pending();return;}
+    if(id==='incentivos-departamento'){await departmentIncentives();return;}
     if(id==='control-incentivos'||id==='liquidaciones'){try{await control(id==='liquidaciones');}catch(e){toast(e.message,'err');}return;}
     if(id==='configuracion'){if(!allowed(id)){denied();return;}await config();return;}
     if(id==='incentivos'){await control(false);return;}

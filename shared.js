@@ -1008,8 +1008,11 @@ function _legacyScreens(rol){
   return out;
 }
 
-function canControlIncentivesUI(user){ return !!user && ['admin','contable'].indexOf(user.rol)!==-1; }
+function canControlIncentivesUI(user){ return !!user && user.rol==='admin'; }
 function canMarkLiquidationUI(user){ return !!user && user.rol==='admin'; }
+function canReadDepartmentIncentivesUI(user){
+  return !!user && ['chef','fb','supervisor','jefe','jefe_recepcion','gobernante','subgobernante','jefe_mantenimiento','coord_entrenadores','coord_recepcion_syncrolab','coord_fisioterapeutas'].indexOf(user.rol)!==-1 && !!user.area;
+}
 
 function getScreens(rol){
   var legacy=_legacyScreens(rol).filter(function(item){ return item.id; });
@@ -1045,7 +1048,8 @@ function getScreens(rol){
   }
   put('produccion-incentivos','rec-caja-op'); put('produccion-incentivos','lab-caja-op');
   if(byId.informes) add('produccion-incentivos','produccion','Producción y ventas','Registrar datos oficiales existentes por departamento.');
-  put('produccion-incentivos','mi-rendimiento','Mis incentivos pendientes','Solo tus incentivos pendientes de pagar.');
+  if(rol!=='admin') add('produccion-incentivos','mi-rendimiento','Mis incentivos pendientes','Solo tus incentivos pendientes de pagar.');
+  if(canReadDepartmentIncentivesUI(currentUser)) add('produccion-incentivos','incentivos-departamento','Incentivos de mi departamento','Consulta del equipo de tu departamento, sin liquidaciones.');
   if(typeof _esEntrenador==='function' && _esEntrenador(currentUser)) add('mi-dia','produccion-propia','Mi producción declarada','Consultar la actividad registrada en tus partes.');
   if(canControlIncentivesUI(currentUser)) add('produccion-incentivos','control-incentivos','Incentivos y liquidaciones','Consulta, autocontrol y liquidaciones internas.');
   put('resultados-informes','dashboard','Resumen de resultados');
@@ -1055,7 +1059,7 @@ function getScreens(rol){
   if(byId.maestro) add('equipo','condiciones-laborales','Condiciones laborales','Consultar o gestionar condiciones dentro del ámbito autorizado.');
   put('configuracion','hk-config');
   if(rol==='admin') add('configuracion','configuracion','Configuración y accesos','Reglas, acceso a fichas y herramientas técnicas existentes.');
-  // Accounting enters its financial workspace rather than operational validation.
+  // Accounting retains its operational workspace without settlement access.
   if(rol==='contable') buckets.operacion=buckets.operacion.filter(function(i){ return i.id!=='validacion'; });
   var out=[]; groups.forEach(function(g){ if(buckets[g[0]].length) out.push.apply(out,[navSection(g[1],g[2],g[0])].concat(buckets[g[0]])); });
   return out;
@@ -1064,7 +1068,7 @@ function getScreens(rol){
 function workflowInitialScreen(user){
   if(!user) return 'readme';
   if(user.rol==='admin'||user.rol==='adjunto'||user.rol==='adjunto_directivo') return 'dashboard';
-  if(user.rol==='contable') return 'control-incentivos';
+  if(user.rol==='contable') return 'mi-rendimiento';
   if(typeof isTecnicoRrhh==='function' && isTecnicoRrhh(user)) return 'jornada';
   if(typeof isSupervisor==='function' && isSupervisor(user)) return 'validacion';
   return /^(hk|housekeeping|limpieza)$/i.test(user.area||'') ? 'ruta-mod' : 'turno';

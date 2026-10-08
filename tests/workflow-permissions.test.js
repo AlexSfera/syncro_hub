@@ -32,10 +32,10 @@ const liquidations=[{empleado_id:employee.id,mes:'2026-09'}];
 
 test('financial capability matrix excludes leaders, HR and adjunto',()=>{
  for(const rol of ['admin','contable','adjunto','adjunto_directivo','tecnico_rrhh','chef','gobernante','coord_entrenadores','empleado']){
-  assert.equal(canControlIncentives({rol}),['admin','contable'].includes(rol));
+  assert.equal(canControlIncentives({rol}),rol==='admin');
   assert.equal(canMarkLiquidation({rol}),rol==='admin');
-  assert.equal(canReadHousekeeping({rol}),['admin','contable'].includes(rol));
-  assert.equal(canReadReceptionIncentives({rol}),['admin','contable'].includes(rol));
+  assert.equal(canReadHousekeeping({rol}),rol==='admin');
+  assert.equal(canReadReceptionIncentives({rol}),rol==='admin');
   assert.equal(canLiquidateHousekeeping({rol}),rol==='admin');
   assert.equal(canLiquidateReceptionIncentives({rol}),rol==='admin');
  }

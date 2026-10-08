@@ -45,13 +45,13 @@ test('NAV-01: seven areas preserve all previously accessible domain functions',(
 test('PERM-06/07/08: operational authority does not grant finance control',()=>{
   for(const p of profiles){
     const ids=new Set(navigation(p).map(i=>i.id));
-    assert.equal(ids.has('control-incentivos'),['admin','contable'].includes(p.rol),p.puesto);
+    assert.equal(ids.has('control-incentivos'),p.rol==='admin',p.puesto);
     assert.equal(ids.has('liquidaciones'),false,p.puesto);
     assert.equal(ids.has('configuracion'),p.rol==='admin',p.puesto);
   }
 });
 test('NAV-02: first screen follows each responsibility',()=>{
-  for(const [rol,expected] of [['admin','dashboard'],['adjunto','dashboard'],['contable','control-incentivos'],['tecnico_rrhh','jornada'],['chef','validacion'],['empleado','turno']])assert.equal(context.workflowInitialScreen({rol,area:'Cocina'}),expected);
+  for(const [rol,expected] of [['admin','dashboard'],['adjunto','dashboard'],['contable','mi-rendimiento'],['tecnico_rrhh','jornada'],['chef','validacion'],['empleado','turno']])assert.equal(context.workflowInitialScreen({rol,area:'Cocina'}),expected);
   assert.equal(context.workflowInitialScreen({rol:'empleado',area:'Housekeeping'}),'ruta-mod');
   const ids=navigation({rol:'empleado',area:'SYNCROLAB',puesto:'Entrenador(a)'}).map(i=>i.id);
   assert.ok(ids.includes('produccion-propia'));assert.ok(ids.includes('mi-rendimiento'));
@@ -66,5 +66,13 @@ test('navigation dropdown fits desktop, tablet and mobile viewports',()=>{
       const x=parseFloat(menu.style.left),w=parseFloat(menu.style.width),top=parseFloat(menu.style.top);
       assert.ok(x>=12&&x+w<=width-12);assert.ok(top+parseFloat(menu.style.maxHeight)<=height-bottomHeight-12);
     }
+  }
+});
+
+test('cada jefe dispone de consulta departamental y cada persona de pendientes propios',()=>{
+  for(const profile of profiles){
+    const ids=new Set(navigation(profile).map(item=>item.id));
+    assert.equal(ids.has('incentivos-departamento'),context.canReadDepartmentIncentivesUI(profile),profile.puesto);
+    assert.equal(ids.has('mi-rendimiento'),profile.rol!=='admin',profile.puesto);
   }
 });

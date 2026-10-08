@@ -13,17 +13,32 @@ async function ownRows(path) {
   throw new Error('Too many records');
 }
 
-async function receptionPending(profile,id) {
-  if(!/^recepci[oó]n(?: sfera)?$/i.test(profile.area||''))return [];
-  const [sales,fios]=await Promise.all([
-    ownRows('recepcion_ventas?empleado_id=eq.'+id+'&select=id,empleado_id,fecha,tipo_venta,importe&order=fecha.asc'),
-    ownRows('fio?employee_id=eq.'+id+'&select=employee_id,status,applied_points,incentive_month,saldado&order=id.asc')
+export async function pendingForProfiles(profiles) {
+  if (!profiles.length) return [];
+  const ids=[...new Set(profiles.map(p=>p.id))];
+  if(ids.some(id=>typeof id!=='string'||!/^[a-zA-Z0-9_-]{1,120}$/.test(id)))throw new Error('Invalid trusted employee identity');
+  const filter=ids.length===1?'eq.'+encodeURIComponent(ids[0]):'in.'+encodeURIComponent('('+ids.join(',')+')');
+  const receptionProfiles=profiles.filter(p=>/^recepci[oó]n(?: hotel| sfera)?$/i.test(p.area||''));
+  const receptionIds=receptionProfiles.map(p=>p.id);
+  const receptionFilter='in.'+encodeURIComponent('('+receptionIds.join(',')+')');
+  const [approved,trainers,housekeeping,liquidations,sales,fios]=await Promise.all([
+    ownRows('employee_incentives?employee_id='+filter+'&status=eq.approved&select=id,employee_id,departamento,month,bonus_final,status&order=id.asc'),
+    ownRows('entrenadores_incentivos_mes?employee_id='+filter+'&select=id,employee_id,ym,incentivo_bruto,liquidado&order=id.asc'),
+    ownRows('housekeeping_semester_incentives?employee_id='+filter+'&select=id,employee_id,periodo,importe_premio,estado&order=id.asc'),
+    ownRows('incentivos_liquidaciones?empleado_id='+filter+'&select=empleado_id,mes&order=id.asc'),
+    receptionIds.length?ownRows('recepcion_ventas?empleado_id='+receptionFilter+'&select=id,empleado_id,fecha,tipo_venta,importe&order=id.asc'):[],
+    receptionIds.length?ownRows('fio?employee_id='+receptionFilter+'&select=id,employee_id,status,applied_points,incentive_month,saldado&order=id.asc'):[]
   ]);
-  const months=[...new Set(sales.filter(s=>s.empleado_id===profile.id).map(s=>String(s.fecha).slice(0,7)))];
-  return months.filter(m=>/^\d{4}-(0[1-9]|1[0-2])$/.test(m)).map(month=>{
-    const row=calculateReceptionIncentives({employees:[profile],sales:sales.filter(s=>String(s.fecha).startsWith(month)),
-      fios:fios.filter(f=>f.incentive_month===month&&!f.saldado)})[0];
-    return {id:'reception-'+month,employee_id:profile.id,period:month,amount:row.incentive_final};
+  return profiles.flatMap(profile=>{
+    const ownSales=sales.filter(s=>s.empleado_id===profile.id);
+    const months=[...new Set(ownSales.map(s=>String(s.fecha).slice(0,7)))].filter(m=>/^\d{4}-(0[1-9]|1[0-2])$/.test(m));
+    const reception=months.map(month=>{
+      const row=calculateReceptionIncentives({employees:[{...profile,estado:'Activo'}],sales:ownSales.filter(s=>String(s.fecha).startsWith(month)),
+        fios:fios.filter(f=>f.employee_id===profile.id&&f.incentive_month===month&&!f.saldado)})[0];
+      return {id:'reception-'+month,employee_id:profile.id,period:month,amount:row.incentive_final};
+    });
+    return pendingIncentivesFor(profile.id,{approved,trainers,housekeeping,liquidations,reception})
+      .map(row=>({...row,employee_id:profile.id,employee_name:profile.nombre}));
   });
 }
 
@@ -42,17 +57,9 @@ export default async function handler(req) {
   if (url.searchParams.has('employee_id') || url.searchParams.has('empleado_id')) {
     return jsonResponse({ error:'La consulta es exclusivamente personal.' }, 400);
   }
-  const id = encodeURIComponent(actor.profile.id);
   try {
-    const [approved, trainers, housekeeping, liquidations] = await Promise.all([
-      adminRequest('employee_incentives?employee_id=eq.'+id+'&status=eq.approved&select=id,employee_id,departamento,month,bonus_final,status'),
-      adminRequest('entrenadores_incentivos_mes?employee_id=eq.'+id+'&select=id,employee_id,ym,incentivo_bruto,liquidado'),
-      adminRequest('housekeeping_semester_incentives?employee_id=eq.'+id+'&select=id,employee_id,periodo,importe_premio,estado'),
-      // These rows never leave the server; they only suppress settled periods.
-      adminRequest('incentivos_liquidaciones?empleado_id=eq.'+id+'&select=empleado_id,mes')
-    ]);
-    return jsonResponse({ records:pendingIncentivesFor(actor.profile.id,
-      { approved, trainers, housekeeping, liquidations, reception:await receptionPending(actor.profile,id) }) });
+    const records=await pendingForProfiles([actor.profile]);
+    return jsonResponse({records:records.map(({employee_id,employee_name,...row})=>row)});
   } catch (_) {
     return jsonResponse({ error:'No se pudieron comprobar los incentivos pendientes.' }, 503);
   }
