@@ -70,7 +70,7 @@ const port=server.address().port, results=[];
 async function browser(profile,width){
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'syncro-nav-chrome-'));
  return new Promise((resolve,reject)=>{
-  const child=spawn(chrome,['--headless=new','--disable-gpu','--disable-background-networking','--no-first-run','--disable-default-apps','--user-data-dir='+directory,'--window-size='+width+',900','--dump-dom','--virtual-time-budget=2500','http://127.0.0.1:'+port+'/?profile='+profile],{windowsHide:true});
+  const child=spawn(chrome,['--headless=new','--no-sandbox','--disable-gpu','--disable-background-networking','--no-first-run','--disable-default-apps','--user-data-dir='+directory,'--window-size='+width+',900','--dump-dom','--virtual-time-budget=2500','http://127.0.0.1:'+port+'/?profile='+profile],{windowsHide:true});
   let stdout='';child.stdout.on('data',b=>stdout+=b);
   const timer=setTimeout(()=>{child.kill();reject(Error('Chrome timeout'));},15000);
   child.on('error',reject);child.on('close',()=>{

@@ -1,4 +1,5 @@
--- PREPARED ONLY. Requires specific authorization before applying to LIVE.
+-- APPLIED with Alexander's specific authorization on 2026-10-08.
+-- Supabase migration: 20261008073541 navigation_incentives_access.
 -- No data updates, migrations of balances, grants or role assignments.
 -- Keep existing containment policies; restrictive ceilings intersect them.
 BEGIN;
