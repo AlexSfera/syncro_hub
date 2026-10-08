@@ -1,11 +1,14 @@
-## Permisos de incentivos — 08/10/2026
-Esta sección prevalece para este cambio.
-- IMPLEMENTADO y TESTEADO en Preview: solo Administrador controla y liquida; los jefes consultan pendientes de su ámbito; cada persona consulta únicamente sus pendientes.
-- Código 0cceb9cc0aa06a539cf7cf049fd9cb97ced60ae7, Preview dpl_9XbNiXHjXyXvJkTMZcwpSpd6e44R READY; sintaxis y 205 pruebas PASS, 0 FAIL y 1 E2E omitida.
-- Protección de lectura admin-only para cuatro tablas financieras PREPARADA, SIN aplicar. La política LIVE anterior aún permite Contabilidad; falta autorización específica del ajuste Supabase antes de publicar.
-- Producción conserva dpl_2EHAywYVzE31zudUusoneofgwRQf y bf1907fa9e35daf44d4e4c2e47fe16268520a5d2. main sin cambios. Sin migraciones ni datos LIVE nuevos.
-- Pruebas de aislamiento, IDOR, nueve ámbitos de jefes, proyección personal y ocultación de pagos superadas con fixtures. Navegador nuevo y sesión LIVE: [NO DATA].
-- Evidencia, reversión y autorización pendiente: docs/04-development/FINAL_REPORT_PERMISOS_INCENTIVOS_20261008.md.
+## Permisos de incentivos e informe contable — 08/10/2026
+Esta sección sustituye el estado pendiente de autorización anterior.
+- PRODUCCIÓN confirmada por Vercel: cc47b4c4d36f89eab54886a926ef509e9afc3a7b, dpl_9yLSpaBGyx599FdJ8X2wM2kK2bPU, READY desde 2026-10-08T19:28:18.758Z; dominio syncro-shift.vercel.app con la misma revisión.
+- Administrador exclusivo para control y liquidación. Jefes: pendientes del ámbito autorizado. Personas: solo pendientes propios; los liquidados desaparecen.
+- Contabilidad: sin consulta general ni pagos; descarga CSV de liquidaciones por mes, departamento y empleado desde Resultados e informes → Informe de incentivos liquidados.
+- Supabase: aplicada y comprobada migración 20261008191437 incentives_admin_read_ceiling; cuatro políticas SELECT restrictivas admin-only. Sin cambios de importes, pagos, fichas, grants, escrituras o trigger de conservación.
+- TESTEADO: sintaxis y 215 PASS, 0 FAIL, 1 E2E omitida en local, Preview y build de Producción; 30 escenarios Chrome con fixtures. RLS LIVE probado con seis roles en transacciones READ ONLY y un contexto no confiable.
+- Sesión real y descarga autenticada: [NO DATA]. Preview responde 403 por restricción de red del recinto; se conserva la protección. No se elude el rechazo previo del navegador de Producción. Sin errores runtime registrados en la ventana inicial.
+- main conserva 38074d99302009228dee8fd8c31fa69c475fc1ab; no se fusiona. Sin cron, backfills o escrituras de negocio.
+- Evidencia y reversión: docs/04-development/FINAL_REPORT_PERMISOS_INCENTIVOS_20261008.md. No queda autorización pendiente.
+
 
 ---
 

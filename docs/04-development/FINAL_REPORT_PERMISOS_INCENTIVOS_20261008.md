@@ -1,61 +1,59 @@
-# Permisos de incentivos — 08/10/2026
+# Permisos de incentivos e informe contable — 08/10/2026
 
 ## Resultado
-IMPLEMENTADO y TESTEADO en una Preview READY. Producción conserva la revisión anterior. Cambio Supabase PREPARADO, SIN APLICAR: requiere autorización específica según PROJECT_RULES.md y AGENTS.md. No se declara el control completo en Producción.
+IMPLEMENTADO, TESTEADO y desplegado a PRODUCCIÓN: código cc47b4c4d36f89eab54886a926ef509e9afc3a7b, deployment dpl_9yLSpaBGyx599FdJ8X2wM2kK2bPU, READY desde 2026-10-08T19:28:18.758Z, dominio https://syncro-shift.vercel.app/ confirmado con la misma revisión.
+Restricción Supabase EJECUTADA y VERIFICADA mediante políticas y pruebas RLS. Uso con sesión real y descarga autenticada desde la red del recinto: [NO DATA]; no se declara verificación completa de ese flujo.
 
-## Regla solicitada y comportamiento preparado
-| Perfil | Consulta | Liquidaciones |
+## Límites finales
+| Perfil | Incentivos | Liquidaciones |
 |---|---|---|
-| Administrador | Control general de incentivos y sus registros | Acceso y registro autorizados |
-| Jefe de departamento | Pendientes del equipo dentro de su ámbito autorizado | Sin acceso a pantallas, historial o acciones de liquidación |
-| Empleado, Contabilidad, RRHH y adjunto | Sus propios incentivos pendientes | Sin acceso a control general ni liquidación |
+| Administrador | Control general y registros | Puede consultar, liquidar y descargar CSV |
+| Jefe de departamento | Pendientes de su ámbito y propios | Sin acceso a historial, pagos o informe contable |
+| Empleado, RRHH y adjunto | Solo pendientes propios; pagados desaparecen | Sin acceso |
+| Contabilidad | Solo pendientes propios, sin consulta general | Solo informe CSV de importes ya liquidados; sin pagos |
 
-La consulta departamental usa la jerarquía ya existente: F&B cubre sus departamentos y Club Manager su ámbito SYNCROLAB; los coordinadores permanecen dentro de su especialidad. No se crean roles ni se cambian fichas.
+La jerarquía existente de F&B y Club Manager se conserva; coordinadores aislados por especialidad. No se cambian roles.
 
-## Cambios de código
-- canControlIncentives y canControlIncentivesUI pasan a Administrador exclusivo; las APIs existentes de Recepción y Housekeeping heredan ese límite.
-- Nueva consulta GET /api/department-incentives, con actor autenticado del servidor y selección de empleados basada en targetIsInScope. El cliente no puede elegir departamento, empleado o rol.
-- Nueva vista Incentivos de mi departamento, de consulta y sin selector de departamento ni botones de pago.
-- Mis incentivos pendientes queda disponible a todos los perfiles no administradores. Se consulta únicamente la identidad del actor; no se envía historial de liquidación ni datos de otra persona.
-- Lectura agrupada y paginada de las fuentes existentes para ambas consultas. Recepción reutiliza el cálculo existente de ventas de cierres; no hay una integración nueva.
-- Un mes o semestre con liquidación registrada oculta también los duplicados genéricos u oficiales; se conserva todo el historial interno.
-- Caché de respuestas no-store; la vista departamental rechaza respuestas de otra sesión o navegación.
-- Fórmulas, importaciones y acciones de liquidación existentes conservadas. Ninguna liquidación real se ejecuta como prueba.
+## Qué se modificó
+La corrección previa 0cceb9cc0aa06a539cf7cf049fd9cb97ced60ae7 restringe el control a Administrador, añade consulta departamental segura y oculta fuentes/duplicados liquidados en la consulta personal.
+Esta revisión añade api/liquidation-report.js, botón y navegación de descarga en workflow-ui.js/shared.js, versiones de recursos en index.html, sintaxis y pruebas. Ubicación: Resultados e informes → Informe de incentivos liquidados.
 
-## Protección de base de datos preparada
-Archivo supabase/changes/incentives_admin_read_ceiling.sql: modifica exclusivamente cuatro políticas SELECT restrictivas existentes para que solo Administrador pueda leer tablas financieras completas:
-employee_incentives, entrenadores_incentivos_mes, incentivos_liquidaciones y dept_incentive_rules.
-Las consultas personales y departamentales usan las APIs del servidor y reciben una proyección restringida.
-No altera empleados, importes, pagos, grants, políticas de escritura ni trigger de conservación de pagos.
-Rollback específico: supabase/changes/incentives_admin_read_ceiling_rollback.sql; restaura la consulta anterior de Contabilidad únicamente con autorización expresa.
+CSV UTF-8 con BOM, punto y coma y decimal español. Mes de liquidación según la fecha de pago registrada en Europe/Madrid, con cambios de hora; no es el periodo de devengo. Filas por departamento/empleado y subtotales identificados en Tipo de fila, con total general.
+Fuentes existentes: incentivos_liquidaciones de Recepción Hotel (incentivo_final), entrenadores_incentivos_mes con liquidado=true (incentivo_bruto), housekeeping_semester_incentives con estado=liquidado (importe_premio). Calculado/aprobado sin liquidación no es pago. Otros departamentos sin registro de pago disponible: [NO DATA]; no se inventa historial.
+Proyección limitada a nombre/ID registrado, departamento e importe pagado; sin notas, FIO, ausencias, fotos, credenciales o configuración personal. Actor autenticado y rol vigente desde servidor; GET exclusivo, mes estricto, sin selección de otra persona/departamento o formato JSON. Paginación, cabeceras no-store y Vary, neutralización de fórmulas CSV; error ante fuentes incompletas, fechas/importes inválidos o duplicados. Respuestas de otra sesión, rol o pantalla no pueden descargarse.
 
-## Comprobaciones ejecutadas
-- Build Vercel de la revisión 0cceb9cc0aa06a539cf7cf049fd9cb97ced60ae7: npm run check y npm test, 205 PASS, 0 FAIL, 1 E2E omitida; Build Completed y Deployment completed.
-- Preview dpl_9XbNiXHjXyXvJkTMZcwpSpd6e44R, READY, revisión exacta 0cceb9cc0aa06a539cf7cf049fd9cb97ced60ae7.
-- 14 archivos del código y pruebas leídos de nuevo desde GitHub y comparados íntegramente con el contenido preparado: coinciden.
-- Nueve perfiles de jefes probados con datos ficticios: Cocina, Sala, Recepción Hotel, Entrenadores, Fisioterapeutas, Recepción SYNCROLAB, Housekeeping, F&B y Club Manager.
-- API probada contra selección de otro departamento, ID ajeno, rol forjado, POST, Contabilidad, RRHH, adjunto y empleados.
-- API personal probada con siete especialidades y liquidación simulada de Entrenadores, Housekeeping y Recepción: no devuelve pagos ni duplicados liquidados.
-- Sin filtros de cliente como autorización; incluso cuando el mock devuelve filas de terceros, quedan excluidas.
-- Paginación de más de mil registros, fallo de fuente, ausencia de campos financieros internos y Cache-Control no-store.
-- Supabase LIVE: consultas READ ONLY confirman que las cuatro políticas actuales todavía permiten admin/contable. Identidades incompatibles con el filtro de consultas: cero. Ningún DDL ni dato de negocio modificado.
-- El primer build tuvo un falso positivo del test de campos por la palabra Housekeeping; se corrigió para comprobar nombres de campos completos. El build posterior pasa.
-- Las nuevas comprobaciones locales del ordenador dejaron de responder. Sintaxis y toda la suite se ejecutaron realmente en Vercel; no se atribuyen a una ejecución local.
-- scripts/check-navigation-browser.js actualizado para los límites nuevos, SIN ejecución nueva confirmada. No se reutilizan como prueba de estos permisos los 30 escenarios de la versión anterior.
-- Navegador y sesión autenticada LIVE: [NO DATA]. No se elude el rechazo previo del navegador ni la protección de IP.
+## Supabase
+Alexander autorizó específicamente retirar la consulta general de Contabilidad y pidió el informe descargable.
+Aplicada exactamente supabase/changes/incentives_admin_read_ceiling.sql mediante apply_migration: 20261008191437 incentives_admin_read_ceiling.
+Solo se modifican cuatro políticas SELECT RESTRICTIVE syncro_finance_read_ceiling de employee_incentives, entrenadores_incentivos_mes, incentivos_liquidaciones y dept_incentive_rules: requieren rol confiable admin.
+APIs personales/departamentales e informe contable usan proyecciones restringidas del servidor. Sin cambios de importes, pagos, fichas, grants, políticas de escritura ni trigger syncro_preserve_settled_trainer.
 
-## GitHub, Vercel y Producción
-- Rama codex/permisos-incentivos-20261008, basada en 3d4314c47c18525656555f8f268528e8d9e2d80c.
-- Código probado: 0cceb9cc0aa06a539cf7cf049fd9cb97ced60ae7; el cierre documental posterior no cambia código.
-- Preview: https://syncro-ldm5dl8m6-akolobnev-1789s-projects.vercel.app/ — dpl_9XbNiXHjXyXvJkTMZcwpSpd6e44R, READY.
-- Producción SIN CAMBIOS: dpl_2EHAywYVzE31zudUusoneofgwRQf, bf1907fa9e35daf44d4e4c2e47fe16268520a5d2, READY en syncro-shift.vercel.app.
-- main SIN CAMBIOS: 38074d99302009228dee8fd8c31fa69c475fc1ab; no se fusiona.
-- Supabase SIN CAMBIOS: protección nueva pendiente. Bitrix24, cron y backfills no se ejecutan.
+## Comprobaciones
+- npm run check PASS y npm test local: 216 casos, 215 PASS, 0 FAIL, 1 E2E local Supabase omitida.
+- Chrome local con fixtures: 30 escenarios, 0 fallos; diez perfiles en 390/768/1366 px. Incluye bloqueo de liquidaciones, ámbitos, CSV del mes elegido, limpieza y autocontrol.
+- Preview dpl_3tPpt2S5vQSBZY5zBC4zPXVoJmZP, READY y revisión exacta cc47b4c4d36f89eab54886a926ef509e9afc3a7b; build ejecuta sintaxis y 215 PASS, 0 FAIL, 1 omitida; Build Completed y Deployment completed.
+- Ocho archivos de código/pruebas leídos desde GitHub y comparados íntegramente con las fuentes probadas: coinciden.
+- RLS LIVE en transacciones READ ONLY con claims locales de identidades existentes y SET LOCAL ROLE authenticated: Administrador conserva lectura; Contabilidad, jefe, empleado, adjunto y RRHH obtienen cero filas generales. Solo user_metadata con role admin no crea identidad confiable ni permite leer. Sin generar sesiones ni guardar tokens.
+- Cuatro condiciones SELECT admin-only, 20 políticas restrictivas conservadas y trigger de conservación comprobados.
+- Metadatos antes/después: siete liquidaciones HK de septiembre 2026, cero de Recepción/Entrenadores; sin nuevos pagos ni datos incompletos en pagos existentes. Ningún dato personal real guardado como fixture.
+- Build de Producción repite 215 PASS, 0 FAIL, 1 omitida; READY, target production, y dominio con deployment/revisión exactos.
+- Runtime desde 2026-10-08T19:28:18.758Z: ningún error encontrado en la ventana inicial. Observación breve, no prueba de carga o sesión real.
+
+## Límites de comprobación
+Preview HTTP /api/liquidation-report?mes=2026-09 devuelve 403 de protección de red/IP del recinto antes del endpoint. No se cambia whitelist ni protección. Navegación de Producción y descarga autenticada: [NO DATA]; se conserva el rechazo previo del navegador y no se elude por otro canal.
+E2E local Supabase omitida por falta de esa dependencia. No se ejecutan pagos, cron, backfills o importaciones LIVE como pruebas.
+
+## Sistemas modificados
+GitHub: rama codex/permisos-incentivos-20261008, código cc47b4c4d36f89eab54886a926ef509e9afc3a7b; cierre documental posterior sin cambios de aplicación.
+Vercel: Preview y Producción actualizadas; dpl_9yLSpaBGyx599FdJ8X2wM2kK2bPU, READY, aplicación estática y funciones Edge, región iad1.
+Supabase: solo cuatro políticas de lectura. Importes/pagos intactos.
+main: 38074d99302009228dee8fd8c31fa69c475fc1ab, sin cambios o fusión; difiere de Producción de forma registrada.
+Bitrix24 y otros servicios: sin cambios nuevos.
 
 ## Reversión
-Antes de publicar, conservar Producción actual y retirar esta corrección del proceso de publicación. No borrar commits ni registros.
-Si se autoriza y publica, revertir aplicación y la política de lectura solo mediante decisión explícita: el estado anterior vuelve a dar consulta general a Contabilidad. Conservar siempre el historial y la protección de liquidaciones ya instalada.
+Para retirar solo el CSV conservando los límites nuevos, desplegar 0cceb9cc0aa06a539cf7cf049fd9cb97ced60ae7 desde Preview dpl_9XbNiXHjXyXvJkTMZcwpSpd6e44R con target production y withLatestCommit=false; comprobar build, READY y dominio. Mantener política admin-only en Supabase. Alternativa: commit de reversión de los ocho archivos del informe sobre esta rama, sin reescribir historial.
+No restaurar automáticamente bf1907fa9e35daf44d4e4c2e47fe16268520a5d2: reabre consulta general mediante APIs.
+Reabrir lectura Supabase requiere autorización específica; existe supabase/changes/incentives_admin_read_ceiling_rollback.sql, sin ejecutar. Conservar todos los pagos y trigger.
 
-## Decisión necesaria
-Autorizar específicamente la aplicación en Supabase LIVE de incentives_admin_read_ceiling.
-El despliegue ya está autorizado en la sesión; se realizará después de aplicar y verificar esa protección.
+## Decisión
+Ninguna autorización adicional pendiente. Falta evidencia del uso autenticado desde la red permitida; no se presenta como prueba realizada.
