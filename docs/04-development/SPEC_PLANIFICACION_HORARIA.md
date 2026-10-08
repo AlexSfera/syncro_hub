@@ -94,6 +94,18 @@ eliminar asignaciones futuras de ShiftPlan. Por seguridad:
 La integración solo podrá considerarse cerrada tras crear, volver a leer,
 comparar y revertir una asignación real desde SYNCRO SHIFT.
 
+### Estudio de publicación alternativa por navegador — 08/10/2026
+
+Se documentó un posible ejecutor remoto en Vercel con rutas directas de Bitrix24
+por ID de horario y aprendizaje controlado de recorridos. Documento:
+[Estudio y reglas de automatización Bitrix ShiftPlan](ESTUDIO_AUTOMATIZACION_NAVEGADOR_BITRIX_SHIFTPLAN_20261008.md).
+
+**Estado:** propuesta documental. Las URLs internas candidatas no están verificadas
+en una sesión real; no se ha creado robot ni habilitado escritura. La prohibición
+anterior continúa vigente hasta que Alexander autorice una prueba concreta,
+se confirme que Bitrix24 admite el recorrido y se verifiquen permisos,
+publicación y reversión. No cambia el estado operativo del módulo.
+
 ## Permisos
 
 | Perfil | Publicado global | Borrador propio | Edición global | Rectificación trabajada | Condición laboral |
