@@ -137,6 +137,33 @@
     }catch(error){if(version===seq)body.innerHTML=message(error.message);}
   }
 
+  function liquidationReport(){
+    if(!canDownloadLiquidationReportUI(currentUser)){denied();return;}
+    var parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+    var month=parts.find(function(p){return p.type==='year';}).value+'-'+parts.find(function(p){return p.type==='month';}).value;
+    var body=frame('informe-liquidaciones','Informe de incentivos liquidados','Importes registrados como liquidados durante el mes elegido, por departamento y empleado.');
+    body.innerHTML='<div class="card"><label for="workflow-liquidation-month">Mes de liquidación</label> <input id="workflow-liquidation-month" type="month" min="2020-01" max="2100-12" value="'+month+'"> <button id="workflow-liquidation-download" class="btn" onclick="workflowDownloadLiquidations()">Descargar CSV</button><p>Incluye totales por departamento y total general. Los incentivos pendientes no se incluyen.</p><p id="workflow-liquidation-status" role="status" aria-live="polite"></p></div>';
+  }
+  window.workflowDownloadLiquidations=async function(){
+    if(!canDownloadLiquidationReportUI(currentUser)){denied();return;}
+    var input=document.getElementById('workflow-liquidation-month'),button=document.getElementById('workflow-liquidation-download'),status=document.getElementById('workflow-liquidation-status');
+    if(!input||!button||!status)return;
+    var month=input.value,version=seq,actor=currentUser.id,role=currentUser.rol;
+    if(!/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(month)||Number(month.slice(0,4))<2020){status.textContent='Selecciona un mes válido.';return;}
+    button.disabled=true;status.textContent='Preparando informe…';
+    var active=function(){return version===seq&&currentUser&&currentUser.id===actor&&currentUser.rol===role&&canDownloadLiquidationReportUI(currentUser);};
+    try{
+      var response=await syncroSupabaseFetch('/api/liquidation-report?mes='+encodeURIComponent(month),{method:'GET'});
+      if(!response.ok){var error=await response.json();throw new Error(error.error||'No se pudo generar el informe.');}
+      var blob=await response.blob();if(!active())return;
+      var url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download='liquidaciones-'+month+'.csv';document.body.appendChild(link);link.click();link.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},1000);
+      status.textContent='Informe descargado.';
+    }catch(error){if(active())status.textContent=error.message||'No se pudo generar el informe.';}
+    finally{if(active())button.disabled=false;}
+  };
+
   async function control(marking){
     if(!canControlIncentivesUI(currentUser)||marking&&!canMarkLiquidationUI(currentUser)){denied();return;}
     restore();var id='control-incentivos';financeRows=[];
@@ -187,6 +214,7 @@
     }
     if(id==='mi-rendimiento'){if(!allowed(id)){denied();return;}await pending();return;}
     if(id==='incentivos-departamento'){await departmentIncentives();return;}
+    if(id==='informe-liquidaciones'){liquidationReport();return;}
     if(id==='control-incentivos'||id==='liquidaciones'){try{await control(id==='liquidaciones');}catch(e){toast(e.message,'err');}return;}
     if(id==='configuracion'){if(!allowed(id)){denied();return;}await config();return;}
     if(id==='incentivos'){await control(false);return;}

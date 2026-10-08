@@ -53,6 +53,24 @@ const server=http.createServer((req,res)=>{
    if(currentUser.rol==='admin'){await showScreen('configuracion');check(document.getElementById('screen-configuracion').contains(document.getElementById('workflow-backup-tools')),'backup moved');await showScreen('jornada');check(document.getElementById('screen-export').contains(document.getElementById('workflow-backup-tools')),'backup restored');await showScreen('liquidaciones');}
    else{var before=__denials;await showScreen('liquidaciones');check(__denials===before+1,'settlement denied');}
    if(currentUser.rol!=='admin'){var before=__denials;await showScreen('control-incentivos');check(__denials===before+1,'general financial control denied');}
+   if(canDownloadLiquidationReportUI(currentUser)){
+    await showScreen('informe-liquidaciones');
+    var reportScreen=document.getElementById('screen-informe-liquidaciones');
+    check(reportScreen.textContent.includes('Mes de liquidación'),'accounting selects payment month');
+    check(!reportScreen.querySelector('table')&&!reportScreen.textContent.includes('Marcar liquidado'),'report screen only offers a download');
+    var reportFetch=syncroSupabaseFetch,savedAnchorClick=HTMLAnchorElement.prototype.click,downloaded='';
+    HTMLAnchorElement.prototype.click=function(){downloaded=this.download;};
+    syncroSupabaseFetch=async(url,init)=>({ok:true,blob:async()=>new Blob(['Mes;Importe\\r\\n2026-10;10,00'])});
+    document.getElementById('workflow-liquidation-month').value='2026-10';
+    await workflowDownloadLiquidations();
+    check(downloaded==='liquidaciones-2026-10.csv','report downloads chosen month');
+    check(document.getElementById('workflow-liquidation-status').textContent==='Informe descargado.','download completes');
+    syncroSupabaseFetch=reportFetch;HTMLAnchorElement.prototype.click=savedAnchorClick;
+   }else{
+    var before=__denials;await showScreen('informe-liquidaciones');
+    check(__denials===before+1,'report denied for other roles');
+    check(!getScreens(currentUser.rol).some(i=>i.id==='informe-liquidaciones'),'report absent for other roles');
+   }
    if(canReadDepartmentIncentivesUI(currentUser)){
     var savedFetch=syncroSupabaseFetch;
     syncroSupabaseFetch=async()=>({ok:true,json:async()=>({department:currentUser.area,records:[{employee_name:'Equipo de prueba',department:currentUser.area,period:'2026-10',amount:10}]})});

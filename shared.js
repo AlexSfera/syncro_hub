@@ -1010,6 +1010,7 @@ function _legacyScreens(rol){
 
 function canControlIncentivesUI(user){ return !!user && user.rol==='admin'; }
 function canMarkLiquidationUI(user){ return !!user && user.rol==='admin'; }
+function canDownloadLiquidationReportUI(user){ return !!user && ['admin','contable'].indexOf(user.rol)!==-1; }
 function canReadDepartmentIncentivesUI(user){
   return !!user && ['chef','fb','supervisor','jefe','jefe_recepcion','gobernante','subgobernante','jefe_mantenimiento','coord_entrenadores','coord_recepcion_syncrolab','coord_fisioterapeutas'].indexOf(user.rol)!==-1 && !!user.area;
 }
@@ -1052,6 +1053,7 @@ function getScreens(rol){
   if(canReadDepartmentIncentivesUI(currentUser)) add('produccion-incentivos','incentivos-departamento','Incentivos de mi departamento','Consulta del equipo de tu departamento, sin liquidaciones.');
   if(typeof _esEntrenador==='function' && _esEntrenador(currentUser)) add('mi-dia','produccion-propia','Mi producción declarada','Consultar la actividad registrada en tus partes.');
   if(canControlIncentivesUI(currentUser)) add('produccion-incentivos','control-incentivos','Incentivos y liquidaciones','Consulta, autocontrol y liquidaciones internas.');
+  if(canDownloadLiquidationReportUI(currentUser)) add('resultados-informes','informe-liquidaciones','Informe de incentivos liquidados','Descargar importes liquidados por mes, departamento y empleado.');
   put('resultados-informes','dashboard','Resumen de resultados');
   put('resultados-informes','informes','Informes de departamento','Redactar y consultar informes; los datos se registran en Producción.');
   put('resultados-informes','export','Exportaciones');
