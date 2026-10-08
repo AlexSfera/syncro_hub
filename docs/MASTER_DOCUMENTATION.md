@@ -2,19 +2,19 @@
 
 Esta sección prevalece sobre los estados históricos inferiores.
 
-- IMPLEMENTADO y TESTEADO: reorganización en siete áreas y permisos de incentivos, revisión de aplicación `8f0c1d7cb758c9376d16d710af1a0d5418ee75f9`.
-- Supabase LIVE: Alexander autorizó específicamente la protección el 08/10/2026. Migración `20261008073541 navigation_incentives_access` aplicada; 20 políticas restrictivas y trigger de conservación de liquidaciones confirmados.
+- IMPLEMENTADO y TESTEADO: reorganización en siete áreas y permisos de incentivos. Código de aplicación equivalente a `8f0c1d7cb758c9376d16d710af1a0d5418ee75f9`; el cierre solo añade documentación, estado de SQL y arranque de fixtures.
+- PRODUCCIÓN: Vercel confirma `dpl_G5LMLN86SbsJbTigVCcxNAddYTjL`, READY, target production, revisión `1ecbe1da9c31e1f38d7608ce4021d7f7ed74f717`, desde 08/10/2026 09:11:47 UTC. La consulta de `syncro-shift.vercel.app` devuelve ese mismo deployment y revisión.
+- Conexión Vercel restaurada tras reconectar Alexander. Lectura del equipo/proyecto y despliegue autorizados completados. Los errores 403/404 de conexión anteriores son históricos.
+- Preview probada de la revisión publicada: `dpl_4i38mttSD7iYuP43MQb4Lk6hoaVQ`, READY. Producción se reconstruyó desde esa Preview con `withLatestCommit:false`.
+- Pruebas: `npm run check` correcto; `npm test` 188 PASS, 0 FAIL y 1 E2E omitida. Build de Producción repite y confirma esos resultados. Navegación Chrome: 30 escenarios PASS (10 perfiles, 390/768/1366 px), datos ficticios.
+- Supabase LIVE: protección específicamente autorizada el 08/10/2026. Migración `20261008073541 navigation_incentives_access` aplicada; 20 políticas restrictivas y trigger de conservación de liquidaciones confirmados.
 - Acceso directo RLS comprobado mediante transacciones de solo lectura: admin/contable leen el control financiero; empleado/jefe/jefe_recepcion/adjunto no reciben registros. Sin claims válidos se reciben cero registros. No se cambiaron datos de empleados, saldos, producción ni pagos.
 - `employees` ya carece de grants de SELECT para authenticated; las fichas continúan por la API con proyección y permisos. No se concedieron nuevos grants.
-- Pruebas: `npm run check` correcto; `npm test` 188 PASS, 0 FAIL y 1 E2E omitida. Navegación Chrome: 30 escenarios PASS (10 perfiles, 390/768/1366 px), datos ficticios. Se corrigió únicamente el arranque del navegador de pruebas local.
-- Preview de la aplicación: `dpl_HUz39jFx6WYQSHBwbRMy2eEHm4B3`, READY según la consulta de metadatos.
-- NO DESPLEGADO en Producción: el intento de reconstruir esa Preview para production, con proyecto/equipo explícitos y `withLatestCommit:false`, devolvió 404. Listar despliegues del equipo devolvió 403; no se obtuvo una nueva versión.
-- Última Producción observada: `ce78f882c300e686fe40ad22134a900c840c3d91`, `dpl_Dnx8sJTTsmT2RHMN5YUg5ipF5P5g`, dominio `syncro-shift.vercel.app`. La consulta explícita al equipo falló; se conserva el límite de evidencia.
-- main no se fusiona. POSMEWS–Bitrix24, cron y backfills quedan fuera del alcance.
-- Comprobación de página autenticada, endpoints desplegados y logs: [NO DATA], lector de Vercel 403. Terminal de respaldo no disponible: CreateProcessWithLogonW 1909.
-- Reversión: interfaz al deployment anterior; permisos mediante `supabase/changes/navigation_incentives_access_rollback.sql`, solo si se autoriza restablecer el acceso anterior. No borrar historial ni registros.
-- Para cerrar el despliegue hace falta recuperar acceso operativo al equipo/proyecto Vercel. La autorización de despliegue ya existe; no se requiere repetirla.
-- Informe: `docs/04-development/FINAL_REPORT_NAVEGACION_20261008.md`.
+- Observación inicial: Vercel no registra errores de runtime entre la disponibilidad del deployment y la consulta posterior. La ventana breve no demuestra todos los flujos.
+- Pantalla y endpoints con sesión real: [NO DATA]. El lector HTTP de Preview recibe el 403 del control de IP del recinto; la apertura del navegador de Producción fue rechazada por su política de permisos. No se cambió la lista de IP ni se eludieron esos controles.
+- `main` sigue en `38074d99302009228dee8fd8c31fa69c475fc1ab`, sin fusión. El cierre permanece en `codex/cierre-navegacion-permisos-20261008`. POSMEWS–Bitrix24, cron y backfills quedan fuera del alcance.
+- Reversión de aplicación: `ce78f882c300e686fe40ad22134a900c840c3d91` / `dpl_Dnx8sJTTsmT2RHMN5YUg5ipF5P5g`. La protección de datos debe conservarse; su rollback requiere autorización específica para restablecer el acceso anterior.
+- Informe: `docs/04-development/FINAL_REPORT_NAVEGACION_20261008.md`. No queda una decisión necesaria para el despliegue realizado.
 
 ---
 
