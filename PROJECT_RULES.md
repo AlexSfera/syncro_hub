@@ -46,6 +46,20 @@ Una autorización no se extiende automáticamente a las filas siguientes.
 - Actualizar `MASTER_DOCUMENTATION.md`, `CURRENT_STATE.md` y
   `MODULE_STATUS.md` cuando cambie el estado real.
 
+## Automatización de turnos Bitrix24 por navegador
+
+- Antes de cualquier desarrollo relacionado con publicar ShiftPlan, consultar
+  [el estudio de automatización del 08/10/2026](docs/04-development/ESTUDIO_AUTOMATIZACION_NAVEGADOR_BITRIX_SHIFTPLAN_20261008.md).
+- Esta referencia registra **un estudio y un protocolo de prueba, no una autorización de ejecución**.
+  Sigue vigente el bloqueo `BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO`; no activar escritura,
+  modificar horarios LIVE, iniciar sesiones técnicas ni desplegar una automatización
+  hasta que Alexander autorice de forma específica la fase correspondiente.
+- Priorizar rutas directas **verificadas** por ID y control del DOM frente a capturas
+  repetidas; emplear un navegador remoto aislado solo tras comprobación de permisos.
+- El «aprendizaje» solo puede medir ejecuciones y proponer mejoras revisables en Git;
+  nunca autoeditar código, divulgar credenciales, reutilizar sesiones personales ni
+  publicar cambios sin lectura y verificación del resultado en Bitrix24.
+
 ## Criterio de terminado
 
 Una tarea solo está `DONE` cuando:
