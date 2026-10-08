@@ -9,6 +9,7 @@ const chrome=process.env.SYNCRO_TEST_CHROME || 'C:\\Program Files\\Google\\Chrom
 const shared=fs.readFileSync(path.join(root,'shared.js'),'utf8');
 const nav=shared.slice(shared.indexOf('function navSection'),shared.indexOf('async function showScreen'));
 const workflow=fs.readFileSync(path.join(root,'workflow-ui.js'),'utf8');
+const finance=['incentivos.js','housekeeping_incentivos.js','mi_rendimiento.js'].map(file=>fs.readFileSync(path.join(root,file),'utf8')).join('\n');
 const profiles=[['admin','Administración','Administrador'],['adjunto','Administración','Adjunto Directivo'],
  ['contable','Administración','Contable'],['tecnico_rrhh','Administración','Técnico de Recursos Humanos'],
  ['chef','Cocina','Jefe de Cocina'],['supervisor','Sala','Jefe de Sala'],['gobernante','Housekeeping','Gobernanta'],
@@ -33,6 +34,7 @@ const server=http.createServer((req,res)=>{
  var renderDashPrevision=async()=>{},renderPlanificacionHoraria=async()=>{document.getElementById('planificacion-horaria-content').innerHTML='Planificación o saldos';};
  var _mrEntrMis=async()=>'<p>Actividad propia</p>';
  var renderLiquidacionesPorDepartamento=async el=>{el.innerHTML='<p>Control financiero autorizado</p>';};
+ var getMonthDateRange=()=>({inicio:'2026-08-01',fin:'2026-08-31'}),fmtDate=v=>v,formatDisplayValue=v=>v;
  var renderIncentivos=async()=>{},renderIncReglas=async()=>{},_renderRRHH=async el=>{el.innerHTML='Disponibilidad';};
  var switchValTab=()=>{};
  var showScreen=async function(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');};
@@ -51,6 +53,36 @@ const server=http.createServer((req,res)=>{
    if(currentUser.rol==='admin'){await showScreen('configuracion');check(document.getElementById('screen-configuracion').contains(document.getElementById('workflow-backup-tools')),'backup moved');await showScreen('jornada');check(document.getElementById('screen-export').contains(document.getElementById('workflow-backup-tools')),'backup restored');await showScreen('liquidaciones');}
    else{var before=__denials;await showScreen('liquidaciones');check(__denials===before+1,'settlement denied');}
    if(currentUser.rol==='contable'){await showScreen('control-incentivos');check(document.getElementById('screen-control-incentivos').classList.contains('active'),'accounting readonly control');}
+   if(['admin','contable'].includes(currentUser.rol)){
+    check(!getScreens(currentUser.rol).some(i=>i.id==='liquidaciones'),'one finance entry');
+    await showScreen('control-incentivos');
+    check(document.getElementById('screen-control-incentivos').textContent.includes('Incentivos y liquidaciones'),'unified title');
+    var record={employee_id:'trainer',employee_nombre:'Persona de prueba',ym:'2026-08',n_dir_efectivas:1,n_dir_no_efect:1,n_pt:1,n_pt_duo:1,n_pt_30:1,n_val_funcional:1,n_visbody:0,n_banera_hielo:0};
+    var shifts=[{employee_id:'trainer',fecha:'2026-08-01',servicio:'Mañana',estado:'Validado',kpi_entrenador:{pt:0}}];
+    _mrEntrMonth='2026-08';getDB=async table=>table==='shifts'?shifts:[record];
+    var host=document.getElementById('liquidaciones-departamento-content');host.innerHTML=await _mrEntrEquipo();
+    host.querySelector('button[onclick^="mrRevisarEntrenador"]').click();
+    var modal=document.getElementById('workflow-evidence-overlay');
+    check(modal&&modal.textContent.includes('6 indicadores con diferencias')&&modal.textContent.includes('2026-08-01'),'trainer button opens evidence');
+    check(modal.querySelector('[role="dialog"]').getBoundingClientRect().right<=innerWidth,'evidence fits viewport');
+    modal.querySelector('button').click();check(!document.getElementById('workflow-evidence-overlay'),'evidence closes');
+    var data={permissions:{can_liquidate:currentUser.rol==='admin'},rows:[{employee_id:'reception',employee_name:'Recepción de prueba',sales_count:1,sales_net:100,incentive_gross:10,incentive_final:10,sales:[{date:'2026-08-01',reservation_reference:'RES-123',type_label:'Desayuno',closure_service:'Mañana',closure_status:'Validado',gross:110,vat_percent:10,net:100,incentive:10}]}]};
+    _incSetReceptionReviewData(data,'2026-08');host.innerHTML=_incReceptionLiquidationHtml(data,'2026-08');
+    host.querySelector('button[onclick^="incRevisarRecepcion"]').click();
+    modal=document.getElementById('inc-reception-review-overlay');
+    check(modal&&modal.textContent.includes('RES-123')&&modal.textContent.includes('N.º reserva'),'reception button opens reservation reference');
+    if(currentUser.rol==='contable')check(!host.textContent.includes('Marcar liquidado'),'accounting cannot pay');
+    incCerrarRevisionRecepcion();
+    _hkSemesterState.data={records:[{employee_id:'hk',employee_nombre:'Housekeeping de prueba',dias_baja:0,elegible_antiguedad:true,elegible_baja:true,nivel_premio:1,importe_premio:50,estado:'pendiente'}],permissions:{can_liquidate:currentUser.rol==='admin'}};
+    _hkSemesterState.period='2026-S1';_hkSemesterState.reviewActor=currentUser.id;host.innerHTML=_hkLiquidationHtml(_hkSemesterState.data);
+    host.querySelector('button[onclick^="hkRevisarAutocontrol"]').click();
+    check(document.getElementById('workflow-evidence-overlay').textContent.includes('Cumple antigüedad'),'housekeeping button opens criteria');
+    workflowCloseEvidence();
+    _incSetReceptionReviewData(data,'2026-08');incRevisarRecepcion('reception');
+    workflowClearSession();
+    check(!document.getElementById('inc-reception-review-overlay')&&!_mrEntrReviewState&&!_incReceptionReviewState&&!_hkSemesterState.data,'logout clears finance evidence');
+    getDB=async()=>[];
+   }
    if(getScreens(currentUser.rol).some(i=>i.id==='mi-rendimiento')){await showScreen('mi-rendimiento');check(document.getElementById('screen-mi-rendimiento').textContent.includes('No tienes incentivos pendientes'),'own pending');}
    check(document.querySelectorAll('.screen.active .workflow-body').length===1,'single workflow host');
    check(document.querySelectorAll('.screen.active').length===1,'single active screen');
@@ -63,7 +95,7 @@ const server=http.createServer((req,res)=>{
  });
  `;
  res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
- res.end(html.replace('</body>','<script>'+fixture+'</script><script>'+nav+'</script><script>'+workflow+'</script><script>'+run+'</script></body>'));
+ res.end(html.replace('</body>','<script>'+fixture+'</script><script>'+nav+'</script><script>'+finance+'</script><script>'+workflow+'</script><script>renderLiquidacionesPorDepartamento=async el=>{el.innerHTML="Control financiero autorizado";};</script><script>'+run+'</script></body>'));
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const port=server.address().port, results=[];

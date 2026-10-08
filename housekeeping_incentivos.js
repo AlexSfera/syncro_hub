@@ -82,7 +82,11 @@ async function _hkApi(method, payload, period) {
 }
 
 async function _hkLoad(period) {
-  _hkSemesterState.data = await _hkApi('GET', null, period);
+  var actor=currentUser.id;
+  var data=await _hkApi('GET', null, period);
+  if(!canControlIncentivesUI(currentUser)||currentUser.id!==actor)throw new Error('La sesión ha cambiado.');
+  _hkSemesterState.data = data;
+  _hkSemesterState.reviewActor=actor;
   _hkSemesterState.period = period;
   return _hkSemesterState.data;
 }
@@ -128,6 +132,7 @@ function _hkLiquidationHtml(data) {
       +'<td style="font-family:var(--font-mono);font-weight:700;color:'+(hasAward?'var(--green)':'var(--text3)')+';">'+_hkFormatMoney(record.importe_premio)+'</td>'
       +'<td>'+status+'</td>'
       +'<td style="text-align:center;font-family:var(--font-mono);font-size:11px;">'+liquidationDate+'</td>'
+      +'<td><button class="btn btn-xs" onclick="hkRevisarAutocontrol('+_hkEscHtml(JSON.stringify(record.employee_id))+')">Ver criterios</button></td>'
       +'<td style="text-align:right;">'+action+'</td></tr>';
   }).join('');
   return '<div class="card">'
@@ -139,11 +144,20 @@ function _hkLiquidationHtml(data) {
       +'<div style="padding:12px 16px;border-radius:8px;border:1px solid var(--amber);background:var(--amber-dim);min-width:180px;"><div style="font-size:10px;color:var(--text3);font-family:var(--font-mono);font-weight:700;">PENDIENTE DE LIQUIDAR</div><div style="font-size:22px;font-family:var(--font-mono);font-weight:700;color:var(--amber);margin-top:3px;">'+_hkFormatMoney(totalPending)+'</div></div>'
       +'<div style="padding:12px 16px;border-radius:8px;border:1px solid var(--green);background:var(--green-dim);min-width:180px;"><div style="font-size:10px;color:var(--text3);font-family:var(--font-mono);font-weight:700;">YA LIQUIDADO</div><div style="font-size:22px;font-family:var(--font-mono);font-weight:700;color:var(--green);margin-top:3px;">'+_hkFormatMoney(totalLiquidated)+'</div></div>'
     +'</div>'
-    +'<div class="tbl-wrap"><table><tr><th>Empleada</th><th>Nivel</th><th>Días baja</th><th>Importe</th><th>Estado</th><th>Fecha liquidación</th><th></th></tr>'
-      +(rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);">No hay datos de Housekeeping para este período.</td></tr>')
+    +'<div class="tbl-wrap"><table><tr><th>Empleada</th><th>Nivel</th><th>Días baja</th><th>Importe</th><th>Estado</th><th>Fecha liquidación</th><th>Autocontrol</th><th></th></tr>'
+      +(rows||'<tr><td colspan="8" style="text-align:center;color:var(--text3);">No hay datos de Housekeeping para este período.</td></tr>')
       +'</table></div>'
     +'</div>';
 }
+
+window.hkRevisarAutocontrol=function(employeeId){
+  if(!canControlIncentivesUI(currentUser)||_hkSemesterState.reviewActor!==currentUser.id)return;
+  var record=((_hkSemesterState.data||{}).records||[]).find(function(r){return r.employee_id===employeeId;});if(!record)return;
+  function value(v){return v==null?'[NO DATA]':_hkEscHtml(v);}
+  function eligibility(v){return v==null?'[NO DATA]':v?'Sí':'No';}
+  window.workflowEvidence('Autocontrol · Housekeeping · '+record.employee_nombre,
+    '<p>Periodo: '+value(_hkSemesterState.period)+'. Origen del registro: '+value(record.origen)+'.</p><table><tr><th>Días de baja registrados</th><td>'+value(record.dias_baja)+'</td></tr><tr><th>Cumple antigüedad</th><td>'+eligibility(record.elegible_antiguedad)+'</td></tr><tr><th>Cumple límite de bajas</th><td>'+eligibility(record.elegible_baja)+'</td></tr><tr><th>Nivel de premio</th><td>'+value(record.nivel_premio)+'</td></tr><tr><th>Importe registrado</th><td>'+value(record.importe_premio)+'</td></tr><tr><th>Estado</th><td>'+value(record.estado)+'</td></tr></table><p>Fechas individuales de baja: [NO DATA] en esta respuesta. Este detalle muestra los criterios del registro; no confirma por sí solo los partes originales.</p>');
+};
 
 function _hkTrainerPeriodOptions(selected) {
   var options = typeof getMonthOptions==='function' ? getMonthOptions(18) : [];
@@ -173,11 +187,11 @@ function _hkLiquidationsDepartmentHtml() {
       +'<div><div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;">Liquidación por departamento</div>'
       +'<div style="font-size:13px;color:var(--text2);margin-top:5px;">Recepción Hotel y Entrenadores se liquidan por mes; Housekeeping, por semestre.</div></div>'
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">'
-        +'<div class="fg" style="min-width:230px;margin:0;"><label>Departamento</label><select onchange="hkSelectLiquidationDepartment(this.value)">'
+        +(_hkSemesterState.hideDepartmentSelector?'':'<div class="fg" style="min-width:230px;margin:0;"><label>Departamento</label><select onchange="hkSelectLiquidationDepartment(this.value)">'
           +'<option value="Housekeeping"'+(department==='Housekeeping'?' selected':'')+'>🧹 Housekeeping</option>'
           +'<option value="Recepción Hotel"'+(department==='Recepción Hotel'?' selected':'')+'>🏨 Recepción Hotel</option>'
           +'<option value="Entrenadores"'+(department==='Entrenadores'?' selected':'')+'>🏋 Entrenadores</option>'
-        +'</select></div>'
+        +'</select></div>')
         +'<div class="fg" style="min-width:220px;margin:0;"><label>Período '+(isMonthly?'mensual':'semestral')+'</label><select onchange="hkChangeLiquidationPeriod(this.value)">'+periodOptions+'</select></div>'
       +'</div>'
     +'</div>'

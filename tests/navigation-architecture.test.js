@@ -46,7 +46,7 @@ test('PERM-06/07/08: operational authority does not grant finance control',()=>{
   for(const p of profiles){
     const ids=new Set(navigation(p).map(i=>i.id));
     assert.equal(ids.has('control-incentivos'),['admin','contable'].includes(p.rol),p.puesto);
-    assert.equal(ids.has('liquidaciones'),p.rol==='admin',p.puesto);
+    assert.equal(ids.has('liquidaciones'),false,p.puesto);
     assert.equal(ids.has('configuracion'),p.rol==='admin',p.puesto);
   }
 });

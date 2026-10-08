@@ -105,6 +105,7 @@ export function calculateReceptionIncentives({
       type_label: type.label,
       service_detail: sale.servicio_detalle || null,
       invoice_reference: sale.reserva_mews || null,
+      reservation_reference: sale.reserva_mews || null,
       comment: sale.comentario || null,
       gross: roundMoney(gross),
       vat_percent: type.vatPercent,

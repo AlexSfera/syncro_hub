@@ -93,6 +93,7 @@ async function _incReceptionApi(method, payload, ym){
 
 function _incSetReceptionReviewData(data, ym){
   _incReceptionReviewState = {
+    actor:typeof currentUser!=='undefined'&&currentUser?currentUser.id:null,
     ym:ym,
     rows:Array.isArray(data&&data.rows)?data.rows:[],
     permissions:(data&&data.permissions)||{}
@@ -131,7 +132,7 @@ function _incReceptionReviewHtml(row, ym){
     return '<tr>'
       +'<td style="white-space:nowrap;">'+_incDate(sale.date)+'</td>'
       +'<td>'+_incEscHtml(sale.closure_service||'[NO DATA]')+closeStatus+'</td>'
-      +'<td style="font-family:var(--font-mono);">'+_incEscHtml(sale.invoice_reference||'[NO DATA]')+'</td>'
+      +'<td style="font-family:var(--font-mono);">'+_incEscHtml(sale.reservation_reference||sale.invoice_reference||'[NO DATA]')+'</td>'
       +'<td>'+_incEscHtml(sale.type_label||sale.type||'[NO DATA]')+typeDetail+comment+'</td>'
       +'<td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(sale.gross)+'</td>'
       +'<td style="text-align:center;font-family:var(--font-mono);">'+parseFloat(sale.vat_percent||0).toFixed(0)+'%</td>'
@@ -146,12 +147,12 @@ function _incReceptionReviewHtml(row, ym){
   var penaltyDisplay = penalty>0 ? '−'+_incMoney(penalty) : '—';
   return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:1050px;width:96%;max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.5);">'
     +'<div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px;">'
-      +'<div><div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.15em;margin-bottom:5px;">REVISIÓN DEL CÁLCULO</div>'
+      +'<div><div style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.15em;margin-bottom:5px;">AUTOCONTROL · REVISIÓN DEL CÁLCULO</div>'
       +'<div style="font-size:17px;font-weight:700;">'+_incEscHtml((row&&row.employee_name)||'')+' · '+_incEscHtml(_incMonthLabel(ym))+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:4px;">Origen: ventas cross-sell registradas en los cierres de turno.</div></div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:4px;">Origen: ventas cross-sell registradas en los cierres de turno. Las referencias de reserva son las declaradas; todavía no están contrastadas directamente con MEWS.</div></div>'
       +'<button class="btn btn-secondary" onclick="incCerrarRevisionRecepcion()">Cerrar</button>'
     +'</div>'
-    +'<div class="tbl-wrap"><table style="min-width:900px;"><tr><th>Fecha</th><th>Cierre / turno</th><th>Nº factura / ref. MEWS</th><th>Venta</th><th style="text-align:right;">Bruto</th><th>IVA</th><th style="text-align:right;">Neto</th><th style="text-align:right;">10%</th></tr>'
+    +'<div class="tbl-wrap"><table style="min-width:900px;"><tr><th>Fecha</th><th>Cierre / turno</th><th>N.º reserva / referencia MEWS</th><th>Venta</th><th style="text-align:right;">Bruto</th><th>IVA</th><th style="text-align:right;">Neto</th><th style="text-align:right;">10%</th></tr>'
       +detailRows+'</table></div>'
     +'<div style="display:flex;justify-content:flex-end;margin-top:16px;"><table style="width:auto;min-width:360px;">'
       +'<tr><td style="color:var(--text3);">Ventas netas</td><td style="text-align:right;font-family:var(--font-mono);">'+_incMoney(row&&row.sales_net)+'</td></tr>'
@@ -163,16 +164,20 @@ function _incReceptionReviewHtml(row, ym){
 }
 
 function incRevisarRecepcion(employeeId){
+  if(!canControlIncentivesUI(currentUser)||!_incReceptionReviewState||_incReceptionReviewState.actor!==currentUser.id)return;
   var row = (_incReceptionReviewState.rows||[]).find(function(item){ return item.employee_id===employeeId; });
   if(!row){ toast('No se encontró el cálculo de este empleado.','err'); return; }
   var existing = document.getElementById('inc-reception-review-overlay');
   if(existing) existing.remove();
   var overlay = document.createElement('div');
   overlay.id = 'inc-reception-review-overlay';
+  overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Autocontrol de ventas de Recepción Hotel');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;';
   overlay.innerHTML = _incReceptionReviewHtml(row,_incReceptionReviewState.ym);
   overlay.addEventListener('click',function(event){ if(event.target===overlay) overlay.remove(); });
+  overlay.addEventListener('keydown',function(event){if(event.key==='Escape')overlay.remove();});
   document.body.appendChild(overlay);
+  overlay.querySelector('button').focus();
 }
 window.incRevisarRecepcion = incRevisarRecepcion;
 
@@ -183,6 +188,7 @@ function incCerrarRevisionRecepcion(){
 window.incCerrarRevisionRecepcion = incCerrarRevisionRecepcion;
 
 function incAbrirLiquidacionRecepcion(employeeId){
+  if(!canMarkLiquidationUI(currentUser)||!_incReceptionReviewState||_incReceptionReviewState.actor!==currentUser.id)return;
   var row = (_incReceptionReviewState.rows||[]).find(function(item){ return item.employee_id===employeeId; });
   if(!row){ toast('No se encontró el incentivo de este empleado.','err'); return; }
   incLiquidarMes(row.employee_id,row.employee_name,_incReceptionReviewState.ym,
@@ -223,22 +229,27 @@ function _incReceptionLiquidationHtml(data, ym){
       +'<td style="text-align:right;font-family:var(--font-mono);color:'+(penaltyAmount>0?'var(--red)':'var(--text3)')+';">'+(penaltyAmount>0?'−'+_incMoney(penaltyAmount):'—')+'</td>'
       +'<td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:'+(amount>0?'var(--green)':'var(--text3)')+';">'+_incMoney(amount)+'</td>'
       +'<td style="text-align:center;">'+status+'</td>'
+      +'<td><button class="btn btn-xs" onclick="incRevisarRecepcion('+_incEscHtml(JSON.stringify(row.employee_id))+')">Ver '+parseInt(row.sales_count||0,10)+' ventas</button></td>'
       +'<td style="text-align:right;">'+action+'</td>'
       +'</tr>';
   }).join('');
   return '<div class="card">'
     +'<div style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">Recepción Hotel · Liquidación mensual</div>'
     +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">'+rows.length+' empleados · '+liquidated.length+'/'+eligible.length+' importes liquidables pagados · Pendiente: <b style="color:var(--amber);">'+_incMoney(pendingTotal)+'</b></div>'
-    +'<div class="tbl-wrap"><table style="min-width:900px;"><tr><th>Empleado</th><th>Ventas</th><th style="text-align:right;">Neto</th><th style="text-align:right;">Bruto incentivo</th><th style="text-align:right;">FIO</th><th style="text-align:right;">Final</th><th>Estado</th><th style="text-align:right;">Acción</th></tr>'
-      +(body||'<tr><td colspan="8" style="text-align:center;color:var(--text3);">No hay empleados activos de Recepción Hotel.</td></tr>')
+    +'<p style="color:var(--text3);">Autocontrol permite revisar las ventas y sus referencias de reserva declaradas.</p>'
+    +'<div class="tbl-wrap"><table style="min-width:1000px;"><tr><th>Empleado</th><th>Ventas</th><th style="text-align:right;">Neto</th><th style="text-align:right;">Bruto incentivo</th><th style="text-align:right;">FIO</th><th style="text-align:right;">Final</th><th>Estado</th><th>Autocontrol</th><th style="text-align:right;">Acción</th></tr>'
+      +(body||'<tr><td colspan="9" style="text-align:center;color:var(--text3);">No hay empleados activos de Recepción Hotel.</td></tr>')
     +'</table></div></div>';
 }
 
 async function incRenderRecepcionLiquidaciones(el, ym){
-  if(!el) return;
+  if(!el||!canControlIncentivesUI(currentUser)) return;
+  var actor=currentUser.id;
+  _incReceptionReviewState=null;
   el.innerHTML = '<div class="card"><p style="color:var(--text3);padding:16px 0;">Cargando incentivos de Recepción Hotel…</p></div>';
   try {
     var data = await _incReceptionApi('GET',null,ym);
+    if(!canControlIncentivesUI(currentUser)||currentUser.id!==actor)return;
     _incSetReceptionReviewData(data,ym);
     el.innerHTML = _incReceptionLiquidationHtml(data,ym);
   } catch(error){

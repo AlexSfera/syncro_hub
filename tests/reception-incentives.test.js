@@ -106,7 +106,9 @@ test('el modal de revisión muestra fecha, cierre, factura MEWS y cálculo líne
   const withSales = receptionRowsFixture().find(row => row.employee_id === 'employee-sales');
   const html = context._incReceptionReviewHtml(withSales, '2026-08');
   assert.match(html, /REVISIÓN DEL CÁLCULO/);
-  assert.match(html, /Nº factura \/ ref\. MEWS/);
+  assert.match(html, /N\.º reserva \/ referencia MEWS/);
+  assert.match(html, /todavía no están contrastadas directamente con MEWS/);
+  assert.equal(withSales.sales[0].reservation_reference, 'INV-45');
   assert.match(html, /03\/08\/2026/);
   assert.match(html, /Mañana/);
   assert.match(html, /Validado/);
@@ -131,6 +133,9 @@ test('Liquidación muestra Recepción y nunca deja un importe cero como pendient
   assert.doesNotMatch(withoutSalesRow, /Marcar liquidado/);
   assert.match(withSalesRow, /PENDIENTE/);
   assert.match(withSalesRow, /Marcar liquidado/);
+  assert.match(withSalesRow, /incRevisarRecepcion/);
+  assert.match(withSalesRow, /Ver 2 ventas/);
+  assert.match(withoutSalesRow, /Ver 0 ventas/);
 });
 
 test('la liquidación segura ignora importes del navegador y guarda el cálculo del servidor', async () => {

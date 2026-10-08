@@ -1047,8 +1047,7 @@ function getScreens(rol){
   if(byId.informes) add('produccion-incentivos','produccion','Producción y ventas','Registrar datos oficiales existentes por departamento.');
   put('produccion-incentivos','mi-rendimiento','Mis incentivos pendientes','Solo tus incentivos pendientes de pagar.');
   if(typeof _esEntrenador==='function' && _esEntrenador(currentUser)) add('mi-dia','produccion-propia','Mi producción declarada','Consultar la actividad registrada en tus partes.');
-  if(canControlIncentivesUI(currentUser)) add('produccion-incentivos','control-incentivos','Control de incentivos','Consulta interna de pendientes y liquidados.');
-  if(canMarkLiquidationUI(currentUser)) add('produccion-incentivos','liquidaciones','Liquidaciones internas','Registrar liquidaciones con autorización específica.');
+  if(canControlIncentivesUI(currentUser)) add('produccion-incentivos','control-incentivos','Incentivos y liquidaciones','Consulta, autocontrol y liquidaciones internas.');
   put('resultados-informes','dashboard','Resumen de resultados');
   put('resultados-informes','informes','Informes de departamento','Redactar y consultar informes; los datos se registran en Producción.');
   put('resultados-informes','export','Exportaciones');

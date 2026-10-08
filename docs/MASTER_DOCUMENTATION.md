@@ -1,3 +1,15 @@
+## Incentivos y autocontrol — 08/10/2026
+Esta sección prevalece sobre el estado anterior del módulo.
+- IMPLEMENTADO y TESTEADO: una sola entrada Incentivos y liquidaciones; un selector de departamento; autocontrol con detalle de ocho indicadores y partes en Entrenadores, referencias de reserva declaradas y ventas en Recepción, criterios guardados en Housekeeping y cálculo guardado en Sala/Cocina.
+- «6» se sustituye por «6 indicadores con diferencias»; ausencia de partes, lectura fallida y archivo incompleto se distinguen, con [NO DATA] cuando faltan datos.
+- Permisos y fórmulas conservados: admin/contable consultan; solo admin liquida. Los detalles se limpian al cerrar sesión.
+- Pruebas: sintaxis PASS; 196 pruebas PASS, 0 FAIL y 1 E2E omitida; 30 escenarios Chrome de diez perfiles y tres anchos, con clics de autocontrol y datos ficticios.
+- Integración directa de reservas de alojamiento vendidas y conciliación MEWS: [NO DATA]. Recepción usa las referencias de reserva declaradas en ventas cross-sell de cierres. Desglose de Sala/Cocina y fechas individuales de Housekeeping no incluidos en los registros consultados: [NO DATA].
+- Despliegue de esta corrección pendiente de confirmar. Sin cambios de Supabase, datos LIVE, main, cron ni Bitrix24.
+- Detalle y reversión: docs/04-development/FINAL_REPORT_AUTOCONTROL_20261008.md.
+
+---
+
 ## Estado comprobado — 08/10/2026
 
 Esta sección prevalece sobre los estados históricos inferiores.

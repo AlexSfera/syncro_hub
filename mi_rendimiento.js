@@ -740,12 +740,59 @@ async function _mrEntrJefe(){
 }
 
 // INFORME 3 — equipo (coordinador/admin)
+var _mrEntrReviewState = null;
+function _mrEntrEsc(value){
+  return String(value==null?'':value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function _mrEntrReviewModel(record,shifts,available){
+  var range=getMonthDateRange(record.ym),sum={};
+  _MR_ENTR_KPI_KEYS.forEach(function(k){sum[k]=0;});
+  var parts=(shifts||[]).filter(function(s){
+    var date=String(s.fecha||'').slice(0,10),kpi=_mrEntrParseKpi(s.kpi_entrenador);
+    return s.employee_id===record.employee_id&&date>=range.inicio&&date<=range.fin&&kpi&&typeof kpi==='object'&&!Array.isArray(kpi);
+  });
+  parts.forEach(function(s){var kpi=_mrEntrParseKpi(s.kpi_entrenador);_MR_ENTR_KPI_KEYS.forEach(function(k){sum[k]+=parseInt(kpi[k],10)||0;});});
+  var columns={dir_efectiva:'n_dir_efectivas',dir_no_efectiva:'n_dir_no_efect',pt:'n_pt',pt_duo:'n_pt_duo',pt_30:'n_pt_30',val_funcional:'n_val_funcional',visbody:'n_visbody',banera_hielo:'n_banera_hielo'};
+  var values=_MR_ENTR_KPI_KEYS.map(function(k){
+    var raw=record[columns[k]],parsed=parseInt(raw,10);
+    var official=raw==null||!Number.isFinite(parsed)?null:parsed;
+    return {key:k,declared:sum[k],official:official,difference:official==null?null:sum[k]-official};
+  });
+  var complete=values.every(function(v){return v.official!==null;});
+  var comparable=available&&parts.length>0&&complete;
+  return {parts:parts,values:values,comparable:comparable,differences:comparable?values.filter(function(v){return v.difference!==0;}).length:null,
+    status:!available?'Comparación no disponible':!parts.length?'Sin partes registrados':!complete?'Archivo VirtuGym incompleto':values.every(function(v){return v.difference===0;})?'Coincide':values.filter(function(v){return v.difference!==0;}).length+' indicadores con diferencias'};
+}
+function _mrEntrReviewHtml(record,model){
+  var rows=model.values.map(function(v){
+    return '<tr><td>'+_mrEntrEsc(_MR_ENTR_KPI_LBL[v.key])+'</td><td>'+ (model.parts.length?v.declared:'[NO DATA]')+'</td><td>'+(v.official==null?'[NO DATA]':v.official)+'</td><td>'+(model.comparable?(v.difference>0?'+':'')+v.difference:'[NO DATA]')+'</td></tr>';
+  }).join('');
+  var parts=model.parts.map(function(s){
+    var kpi=_mrEntrParseKpi(s.kpi_entrenador);
+    var activity=_MR_ENTR_KPI_KEYS.filter(function(k){return parseInt(kpi[k],10);}).map(function(k){return _mrEntrEsc(_MR_ENTR_KPI_LBL[k])+': '+(parseInt(kpi[k],10)||0);}).join(' · ')||'Todos los indicadores a cero';
+    return '<tr><td>'+_mrEntrEsc(String(s.fecha||'').slice(0,10))+'</td><td>'+_mrEntrEsc(s.servicio||'[NO DATA]')+'</td><td>'+_mrEntrEsc(s.estado||'[NO DATA]')+'</td><td>'+activity+'</td></tr>';
+  }).join('');
+  return '<p><strong>'+_mrEntrEsc(model.status)+'</strong>. '+(model.comparable?'El número cuenta indicadores distintos que no coinciden; no es un importe.':'No se puede afirmar que coincida sin los partes del mes.')+'</p>'
+    +'<p>Comparación entre lo declarado en los partes y el archivo VirtuGym publicado de '+_mrEntrEsc(record.ym)+'. El incentivo sigue usando el archivo publicado. '+(!model.comparable?'[NO DATA] · Faltan datos para completar la comparación.':'')+'</p>'
+    +'<div class="tbl-wrap"><table><tr><th>Indicador</th><th>Declarado en partes</th><th>Archivo VirtuGym</th><th>Diferencia</th></tr>'+rows+'</table></div>'
+    +'<h4>Partes que forman el total declarado</h4><div class="tbl-wrap"><table><tr><th>Fecha</th><th>Turno</th><th>Estado</th><th>Actividad declarada</th></tr>'+(parts||'<tr><td colspan="4">[NO DATA] · No hay partes disponibles para comparar.</td></tr>')+'</table></div>';
+}
+window.mrRevisarEntrenador=function(employeeId){
+  var state=_mrEntrReviewState;
+  if(!canControlIncentivesUI(currentUser)||!state||state.actor!==currentUser.id)return;
+  var row=state.rows.find(function(r){return r.employee_id===employeeId;});if(!row)return;
+  window.workflowEvidence('Autocontrol · '+row.employee_nombre+' · '+state.ym,_mrEntrReviewHtml(row,_mrEntrReviewModel(row,state.shifts,state.available)));
+};
+
 async function _mrEntrEquipo(){
   if(!canControlIncentivesUI(currentUser)) return '<p>Acceso restringido.</p>';
+  var actor=currentUser.id,ym=_mrEntrMonth;
+  _mrEntrReviewState=null;
   var filas;
   try { filas = await getDB('entrenadores_incentivos_mes'); }
   catch(e){ return '<div style="color:var(--text3);padding:20px 0;">No se pudo cargar el informe del equipo.</div>'; }
-  var delMes = (filas||[]).filter(function(r){ return r.ym === _mrEntrMonth; });
+  if(!canControlIncentivesUI(currentUser)||currentUser.id!==actor||_mrEntrMonth!==ym)return '';
+  var delMes = (filas||[]).filter(function(r){ return r.ym === ym; });
   if(!delMes.length){
     return '<div style="color:var(--text3);padding:20px 0;">No hay informe publicado para este mes. '
       + 'Súbelo desde Informes → Entrenadores (archivo de VirtuGym).</div>';
@@ -753,22 +800,10 @@ async function _mrEntrEquipo(){
   delMes.sort(function(a,b){ return (parseFloat(b.incentivo_bruto)||0)-(parseFloat(a.incentivo_bruto)||0); });
   var totBruto = delMes.reduce(function(s,r){ return s+(parseFloat(r.incentivo_bruto)||0); },0);
   var nLiq = delMes.filter(function(r){ return r.liquidado===true; }).length;
-  // Precalcular autorreporte del mes por empleado (suma de shifts.kpi_entrenador)
-  var range = getMonthDateRange(_mrEntrMonth);
-  var shifts = [];
-  try { shifts = await getDB('shifts'); } catch(e){ shifts = []; }
-  var autoPorEmp = {};  // employee_id → {kpiKey: total}
-  (shifts||[]).forEach(function(s){
-    var f = (s.fecha||'').slice(0,10);
-    if(f < range.inicio || f > range.fin || !s.kpi_entrenador) return;
-    var kpi=null;
-    try { kpi = (typeof s.kpi_entrenador === 'string') ? JSON.parse(s.kpi_entrenador) : s.kpi_entrenador; } catch(e){ kpi=null; }
-    if(!kpi) return;
-    if(!autoPorEmp[s.employee_id]){ autoPorEmp[s.employee_id]={}; _MR_ENTR_KPI_KEYS.forEach(function(k){ autoPorEmp[s.employee_id][k]=0; }); }
-    _MR_ENTR_KPI_KEYS.forEach(function(k){ autoPorEmp[s.employee_id][k] += parseInt(kpi[k],10)||0; });
-  });
-  var colMap = {dir_efectiva:'n_dir_efectivas',dir_no_efectiva:'n_dir_no_efect',pt:'n_pt',pt_duo:'n_pt_duo',
-                pt_30:'n_pt_30',val_funcional:'n_val_funcional',visbody:'n_visbody',banera_hielo:'n_banera_hielo'};
+  var shifts=[],available=true;
+  try { shifts=await getDB('shifts'); } catch(e){ available=false; }
+  if(!canControlIncentivesUI(currentUser)||currentUser.id!==actor||_mrEntrMonth!==ym)return '';
+  _mrEntrReviewState={actor:actor,ym:ym,rows:delMes,shifts:shifts||[],available:available};
   var rows = delMes.map(function(r){
     var efect = parseFloat(r.sesiones_efectivas)||0;
     var umbral = parseFloat(r.umbral)||85;
@@ -778,22 +813,8 @@ async function _mrEntrEquipo(){
       ? '<span class="badge b-green">✓ Liquidado</span>'
         +(r.liquidado_ts?'<div style="font-size:10px;color:var(--text3);margin-top:3px;">'+fmtDate((r.liquidado_ts||'').slice(0,10))+'</div>':'')
       : '<span class="badge b-yellow">Pendiente</span>';
-    // Autocontrol: comparar autorreporte vs oficial por KPI
-    var auto = autoPorEmp[r.employee_id];
-    var autoCell;
-    if(!auto){
-      autoCell = '<span class="badge b-gray" title="El entrenador no registró turnos con KPI este mes">Sin reporte</span>';
-    } else {
-      var nDesv = 0;
-      _MR_ENTR_KPI_KEYS.forEach(function(k){
-        var mio = auto[k]||0;
-        var ofi = parseInt(r[colMap[k]],10)||0;
-        if(mio !== ofi) nDesv++;
-      });
-      autoCell = nDesv === 0
-        ? '<span class="badge b-green" title="Coincide con VirtuGym">✓ OK</span>'
-        : '<span class="badge b-yellow" title="'+nDesv+' KPI no coinciden con VirtuGym">⚠ '+nDesv+'</span>';
-    }
+    var review=_mrEntrReviewModel(r,shifts,available);
+    var autoCell='<button class="btn btn-xs" title="Abrir comparación y partes del mes" onclick="mrRevisarEntrenador('+_mrEntrEsc(JSON.stringify(r.employee_id))+')">'+_mrEntrEsc(review.status)+' · Ver detalle</button>';
     var _esAdmin = canMarkLiquidationUI(currentUser);
     // Comprobante si ya está liquidado
     var _f = [];
@@ -894,8 +915,7 @@ window._mrLiquidarConfirm = async function(){
     modal.style.display='none';
     toast('Liquidado: '+empNombre,'ok');
     // Refrescar la pantalla activa: Liquidaciones unificadas o Mi equipo.
-    if(document.getElementById('screen-liquidaciones') &&
-       document.getElementById('screen-liquidaciones').classList.contains('active') &&
+    if(['screen-liquidaciones','screen-control-incentivos'].some(function(id){var screen=document.getElementById(id);return screen&&screen.classList.contains('active');}) &&
        typeof _hkSemesterState!=='undefined' && _hkSemesterState.department==='Entrenadores'){
       renderLiquidacionesPorDepartamento(document.getElementById('liquidaciones-departamento-content'));
     } else {

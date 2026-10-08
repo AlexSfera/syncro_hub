@@ -12,13 +12,17 @@
     document.querySelectorAll('.workflow-body').forEach(function(body){body.replaceChildren();});
     if(typeof _hmData!=='undefined')_hmData=null;
     if(typeof _infEmployeesCache!=='undefined')_infEmployeesCache=null;
-    if(typeof _hkSemesterState!=='undefined')_hkSemesterState.data=null;
+    if(typeof _hkSemesterState!=='undefined'){_hkSemesterState.data=null;_hkSemesterState.reviewActor=null;}
     if(typeof _incReceptionReviewState!=='undefined')_incReceptionReviewState=null;
-    ['modal-mr-liq','hk-liquidation-overlay'].forEach(function(id){var node=document.getElementById(id);if(node)node.remove();});
+    if(typeof _mrEntrReviewState!=='undefined')_mrEntrReviewState=null;
+    financeRows=[];
+    ['modal-mr-liq','hk-liquidation-overlay','inc-reception-review-overlay','workflow-evidence-overlay','liq-modal-overlay'].forEach(function(id){var node=document.getElementById(id);if(node)node.remove();});
   };
   function esc(value){ return String(value==null?'':value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function message(text){ return '<div class="card"><p>'+esc(text)+'</p></div>'; }
   function frame(id,title,sub){
+    window.workflowCloseEvidence();
+    if(typeof incCerrarRevisionRecepcion==='function')incCerrarRevisionRecepcion();
     restore();
     document.querySelectorAll('.workflow-body').forEach(function(body){body.replaceChildren();});
     var node=document.getElementById('screen-'+id);
@@ -36,6 +40,26 @@
   function mount(body,id){var n=document.getElementById(id);if(!n)throw new Error('No se encuentra la vista '+id); if(!parked[id])parked[id]=n.parentNode;body.appendChild(n);return n;}
   function allowed(id){return getScreens(currentUser.rol).some(function(i){return i.id===id;});}
   function denied(){toast('No tienes permiso para esta función.','err');}
+
+  var financeRows=[];
+  window.workflowCloseEvidence=function(){var node=document.getElementById('workflow-evidence-overlay');if(node)node.remove();};
+  window.workflowEvidence=function(title,html){
+    if(!canControlIncentivesUI(currentUser)){denied();return;}
+    window.workflowCloseEvidence();
+    var overlay=document.createElement('div');overlay.id='workflow-evidence-overlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;';
+    overlay.innerHTML='<section role="dialog" aria-modal="true" aria-labelledby="workflow-evidence-title" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;max-width:1050px;width:96%;max-height:90vh;overflow:auto;"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;"><h3 id="workflow-evidence-title">'+esc(title)+'</h3><button class="btn btn-secondary" onclick="workflowCloseEvidence()">Cerrar</button></div>'+html+'</section>';
+    overlay.addEventListener('click',function(e){if(e.target===overlay)window.workflowCloseEvidence();});
+    overlay.addEventListener('keydown',function(e){if(e.key==='Escape')window.workflowCloseEvidence();});
+    document.body.appendChild(overlay);overlay.querySelector('button').focus();
+  };
+  window.workflowReviewCalculation=function(index){
+    if(!canControlIncentivesUI(currentUser)){denied();return;}
+    var saved=financeRows[index];if(!saved||saved.actor!==currentUser.id)return;
+    var r=saved.row;
+    window.workflowEvidence('Autocontrol · '+r.departamento+' · '+r.employee_name,
+      '<p>Origen: cálculo guardado del periodo '+esc(r.month)+'.</p><table><tr><th>Incentivo calculado</th><td>'+esc(r.bonus_final)+'</td></tr><tr><th>Estado de revisión</th><td>'+esc(r.status)+'</td></tr></table><p>Desglose de ventas y reglas del cálculo: [NO DATA] en este registro.</p>');
+  };
 
   window.workflowReportMode=function(){return reportMode;};
   window.workflowAllowedReportTabs=function(dept){
@@ -100,19 +124,21 @@
 
   async function control(marking){
     if(!canControlIncentivesUI(currentUser)||marking&&!canMarkLiquidationUI(currentUser)){denied();return;}
-    restore();var id=marking?'liquidaciones':'control-incentivos';
-    if(!marking){var old=document.getElementById('screen-liquidaciones');if(old)old.replaceChildren();}
-    var body=frame(id,marking?'Liquidaciones internas':'Control de incentivos','Control interno de pendientes y liquidados. No es nómina oficial ni cierre de horas.');
+    restore();var id='control-incentivos';financeRows=[];
+    var old=document.getElementById('screen-liquidaciones');if(old)old.replaceChildren();
+    var body=frame(id,'Incentivos y liquidaciones','Abre Autocontrol para comprobar el origen de las cifras. Las liquidaciones son internas.');
     body.innerHTML='<div class="card"><label>Departamento <select onchange="workflowFinanceDepartment(this.value)">'+['Sala','Cocina','Recepción Hotel','Entrenadores','Housekeeping'].map(function(d){return '<option'+(d===financeDepartment?' selected':'')+'>'+esc(d)+'</option>';}).join('')+'</select></label></div><div id="workflow-finance-view"></div>';
     var view=document.getElementById('workflow-finance-view');
     view.id='liquidaciones-departamento-content';
     if(['Entrenadores','Housekeeping','Recepción Hotel'].indexOf(financeDepartment)>=0){
       _hkSemesterState.department=financeDepartment;
+      _hkSemesterState.hideDepartmentSelector=true;
       await renderLiquidacionesPorDepartamento(view);
     }else{
       var rows=await getDB('employee_incentives');
       rows=(rows||[]).filter(function(r){return r.departamento===financeDepartment;});
-      view.innerHTML='<div class="card"><h3>'+esc(financeDepartment)+'</h3>'+(canMarkLiquidationUI(currentUser)?'<button class="btn" onclick="workflowCalculateIncentives()">Cálculo e importación existentes</button>':'')+'<div style="overflow-x:auto"><table><thead><tr><th>Persona</th><th>Periodo</th><th>Incentivo calculado</th><th>Estado de revisión</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td>'+esc(r.employee_name)+'</td><td>'+esc(r.month)+'</td><td>'+esc(r.bonus_final)+'</td><td>'+esc(r.status)+'</td></tr>';}).join('')+'</tbody></table></div>'+(!rows.length?'<p>Sin cálculos registrados.</p>':'')+'</div>';
+      financeRows=rows.map(function(r){return {actor:currentUser.id,row:r};});
+      view.innerHTML='<div class="card"><h3>'+esc(financeDepartment)+'</h3>'+(canMarkLiquidationUI(currentUser)?'<button class="btn" onclick="workflowCalculateIncentives()">Cálculo e importación existentes</button>':'')+'<div style="overflow-x:auto"><table><thead><tr><th>Persona</th><th>Periodo</th><th>Incentivo calculado</th><th>Estado de revisión</th><th>Autocontrol</th></tr></thead><tbody>'+rows.map(function(r,index){return '<tr><td>'+esc(r.employee_name)+'</td><td>'+esc(r.month)+'</td><td>'+esc(r.bonus_final)+'</td><td>'+esc(r.status)+'</td><td><button class="btn btn-xs" onclick="workflowReviewCalculation('+index+')">Ver cálculo guardado</button></td></tr>';}).join('')+'</tbody></table></div>'+(!rows.length?'<p>Sin cálculos registrados.</p>':'')+'</div>';
     }
   }
   window.workflowFinanceDepartment=function(value){financeDepartment=value;return control(document.getElementById('screen-liquidaciones')&&document.getElementById('screen-liquidaciones').classList.contains('active'));};
