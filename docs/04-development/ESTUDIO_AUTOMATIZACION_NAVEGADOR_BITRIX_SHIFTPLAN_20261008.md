@@ -31,11 +31,11 @@ No debe implementarse una nueva infraestructura ni contratar un servicio hasta d
 
 ## 3. Atajos de navegación y catálogo de departamentos
 
-**Hipótesis de URL, PENDIENTE DE VERIFICAR EN EL PORTAL REAL:**
+**Patrón de URL documentado, con Cocina (ID 55) confirmado desde la interfaz autenticada el 09/10/2026; otros IDs sin comprobar en navegador:**
 
 `https://syncrosfera.bitrix24.eu/timeman/schedules/{BITRIX_SCHEDULE_ID}/shiftplan/`
 
-La ruta procede de una referencia pública de código del módulo `timeman` (no de una garantía oficial para esta instancia y esta versión). Por ejemplo, para Cocina el enlace candidato es `https://syncrosfera.bitrix24.eu/timeman/schedules/55/shiftplan/`. **No considerar el ejemplo un enlace probado ni una ruta autorizada de publicación.**
+La ruta se identificó originalmente como hipótesis a partir de una referencia pública del módulo `timeman`. El 09/10/2026 la **interfaz autenticada de Bitrix24** confirmó que el enlace `PLANIFICAR TURNOS` del horario `Turnos - Cocina` tiene exactamente el valor `https://syncrosfera.bitrix24.eu/timeman/schedules/55/shiftplan/`, y al activarlo abrió la vista de planificación `Turnos - Cocina - horario`. **VERIFICADO exclusivamente ese recorrido interno; no está probado abrir el mismo deep link desde una sesión nueva o un navegador remoto, ni autoriza publicar turnos.**
 
 Mapeo **documentado previamente**, pendiente de revalidar en Bitrix24 antes del primer piloto:
 
@@ -104,9 +104,38 @@ Reglas de optimización:
 
 **Aceptación:** una asignación de prueba creada/modificada y leída correctamente, sin duplicación y con reversión probada; trabajo remoto sin sesión local; registro del recorrido y métricas; ninguna afirmación `DONE` si faltan evidencias.
 
-**Estado hoy:** Paso A `[NO DATA]` en navegador autenticado; pasos B y C **NO IMPLEMENTADOS / NO AUTORIZADOS**. El bloqueo seguro `BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO` sigue vigente. No marcar como `CONECTADO`, `TESTEADO`, `VERIFICADO` ni `PRODUCCIÓN` el publicador.
+**Estado actualizado 09/10/2026:** Paso A **PARCIAL / TESTEADO en aplicación autenticada**: vínculo oficial de Cocina, vista y controles confirmados en solo lectura. Queda `[NO DATA]` para entrada directa en navegador nuevo, sesión técnica separada y ejecución desde Vercel. Pasos B y C **NO IMPLEMENTADOS / NO AUTORIZADOS**. El bloqueo `BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO` sigue vigente; el publicador continúa **NO VERIFICADO**.
 
-## 7. Fuentes consultadas
+## 7. Prueba real de navegación — Cocina ID 55 (09/10/2026)
+
+**Autorización:** Alexander autorizó únicamente una prueba de acceso en **modo lectura**; sin publicar turnos ni modificar fichajes, empleados, datos de Supabase o configuración de Bitrix24.
+
+**Entorno usado:** aplicación de escritorio Bitrix24, sesión del usuario ya autenticada, en dispositivo autorizado HPTOUCHALEXBOSS. Acceso mediante controles de accesibilidad (Windows UI Automation); **cero capturas**, sin extraer cookies, contraseñas ni tokens. El navegador automatizado remoto en Vercel NO se ha desplegado ni ejecutado.
+
+**Recorrido observado y reproducible desde la sección de inicio de la aplicación:**
+1. Hipervínculo de menú lateral **Empleados**.
+2. Expandir botón **Tiempo y reportes** (`ExpandCollapsePattern`).
+3. Menú **Horarios de trabajo** (`MenuItem`, `InvokePattern`), que abre `/timeman/schedules/`.
+4. Abrir hipervínculo **Turnos - Cocina** (`Hyperlink`, `InvokePattern`). La ventana `Editar el horario de trabajo` muestra el campo **Título del horario de trabajo** con valor `Turnos - Cocina`.
+5. Leer y activar el hipervínculo **PLANIFICAR TURNOS**. Su valor de destino es **exactamente** `https://syncrosfera.bitrix24.eu/timeman/schedules/55/shiftplan/`; se abre la ventana **Turnos - Cocina - horario** y aparece el ámbito **Cocina**.
+
+**Controles accesibles observados en la vista de turnos** (solo identificadores genéricos):
+- Ventana/documento: `Turnos - Cocina - horario`.
+- Botón: `Agregar` (no pulsado; podría crear o proponer un turno).
+- Campo de búsqueda: `Filtrar y buscar`.
+- Enlace de fecha: `Hoy`.
+- Tabla y ámbito: etiqueta `Cocina`.
+- La rejilla contiene muchos elementos `Group`; los selectores DOM exactos no se han inspeccionado ni verificado, por lo que no se pueden afirmar estables.
+
+**Métrica inicial:** cinco acciones de navegación en la interfaz desde Empleados al cuadrante (sin contar abrir una pestaña nueva). **Ruta optimizada candidata:** abrir el enlace exacto validado para ese horario, con autenticación y comprobación de encabezado/ID. **Ahorro potencial:** cuatro pasos de menú, pero el acceso directo desde un navegador independiente sigue `[NO DATA]` y no debe presentarse como probado.
+
+**Resultado y límite:** **VERIFICADO el enlace interno y la pantalla de Cocina por interacción real**; **NO VERIFICADOS** el lanzamiento de esa URL en nueva sesión, el inicio de sesión autónomo en nube, el guardado de una asignación y la lectura tras escritura. No se pulsaron acciones `Agregar`/`Guardar`, no hubo modificaciones de turnos, no se crearon credenciales ni se realizaron sincronizaciones masivas.
+
+**Aprendizaje para futuras ejecuciones:** priorizar la ruta de ID 55 y selectores basados en roles/nombres comprobados; registrar rutas, tiempo, errores y fallbacks; exigir verificación del departamento antes de cualquier escritura futura. Si cambia la UI, degradar a menú con el recorrido observado; no actualizar selectores automáticamente sin revisión de GitHub.
+
+**Reversión:** esta evidencia se retira revirtiendo únicamente el commit documental. El navegador del dispositivo conserva una pestaña de consulta adicional; no hay cambios de negocio que revertir.
+
+## 8. Fuentes consultadas
 
 - Código real: `planificacion_horaria.js`, `api/planning/catalog.js`, `api/planning/week.js`, `api/planning/publish.js`, `lib/planning-server.js` de la revisión `1ecbe1d`.
 - Especificación local: `docs/04-development/SPEC_PLANIFICACION_HORARIA.md`.
