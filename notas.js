@@ -1,6 +1,7 @@
 // Notes board. All persisted access is authorized by /api/suggestions.
 (function () {
   var states = [['pendiente','Pendiente','○'], ['en_desarrollo','En desarrollo','◐'], ['terminado','Terminado','✓'], ['rechazado','Rechazado','×']];
+  var topics = ['Aplicación y tecnología','Experiencia del huésped o cliente','Puesto de trabajo','Organización y procesos','Instalaciones y equipamiento'];
   var model = { records: [], canManage: false, actor: '', host: '', selected: 'pendiente', seq: 0, busy: false, drag: null };
   function actorKey() { return typeof currentUser !== 'undefined' && currentUser ? [currentUser.id,currentUser.rol,currentUser.area,currentUser.puesto].join('|') : ''; }
   function esc(value) { return String(value == null ? '' : value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -33,7 +34,7 @@
     var host=document.getElementById(hostId),actor=actorKey();if(!host||!actor)return;
     if(model.actor!==actor){model.records=[];model.canManage=false;model.selected='pendiente';closeDialog();}
     var seq=++model.seq;model.actor=actor;model.host=hostId;
-    host.innerHTML='<div class="suggestion-loading" role="status">Cargando tus propuestas…</div>';
+    host.innerHTML='<div class="suggestion-loading" role="status">Cargando el tablero compartido…</div>';
     try {
       var data=await request('GET');
       if(seq!==model.seq||actor!==actorKey())return;
@@ -50,7 +51,7 @@
     var title=n.titulo||String(n.texto||'').slice(0,90)||'Nota anterior';
     var controls=managed()?'<div class="suggestion-controls"><div class="suggestion-order"><button type="button" data-action="up" data-id="'+esc(n.id)+'" aria-label="Subir prioridad: '+esc(title)+'" '+(index===0||model.busy?'disabled':'')+'>↑</button><button type="button" data-action="down" data-id="'+esc(n.id)+'" aria-label="Bajar prioridad: '+esc(title)+'" '+(index===length-1||model.busy?'disabled':'')+'>↓</button></div><label class="suggestion-state-select"><span class="sr-only">Estado de '+esc(title)+'</span><select data-id="'+esc(n.id)+'" '+(model.busy?'disabled':'')+'>'+states.map(function(s){return '<option value="'+s[0]+'" '+(n.estado===s[0]?'selected':'')+'>'+s[1]+'</option>';}).join('')+'</select></label></div>':'';
     return '<article class="suggestion-card" data-id="'+esc(n.id)+'" '+(managed()&&!model.busy?'draggable="true"':'')+'>'
-      +'<div class="suggestion-card-meta"><span>'+esc(n.modulo||n.categoria||'Mejora')+'</span><span>'+date(n.created_at)+'</span></div>'
+      +'<div class="suggestion-card-meta"><span>'+esc(n.categoria||'Mejora')+' · '+esc(n.modulo||'Sin clasificar')+'</span><span>'+date(n.created_at)+'</span></div>'
       +'<button class="suggestion-detail-button" data-action="detail" data-id="'+esc(n.id)+'"><strong>'+esc(title)+'</strong><span class="suggestion-description">'+esc(n.texto)+'</span></button>'
       +(n.estado==='rechazado'?'<div class="suggestion-reason"><b>Motivo del rechazo</b><p>'+esc(n.respuesta)+'</p></div>':'')
       +'<div class="suggestion-author">'+esc(n.nombre)+' · '+esc(n.area)+'</div>'
@@ -58,10 +59,10 @@
   }
   function draw() {
     var host=document.getElementById(model.host);if(!host||model.actor!==actorKey())return;
-    host.innerHTML='<div class="suggestions-head"><div><div class="page-title">Notas y Sugerencias</div><p>'+ (managed()?'Decide qué mejora se hace primero. Arrastra las tarjetas o usa las flechas.':'Propón una mejora y sigue su avance. Cada propuesta conserva su estado.')+'</p></div><div class="suggestion-head-actions"><button class="btn btn-secondary" data-action="refresh" '+(model.busy?'disabled':'')+'>Actualizar</button><button class="btn btn-primary" data-action="new" '+(model.busy?'disabled':'')+'>+ Nueva propuesta</button></div></div>'
+    host.innerHTML='<div class="suggestions-head"><div><div class="page-title">Notas y Sugerencias</div><p>'+ (managed()?'Decide qué mejora se hace primero. Arrastra las tarjetas o usa las flechas.':'Tablero compartido: propón una mejora y sigue el avance de todas las propuestas.')+'</p></div><div class="suggestion-head-actions"><button class="btn btn-secondary" data-action="refresh" '+(model.busy?'disabled':'')+'>Actualizar</button><button class="btn btn-primary" data-action="new" '+(model.busy?'disabled':'')+'>+ Nueva propuesta</button></div></div>'
       +'<div class="suggestion-feedback" role="status" aria-live="polite"></div>'
       +'<div class="suggestion-state-tabs" role="tablist" aria-label="Estados de las propuestas">'+states.map(function(s){return '<button role="tab" aria-selected="'+(model.selected===s[0])+'" data-state="'+s[0]+'" data-action="tab">'+s[1]+' <span>'+ordered(s[0]).length+'</span></button>';}).join('')+'</div>'
-      +'<div class="suggestions-board" aria-label="Tablero de mejoras" '+(model.busy?'aria-busy="true"':'')+'>'+states.map(function(s){var list=ordered(s[0]);return '<section class="suggestion-column '+(model.selected===s[0]?'is-selected':'')+'" data-state="'+s[0]+'" aria-label="'+s[1]+'"><h3><span><i aria-hidden="true">'+s[2]+'</i> '+s[1]+'</span><span class="suggestion-count">'+list.length+'</span></h3><div class="suggestion-cards">'+(list.length?list.map(function(n,i){return card(n,i,list.length);}).join(''):'<div class="suggestion-empty">'+(managed()?'Sin propuestas. Puedes mover una tarjeta aquí.':'No tienes propuestas en este estado.')+'</div>')+'</div></section>';}).join('')+'</div>';
+      +'<div class="suggestions-board" aria-label="Tablero de mejoras" '+(model.busy?'aria-busy="true"':'')+'>'+states.map(function(s){var list=ordered(s[0]);return '<section class="suggestion-column '+(model.selected===s[0]?'is-selected':'')+'" data-state="'+s[0]+'" aria-label="'+s[1]+'"><h3><span><i aria-hidden="true">'+s[2]+'</i> '+s[1]+'</span><span class="suggestion-count">'+list.length+'</span></h3><div class="suggestion-cards">'+(list.length?list.map(function(n,i){return card(n,i,list.length);}).join(''):'<div class="suggestion-empty">'+(managed()?'Sin propuestas. Puedes mover una tarjeta aquí.':'Todavía no hay propuestas en este estado.')+'</div>')+'</div></section>';}).join('')+'</div>';
     host.onclick=onClick;host.onchange=onChange;
     host.ondragstart=function(event){var target=event.target.closest('.suggestion-card');if(!managed()||model.busy||!target){event.preventDefault();return;}model.drag=target.dataset.id;event.dataTransfer.setData('text/plain',model.drag);event.dataTransfer.effectAllowed='move';target.classList.add('is-dragging');};
     function clearDrag(){host.querySelectorAll('.is-dragging,.is-drop-target,.drop-before').forEach(function(el){el.classList.remove('is-dragging','is-drop-target','drop-before');});}
@@ -115,7 +116,7 @@
   }
   function openNew() {
     if(!actorKey()||model.busy)return;
-    dialog('Nueva propuesta','<label>Título<input name="titulo" required minlength="3" maxlength="160" placeholder="¿Qué debemos mejorar?"></label><label>Módulo o apartado<input name="modulo" maxlength="120" placeholder="Por ejemplo: turnos, fichaje o informes"></label><label>Categoría<select name="categoria"><option>Mejora</option><option>Sugerencia</option><option>Queja</option></select></label><label>Descripción<textarea name="texto" rows="5" required minlength="5" maxlength="5000" placeholder="Explica qué ocurre y cómo te gustaría que funcionase."></textarea></label><p class="suggestion-form-hint">Tu propuesta aparecerá en Pendiente. Podrás consultar aquí su estado.</p>','Enviar propuesta',async function(overlay){
+    dialog('Nueva propuesta','<label>Título<input name="titulo" required minlength="3" maxlength="160" placeholder="¿Qué debemos mejorar?"></label><label>¿A qué se refiere?<select name="modulo" required><option value="" disabled selected>Selecciona una opción</option>'+topics.map(function(topic){return '<option value="'+esc(topic)+'">'+esc(topic)+'</option>';}).join('')+'</select></label><label>Categoría<select name="categoria"><option>Mejora</option><option>Sugerencia</option><option>Queja</option></select></label><label>Descripción<textarea name="texto" rows="5" required minlength="5" maxlength="5000" placeholder="Explica qué ocurre y cómo te gustaría que funcionase."></textarea></label><p class="suggestion-form-hint">Tu propuesta aparecerá en Pendiente y será visible para todo el equipo.</p>','Enviar propuesta',async function(overlay){
       var actor=actorKey(),form=overlay.querySelector('form');model.busy=true;overlay.querySelectorAll('button').forEach(function(b){b.disabled=true;});
       try {
         var data=await request('POST',{titulo:form.elements.titulo.value,texto:form.elements.texto.value,modulo:form.elements.modulo.value,categoria:form.elements.categoria.value});
@@ -132,7 +133,7 @@
   }
   function openDetail(id) {
     var record=note(id);if(!record||model.actor!==actorKey())return;
-    dialog(record.titulo||'Detalle de la propuesta','<div class="suggestion-detail-state">'+esc(stateLabel(record.estado))+'</div><p class="suggestion-detail-text">'+esc(record.texto)+'</p><p class="suggestion-author">'+esc(record.nombre)+' · '+esc(record.area)+' · '+date(record.created_at)+'</p>'+(record.respuesta?'<div class="suggestion-reason"><b>Motivo del rechazo</b><p>'+esc(record.respuesta)+'</p></div>':''),null,null);
+    dialog(record.titulo||'Detalle de la propuesta','<div class="suggestion-detail-state">'+esc(stateLabel(record.estado))+'</div><p class="suggestion-form-hint">Se refiere a: '+esc(record.modulo||'Sin clasificar')+'</p><p class="suggestion-detail-text">'+esc(record.texto)+'</p><p class="suggestion-author">'+esc(record.nombre)+' · '+esc(record.area)+' · '+date(record.created_at)+'</p>'+(record.respuesta?'<div class="suggestion-reason"><b>Motivo del rechazo</b><p>'+esc(record.respuesta)+'</p></div>':''),null,null);
   }
   window.renderNotasMod=function(){return load('screen-notas-mod');};
   window.renderValNotasList=function(){var kpi=document.getElementById('val-notas-kpis');if(kpi)kpi.replaceChildren();return load('val-notas-table');};

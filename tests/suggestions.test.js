@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import handler from '../api/suggestions.js';
-import { canReadSuggestion, suggestionDraft, suggestionMove, suggestionProjection } from '../lib/suggestions.js';
+import { canReadSuggestion, suggestionDraft, suggestionMove, suggestionProjection, SUGGESTION_TOPICS } from '../lib/suggestions.js';
 
 const employee = { id: 'E1', nombre: 'Persona de prueba', area: 'Cocina', rol: 'empleado', puesto: 'Cocinero', estado: 'Activo' };
 const admin = { ...employee, id: 'A1', area: 'Administración', rol: 'admin', puesto: 'Administrador' };
@@ -38,20 +38,22 @@ async function mocked(actor,run,options={}) {
   };
   try { return await run(calls); } finally { globalThis.fetch=original;for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];} }
 }
-test('visibility preserves own notes, department leadership and direction without employee IDOR',()=>{
+test('all active profiles can read the shared board across authors and departments',()=>{
   assert.equal(canReadSuggestion(employee,row),true);
-  assert.equal(canReadSuggestion(employee,{...row,employee_id:'E2'}),false);
+  assert.equal(canReadSuggestion(employee,{...row,employee_id:'E2'}),true);
   assert.equal(canReadSuggestion(chief,{...row,employee_id:'E2'}),true);
-  assert.equal(canReadSuggestion(chief,{...row,employee_id:'E3',area:'Sala'}),false);
+  assert.equal(canReadSuggestion(chief,{...row,employee_id:'E3',area:'Sala'}),true);
   assert.equal(canReadSuggestion(admin,{...row,employee_id:'E3',area:'Sala'}),true);
   assert.equal(canReadSuggestion({...employee,rol:'adjunto'},{...row,employee_id:'E3',area:'Sala'}),true);
   assert.equal(canReadSuggestion(null,row),false);
+  assert.equal(canReadSuggestion({...employee,estado:'Baja'},row),false);
+  assert.equal(canReadSuggestion(employee,null),false);
 });
 test('proposal identity and pending state come from the trusted actor; forged metadata is rejected',()=>{
-  const draft=suggestionDraft({titulo:'  Mejora propuesta ',texto:' Texto de prueba ',modulo:'Fichaje'},employee);
+  const draft=suggestionDraft({titulo:'  Mejora propuesta ',texto:' Texto de prueba ',modulo:SUGGESTION_TOPICS[0]},employee);
   assert.equal(draft.employee_id,'E1');assert.equal(draft.estado,'pendiente');assert.equal(draft.version,1);assert.equal(draft.titulo,'Mejora propuesta');
   for(const added of [{employee_id:'E2'},{estado:'terminado'},{posicion:1},{nombre:'Otra persona'},{rol:'admin'}])
-    assert.equal(suggestionDraft({titulo:'Mejora',texto:'Prueba válida',...added},employee),null);
+    assert.equal(suggestionDraft({titulo:'Mejora',texto:'Prueba válida',modulo:SUGGESTION_TOPICS[0],...added},employee),null);
   for(const body of [null,[],{titulo:'x',texto:'Prueba'},{titulo:'Mejora',texto:'x'},{titulo:'Mejora',texto:'Prueba',categoria:'Otro'}])assert.equal(suggestionDraft(body,employee),null);
 });
 test('moves require a valid version, anchor, state and rejection reason; projection excludes unrelated fields',()=>{
@@ -61,10 +63,11 @@ test('moves require a valid version, anchor, state and rejection reason; project
   assert.equal(suggestionProjection({...row,private_extra:'PRIVATE'}).private_extra,undefined);
   assert.throws(()=>suggestionProjection({...row,estado:undefined}));
 });
-test('GET returns only visible proposals and trusted management permissions for each role',async()=>{
-  for(const [actor,ids] of [[employee,['N1']],[chief,['N1','N2']],[admin,['N1','N2','N3']]])await mocked(actor,async calls=>{
+test('GET returns every proposal with management permissions restricted to the administrator',async()=>{
+  for(const actor of [employee,chief,admin,{...employee,rol:'contable',puesto:'Contable'},{...employee,rol:'adjunto',puesto:'Adjunto Directivo'}])await mocked(actor,async calls=>{
     const response=await handler(request());assert.equal(response.status,200);const data=await response.json();
-    assert.deepEqual(data.records.map(n=>n.id),ids);assert.equal(data.permissions.can_manage,actor.rol==='admin');
+    assert.deepEqual(data.records.map(n=>n.id),['N1','N2','N3']);assert.equal(data.permissions.can_manage,actor.rol==='admin');
+    assert.equal(data.records[0].modulo,'Turnos'); // Legacy classification is preserved without being rewritten.
     assert.match(response.headers.get('Cache-Control'),/no-store/);assert.equal(response.headers.get('Vary'),'Authorization, Cookie');assert.ok(calls.every(c=>c.method==='GET'));
   });
 });
@@ -82,12 +85,27 @@ test('employees and leaders cannot change state/order even if the token claims a
 });
 test('creating a proposal confirms persisted representation and never accepts an author supplied by the browser',async()=>{
   await mocked(employee,async calls=>{
-    const response=await handler(request('POST',{titulo:'Mejora',texto:'Texto válido',modulo:'Turnos'}));assert.equal(response.status,201);
+    const response=await handler(request('POST',{titulo:'Mejora',texto:'Texto válido',modulo:SUGGESTION_TOPICS[0]}));assert.equal(response.status,201);
     const data=await response.json();assert.equal(data.record.employee_id,'E1');assert.equal(data.record.estado,'pendiente');
     const written=calls.find(c=>c.method==='POST');assert.equal(written.body.nombre,employee.nombre);assert.equal(written.body.posicion,null);
-    assert.equal((await handler(request('POST',{titulo:'Mejora',texto:'Texto válido',employee_id:'E2'}))).status,400);
+    assert.equal((await handler(request('POST',{titulo:'Mejora',texto:'Texto válido',modulo:SUGGESTION_TOPICS[0],employee_id:'E2'}))).status,400);
   });
-  await mocked(employee,async()=>assert.equal((await handler(request('POST',{titulo:'Mejora',texto:'Texto válido'}))).status,503),{emptySave:true});
+  await mocked(employee,async()=>assert.equal((await handler(request('POST',{titulo:'Mejora',texto:'Texto válido',modulo:SUGGESTION_TOPICS[0]}))).status,503),{emptySave:true});
+});
+test('each profile can submit all five approved topics; missing and invented topics cause no write',async()=>{
+  assert.deepEqual(SUGGESTION_TOPICS,['Aplicación y tecnología','Experiencia del huésped o cliente','Puesto de trabajo','Organización y procesos','Instalaciones y equipamiento']);
+  for(const actor of [employee,chief,admin])await mocked(actor,async calls=>{
+    for(const modulo of SUGGESTION_TOPICS){
+      const response=await handler(request('POST',{titulo:'Propuesta clasificada',texto:'Contenido ficticio de prueba',modulo}));
+      assert.equal(response.status,201);const {record}=await response.json();
+      assert.equal(record.modulo,modulo);assert.equal(record.employee_id,actor.id);assert.equal(record.estado,'pendiente');
+    }
+    const writes=calls.filter(c=>c.method==='POST').length;
+    for(const modulo of [undefined,'','Turnos','Otro',42]){
+      assert.equal((await handler(request('POST',{titulo:'Propuesta',texto:'Texto válido',modulo}))).status,400);
+    }
+    assert.equal(calls.filter(c=>c.method==='POST').length,writes);
+  });
 });
 test('admin uses one transactional RPC for ordering, state and rejection with expected version',async()=>{
   await mocked(admin,async calls=>{
@@ -141,4 +159,17 @@ test('HTML5 drag handlers save the intended state and version and deny a changed
   ctx.currentUser={...employee};let denied=false;
   host.ondragstart({target:{closest:()=>card},dataTransfer:transfer,preventDefault(){denied=true;}});
   assert.equal(denied,true);assert.equal(calls.length,1);
+});
+
+test('shared proposals render for employee and chief without management controls, even with a forged permission flag',async()=>{
+  const source=fs.readFileSync(new URL('../notas.js',import.meta.url),'utf8');
+  for(const actor of [employee,chief]){
+    const host={innerHTML:'',querySelectorAll:()=>[],querySelector:()=>null};
+    const records=[row,{...row,id:'N2',employee_id:'E2',area:'Sala',estado:'rechazado',respuesta:'Motivo visible al equipo'}];
+    const ctx=vm.createContext({window:{},currentUser:{...actor},document:{getElementById:id=>id==='screen-notas-mod'?host:null},
+      syncroSupabaseFetch:async()=>({ok:true,json:async()=>({records,permissions:{can_manage:true}})})});
+    vm.runInContext(source,ctx);await ctx.window.renderNotasMod();
+    assert.match(host.innerHTML,/data-id="N2"/);assert.match(host.innerHTML,/Motivo visible al equipo/);
+    assert.match(host.innerHTML,/Turnos/);assert.doesNotMatch(host.innerHTML,/draggable="true"|data-action="up"|data-action="down"|class="suggestion-state-select"/);
+  }
 });

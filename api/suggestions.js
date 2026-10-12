@@ -12,7 +12,7 @@ export default async function handler(req) {
   if (req.method !== 'GET') { const crossOrigin = requireSameOrigin(req); if (crossOrigin) return crossOrigin; }
   let actor;
   try { actor = await loadManagementActor(req); } catch (_) { return reply({ error: 'No se pudo comprobar la sesión.' }, 503); }
-  if (!actor) return reply({ error: 'Inicia sesión para consultar tus propuestas.' }, 401);
+  if (!actor) return reply({ error: 'Inicia sesión para consultar el tablero.' }, 401);
   if (req.method === 'PATCH' && !isAdminProfile(actor.profile)) return reply({ error: 'Solo el administrador puede priorizar y cambiar estados.' }, 403);
   try {
     if (req.method === 'GET') {
@@ -28,7 +28,7 @@ export default async function handler(req) {
     const body = await readJson(req, 24000);
     if (req.method === 'POST') {
       const draft = suggestionDraft(body, actor.profile);
-      if (!draft) return reply({ error: 'Revisa el título, la descripción y el módulo.' }, 400);
+      if (!draft) return reply({ error: 'Revisa el título y la descripción, y elige a qué se refiere la propuesta.' }, 400);
       const saved = await adminRequest('employee_notes?select=' + SUGGESTION_FIELDS, {
         method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(draft)
       });
