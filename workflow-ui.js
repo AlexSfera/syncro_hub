@@ -9,6 +9,7 @@
   var seq=0;
   window.workflowClearSession=function(){
     ++seq;restore();
+    if(typeof clearSuggestionsSession==='function')clearSuggestionsSession();
     document.querySelectorAll('.workflow-body').forEach(function(body){body.replaceChildren();});
     if(typeof _hmData!=='undefined')_hmData=null;
     if(typeof _infEmployeesCache!=='undefined')_infEmployeesCache=null;

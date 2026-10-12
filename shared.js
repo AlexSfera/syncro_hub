@@ -881,7 +881,7 @@ function _legacyScreens(rol){
   if(isAdminU){
     return [
       navSection('OPERACIÓN', 'Seguimiento y supervisión transversal de la operativa.', 'operacion'),
-      navSubsection('SEGUIMIENTO'), ITEMS.gestiones, ITEMS.incidencias, ITEMS.tareas, ITEMS.hypoxic,
+      navSubsection('SEGUIMIENTO'), ITEMS.gestiones, ITEMS.incidencias, ITEMS.tareas, ITEMS.hypoxic, ITEMS.nota,
       navSubsection('SUPERVISIÓN'), ITEMS.validacion, ITEMS.mantmod, ITEMS.dashHK, ITEMS.liquidaciones,
       navSection('EQUIPO', 'Personas, jornada, planificación y disciplina.', 'equipo'),
       navSubsection('JORNADA Y PLANIFICACIÓN'), ITEMS.planificacion, ITEMS.fichaje, ITEMS.horasMes,
@@ -918,7 +918,7 @@ function _legacyScreens(rol){
     return [
       navSection('CONTROL CONTABLE', 'Cierres, consulta operativa y planificación.', 'control-contable'),
       navSubsection('CIERRES'), ITEMS.validacion,
-      navSubsection('CONSULTA'), ITEMS.dashboard, ITEMS.planificacion
+      navSubsection('CONSULTA'), ITEMS.dashboard, ITEMS.planificacion, ITEMS.nota
     ];
   }
 
@@ -1037,7 +1037,8 @@ function getScreens(rol){
     var item={id:id,label:label,description:description}; if(action) item.action=action;
     buckets[group].push(item);
   }
-  ['turno','ruta-mod','chk-mod','notas-mod','mis-fio'].forEach(function(id){ put('mi-dia',id); });
+  ['turno','ruta-mod','chk-mod','mis-fio'].forEach(function(id){ put('mi-dia',id); });
+  put(rol==='admin'?'operacion':'mi-dia','notas-mod','Notas y Sugerencias','Proponer mejoras y consultar su prioridad y estado.');
   ['gestiones','tareas','incidencias','hypoxic','merma-mod','validacion','mant-mod','hk-plan','hk-zonas','hk-revision','hk-dash'].forEach(function(id){ put('operacion',id); });
   buckets.operacion.forEach(function(item){
     var labels={'hypoxic':'Sala hipóxica','validacion':'Partes y revisión','hk-plan':'Asignaciones HK','hk-dash':'Seguimiento HK'};
@@ -2623,47 +2624,11 @@ async function renderFollowUpExtras(dept){
     +'</div>';
   valTaskRenderTable();
 
-  // ── C7: Notas del empleado (bloque Operativo) ──
+  // Las propuestas tienen un único tablero autorizado y estados compartidos.
   var notasEl = document.getElementById('val-op-notas-list');
-  if(notasEl){
-    var notes = [];
-    try { notes = await getDB('employee_notes'); } catch(e){}
-    // Filtrar por dept
-    if(dept){
-      var nDeptLow = dept.toLowerCase().trim();
-      notes = notes.filter(function(n){ return (n.area||'').toLowerCase().trim() === nDeptLow; });
-    } else if(!(typeof isAdmin==='function' && isAdmin(currentUser)) && !(typeof isAdjuntoDirectivo==='function' && isAdjuntoDirectivo(currentUser))){
-      var _notaDepts = typeof getSupervisorDepartments==='function' ? getSupervisorDepartments(currentUser) : [currentUser.area||''];
-      notes = notes.filter(function(n){ return _notaDepts.some(function(d){ return (n.area||'').toLowerCase() === d.toLowerCase(); }); });
-    }
-    notes.sort(function(a,b){ return (b.created_at||'').localeCompare(a.created_at||''); });
-    notes = notes.slice(0,30);
-    var isAdmN = typeof canActAsAdmin==='function' && canActAsAdmin(currentUser);
-    if(!notes.length){
-      notasEl.innerHTML = '<div class="empty" style="padding:16px;"><div class="empty-text" style="font-size:12px;">Sin notas</div></div>';
-    } else {
-      notasEl.innerHTML = notes.map(function(n){
-        var hora = n.created_at ? new Date(n.created_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
-        var catColor = n.categoria==='Queja' ? '#ef4444' : n.categoria==='Mejora' ? '#10b981' : '#8b5cf6';
-        var leidaTag = (!n.leida && n.employee_id!==currentUser.id)
-          ? '<span style="font-size:10px;background:rgba(239,68,68,.15);color:#ef4444;padding:2px 7px;border-radius:6px;margin-left:6px;">Nueva</span>'
-          : '';
-        var markBtn = (isAdmN && !n.leida && n.employee_id!==currentUser.id)
-          ? ' <button class="btn btn-secondary btn-sm" style="font-size:10px;" onclick="markNotaLeida(\''+n.id+'\')">✓ Leída</button>'
-          : '';
-        return '<div class="task-card" style="'+(n.leida?'opacity:.7;':'')+'border-left:3px solid '+catColor+';padding:10px 14px;margin-bottom:6px;">'
-          +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-          +'<span class="badge" style="background:rgba(139,92,246,.15);color:'+catColor+';border:1px solid '+catColor+';font-size:10px;">'+n.categoria+'</span>'
-          +'<span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">'+hora+'</span>'
-          +'<span style="font-size:11px;font-weight:600;color:var(--text2);">'+formatDisplayValue(n.nombre)+'</span>'
-          +'<span class="dept-badge" style="font-size:10px;">'+formatDisplayValue(n.area||'—')+'</span>'
-          +leidaTag+markBtn
-          +'</div>'
-          +'<div style="font-size:13px;color:var(--text);margin-top:6px;line-height:1.4;">'+formatDisplayValue(n.texto)+'</div>'
-          +'</div>';
-      }).join('');
-    }
-  }
+  if(notasEl) notasEl.innerHTML = '<p style="color:var(--text3);font-size:12px;">Consulta las propuestas, su prioridad y su estado en el tablero.</p>'
+    + '<button class="btn btn-secondary" onclick="showScreen(\'notas-mod\')">Abrir Notas y Sugerencias</button>';
+
 }
 window.renderFollowUpExtras = renderFollowUpExtras;
 
@@ -5519,8 +5484,7 @@ window.deleteMermaItem = deleteMermaItem;
 // ═══════════════════════════════════════════════════════════════════════
 // NOTAS / SUGERENCIAS — módulo empleado (MI DÍA) + tab Validación
 // Visible: autor + jefe de departamento + adjunto directivo + admin
-// Tabla: employee_notes (id, employee_id, nombre, area, categoria, texto,
-//        leida, created_at)
+// Tabla ampliada employee_notes: campos y permisos en lib/suggestions.js.
 // ═══════════════════════════════════════════════════════════════════════
 
 var _NOTA_CATS = ['Sugerencia','Queja','Mejora'];
@@ -5534,186 +5498,7 @@ function _canSeeNotasTab(user){
   return false;
 }
 
-async function renderNotasMod(){
-  var el = document.getElementById('screen-notas-mod');
-  if(!el) return;
-
-  var isAdminU = typeof isAdmin==='function' && isAdmin(currentUser);
-  var canSeeAll = _canSeeNotasTab(currentUser);
-  var todayStr = today();
-
-  invalidateCache('employee_notes');
-  var all = [];
-  try { all = await getDB('employee_notes'); } catch(e){ console.error('employee_notes load error',e); }
-
-  // Filtrar: empleado normal solo ve las suyas
-  var list = canSeeAll
-    ? all.slice()
-    : all.filter(function(n){ return n.employee_id === currentUser.id; });
-
-  // Jefe ve solo su dpto
-  if(canSeeAll && !isAdminU && !(typeof isAdjuntoDirectivo==='function' && isAdjuntoDirectivo(currentUser))){
-    var myDepts = typeof getSupervisorDepartments==='function'
-      ? getSupervisorDepartments(currentUser)
-      : [currentUser.area||''];
-    list = list.filter(function(n){
-      return myDepts.indexOf(n.area) >= 0 || n.employee_id === currentUser.id;
-    });
-  }
-
-  list.sort(function(a,b){ return (b.created_at||'').localeCompare(a.created_at||''); });
-
-  // KPIs
-  var catCount = {};
-  _NOTA_CATS.forEach(function(c){ catCount[c]=0; });
-  list.forEach(function(n){ if(catCount[n.categoria]!==undefined) catCount[n.categoria]++; });
-  var noLeidas = list.filter(function(n){ return !n.leida && n.employee_id !== currentUser.id; }).length;
-
-  var kpiHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">'
-    +'<div class="kpi k-purple"><div class="kpi-lbl">Total</div><div class="kpi-val">'+list.length+'</div></div>'
-    +_NOTA_CATS.map(function(c){
-      return '<div class="kpi k-purple"><div class="kpi-lbl">'+c+'</div><div class="kpi-val">'+catCount[c]+'</div></div>';
-    }).join('')
-    +(canSeeAll && noLeidas>0 ? '<div class="kpi k-red"><div class="kpi-lbl">Sin leer</div><div class="kpi-val">'+noLeidas+'</div></div>' : '')
-    +'</div>';
-
-  // Tarjetas
-  var cards;
-  if(!list.length){
-    cards = '<div class="empty"><div class="empty-icon">💬</div><div class="empty-text">Sin notas registradas</div></div>';
-  } else {
-    cards = list.map(function(n){
-      var hora = n.created_at ? new Date(n.created_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
-      var catColor = n.categoria==='Queja' ? '#ef4444' : n.categoria==='Mejora' ? '#10b981' : '#8b5cf6';
-      var leidaTag = (!n.leida && canSeeAll && n.employee_id!==currentUser.id)
-        ? '<span style="font-size:10px;background:rgba(239,68,68,.15);color:#ef4444;padding:2px 7px;border-radius:6px;margin-left:6px;">Nueva</span>'
-        : '';
-      var markBtn = (canSeeAll && !n.leida && n.employee_id!==currentUser.id)
-        ? '<button class="btn btn-secondary btn-sm" style="margin-left:auto;font-size:11px;" onclick="markNotaLeida(\''+n.id+'\')">✓ Marcar leída</button>'
-        : '';
-      var delBtn = (isAdminU || n.employee_id===currentUser.id)
-        ? ' <button class="btn btn-danger btn-sm" onclick="deleteNota(\''+n.id+'\')" title="Eliminar">🗑</button>'
-        : '';
-      return '<div class="task-card" style="'+(n.leida?'opacity:.75;':'')+'border-left:3px solid '+catColor+';">'
-        +'<div class="task-meta" style="align-items:flex-start;gap:10px;">'
-        +'<span class="badge" style="background:rgba(139,92,246,.15);color:'+catColor+';border:1px solid '+catColor+';">'+n.categoria+'</span>'
-        +'<span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">'+hora+'</span>'
-        +leidaTag
-        +(canSeeAll?'<span class="dept-badge">'+formatDisplayValue(n.area||'—')+'</span>':'')
-        +markBtn+delBtn
-        +'</div>'
-        +'<div style="font-size:14px;color:var(--text);margin-top:8px;line-height:1.5;">'+formatDisplayValue(n.texto)+'</div>'
-        +'<div class="task-footer" style="margin-top:6px;">'
-        +'<div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);">👤 '+formatDisplayValue(n.nombre)+'</div>'
-        +'</div>'
-        +'</div>';
-    }).join('');
-  }
-
-  var totalSinLeer = list.filter(function(n){ return !n.leida && n.employee_id!==currentUser.id; }).length;
-  var subText = list.length+' nota(s)' + (totalSinLeer>0?' · <b style="color:#ef4444;">'+totalSinLeer+' sin leer</b>':'');
-
-  el.innerHTML = '<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">'
-    +'<div><div class="page-title">💬 Notas y Sugerencias</div>'
-    +'<div class="page-sub">'+subText+'</div></div>'
-    +'<button class="btn btn-primary" onclick="openNewNotaMod()">+ Nueva nota</button>'
-    +'</div>'
-    +kpiHtml
-    +'<div>'+cards+'</div>';
-}
-window.renderNotasMod = renderNotasMod;
-
-function openNewNotaMod(){
-  var ov = document.getElementById('modal-new-nota');
-  if(!ov){
-    ov = document.createElement('div');
-    ov.id = 'modal-new-nota';
-    ov.className = 'modal-overlay';
-    ov.innerHTML = '<div class="modal" style="max-width:520px;">'
-      +'<div class="modal-h"><h3>💬 Nueva nota</h3>'
-      +'<button class="modal-x" onclick="closeModal(\'modal-new-nota\')">✕</button></div>'
-      +'<div class="modal-b">'
-      +'<div class="fg"><label>Categoría <span class="req">*</span></label>'
-      +'<select id="nn-cat"><option value="">— Seleccionar —</option>'
-      +_NOTA_CATS.map(function(c){return '<option>'+c+'</option>';}).join('')
-      +'</select></div>'
-      +'<div class="fg"><label>Texto <span class="req">*</span></label>'
-      +'<textarea id="nn-texto" rows="5" placeholder="Describe tu sugerencia, queja o propuesta de mejora..." style="resize:vertical;"></textarea></div>'
-      +'</div>'
-      +'<div class="modal-f">'
-      +'<button class="btn btn-secondary" onclick="closeModal(\'modal-new-nota\')">Cancelar</button>'
-      +'<button class="btn btn-primary" onclick="saveNewNotaMod()">💾 Enviar nota</button>'
-      +'</div></div>';
-    document.body.appendChild(ov);
-    ov.addEventListener('click',function(e){ if(e.target===ov) closeModal('modal-new-nota'); });
-  }
-  var catEl = document.getElementById('nn-cat'); if(catEl) catEl.value='';
-  var txtEl = document.getElementById('nn-texto'); if(txtEl) txtEl.value='';
-  ov.classList.add('open');
-}
-window.openNewNotaMod = openNewNotaMod;
-
-async function saveNewNotaMod(){
-  var categoria = ((document.getElementById('nn-cat')||{}).value||'').trim();
-  var texto     = ((document.getElementById('nn-texto')||{}).value||'').trim();
-  if(!categoria){ toast('Selecciona una categoría','err'); return; }
-  if(!texto || texto.length < 5){ toast('Escribe al menos 5 caracteres','err'); return; }
-
-  var rec = {
-    id: genId(),
-    employee_id: currentUser.id,
-    nombre: currentUser.nombre,
-    area: currentUser.area||'',
-    categoria: categoria,
-    texto: texto,
-    leida: false,
-    created_at: localTs()
-  };
-  var result = await dbInsert('employee_notes', rec);
-  if(result === null){
-    toast('Error al guardar la nota (ver consola)','err');
-    return;
-  }
-  invalidateCache('employee_notes');
-  await auditLog('NOTA_NEW', currentUser.nombre+' · '+categoria+' · '+texto.slice(0,80));
-  toast('Nota enviada','ok');
-  closeModal('modal-new-nota');
-  renderNotasMod();
-}
-window.saveNewNotaMod = saveNewNotaMod;
-
-async function markNotaLeida(nid){
-  await dbUpdate('employee_notes', nid, { leida: true });
-  invalidateCache('employee_notes');
-  // Refrescar según pantalla activa
-  var screen = document.getElementById('screen-notas-mod');
-  if(screen && screen.classList.contains('active')) renderNotasMod();
-  if(typeof renderValNotasList==='function'){
-    var tab = document.getElementById('val-content-notas');
-    if(tab && tab.style.display!=='none') renderValNotasList();
-  }
-}
-window.markNotaLeida = markNotaLeida;
-
-async function deleteNota(nid){
-  if(!confirm('¿Eliminar esta nota?\n\nNo se puede deshacer.')) return;
-  var all = await getDB('employee_notes');
-  var n = (all||[]).find(function(x){ return x.id===nid; });
-  if(n && n.employee_id !== currentUser.id && !(typeof isAdmin==='function' && isAdmin(currentUser))){
-    toast('Solo puedes eliminar tus propias notas','err'); return;
-  }
-  await auditLog('NOTA_DELETE', nid+' | '+(n?n.texto.slice(0,60):''));
-  await dbDelete('employee_notes', nid);
-  invalidateCache('employee_notes');
-  toast('Nota eliminada','ok');
-  var screen = document.getElementById('screen-notas-mod');
-  if(screen && screen.classList.contains('active')) renderNotasMod();
-  if(typeof renderValNotasList==='function'){
-    var tab = document.getElementById('val-content-notas');
-    if(tab && tab.style.display!=='none') renderValNotasList();
-  }
-}
-window.deleteNota = deleteNota;
+// El módulo notas.js gestiona creación, consulta, estados y orden mediante la API.
 
 // ═══════════════════════════════════════════════════════════════════════
 // AJUSTES — módulo Sala desde sidebar (descuentos, errores, invitaciones)

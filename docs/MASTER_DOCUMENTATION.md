@@ -1,3 +1,13 @@
+## Notas y Sugerencias — 12/10/2026
+Esta sección describe exclusivamente la implementación local preparada.
+- IMPLEMENTADO y TESTEADO localmente: tablero Pendiente, En desarrollo, Terminado y Rechazado; propuestas por empleados/jefes; orden y estados solo Administrador; motivo de rechazo visible al autor; controles de móvil y teclado.
+- API con sesión vigente, autor del servidor, alcance de lectura, proyección y gestión admin-only. SQL transaccional y protección del acceso directo PREPARADOS, SIN aplicar LIVE.
+- Pruebas: sintaxis PASS; 227 PASS, 0 FAIL, 1 E2E preexistente omitida; 20 comprobaciones PostgreSQL aislado PASS; navegador con API real y PostgreSQL ficticio, ordenador y móvil. Arrastre físico: NO VERIFICADO; contrato HTML5 probado.
+- Base local: cc47b4c4d36f89eab54886a926ef509e9afc3a7b, rama codex/app-mejoras-20261012. Producción sigue en dpl_9yLSpaBGyx599FdJ8X2wM2kK2bPU. Sin cambios de GitHub, Vercel, Supabase LIVE o main.
+- Pendiente autorización específica de SQL y publicación. Evidencia, alcance y reversión: docs/04-development/FINAL_REPORT_NOTAS_SUGERENCIAS_20261012.md.
+
+---
+
 ## Permisos de incentivos — 08/10/2026
 Esta sección prevalece para este cambio.
 - IMPLEMENTADO y TESTEADO en Preview: solo Administrador controla y liquida; los jefes consultan pendientes de su ámbito; cada persona consulta únicamente sus pendientes.
