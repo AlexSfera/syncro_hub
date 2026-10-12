@@ -1,3 +1,14 @@
+## Habitación de tareas de Pisos — 12/10/2026
+Esta sección prevalece para la visualización de habitaciones en Tareas y Mantenimiento.
+- IMPLEMENTADO y TESTEADO: habitación guardada visible en lista general, detalle, resumen de tareas, detalle del turno y Kanban de Mantenimiento. Sin cambiar guardado ni permisos; no se infieren habitaciones ausentes.
+- Código GitHub `6b510012f9863555e788143131fde19e5f303965`, rama `codex/maintenance-room-20261012`. Preview `dpl_5MeReVmNirx8LRAnBUiBBCJch2hF` y Producción `dpl_5EVMnobUf56LdhaRvXVRAnwKGm89` READY, mismo código. Suite y builds: 234 PASS, 0 FAIL y 1 E2E previa OMITIDA.
+- PRODUCCIÓN confirmada en dominio público y sesión de Administrador: 219 tarjetas en Tareas y 13 habitaciones con ID/número iguales a Supabase; Mantenimiento muestra 72 tarjetas y 13 habitaciones; detalle de tarea existente de Pisos confirma Habitación 303. HTML y tres recursos JS HTTP 200, idénticos al código probado.
+- Supabase LIVE solo lectura: 219 filas y huella de todos los campos idéntica antes/después (`1be1d9b9f6cfe37a8fb502812242ab74`). Sin migraciones, backfill, cambios de tareas o de la sugerencia. De 18 tareas de Pisos, 10 sin habitación guardada se conservaron; su número original: [NO DATA].
+- Formulario Pisos → guardado → vistas Mantenimiento probado con datos ficticios; sesiones propias y creación LIVE no ejecutadas. Preview visual autenticada limitada por protección Vercel/IP. 0 errores de consola observados en la sesión de Producción.
+- `main` conserva `38074d99302009228dee8fd8c31fa69c475fc1ab`, sin fusión. Reversión de aplicación: `dpl_FtAevvD7GqCM37uaDmGgvjQAFaZk`, sin SQL. Informe y límites: `docs/04-development/FINAL_REPORT_HABITACION_TAREAS_20261012.md`. Ninguna decisión pendiente para publicar.
+
+---
+
 ## Tablero compartido y cinco temas — 12/10/2026
 Esta sección prevalece para la visibilidad y clasificación de Notas y Sugerencias.
 - IMPLEMENTADO y TESTEADO: todo perfil activo puede escribir y consultar todas las propuestas; solo Administrador cambia prioridades y estados. La API mantiene la sesión, validación de autor, protección de origen y gestión admin-only.
