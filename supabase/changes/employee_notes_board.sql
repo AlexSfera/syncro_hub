@@ -1,4 +1,5 @@
--- PREPARED ONLY. Requires Alexander's specific authorization before applying LIVE.
+-- APPLIED with Alexander's specific authorization on 2026-10-12.
+-- Supabase migration: 20261012192221 employee_notes_board.
 -- Extends existing notes without replacing/deleting their original content.
 BEGIN;
 ALTER TABLE public.employee_notes

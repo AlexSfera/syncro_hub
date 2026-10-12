@@ -1,3 +1,15 @@
+## Publicación de Notas y Sugerencias — 12/10/2026
+Esta sección prevalece para el tablero y su publicación.
+- IMPLEMENTADO y TESTEADO: Pendiente, En desarrollo, Terminado y Rechazado; propuestas por empleados/jefes; orden/estados solo Administrador; motivo de rechazo y controles de móvil/teclado.
+- Supabase LIVE: migración 20261012192221 employee_notes_board aplicada con autorización expresa. Se conservan las 10 notas y todos sus campos originales, comprobados por huella agregada idéntica antes/después. RPC y acceso directo protegidos.
+- GitHub: codex/app-mejoras-20261012, código a4f61faf1333608dfa1bfd7e3960d06e41731c71. Árbol idéntico al código local probado 779b302. main sigue en 38074d99302009228dee8fd8c31fa69c475fc1ab, sin fusión.
+- Preview dpl_9krrRYnMfZFj7WqU2HpN3KHA2zGp y Producción dpl_4w9hGfRvtxf3SaV14o6jzzwZJwUX READY, código a4f61faf. Ambos builds: 227 PASS, 0 FAIL, 1 E2E previa omitida.
+- Dominio syncro-shift.vercel.app confirmado; notas.js/notas.css HTTP 200 e idénticos; API sin sesión HTTP 401; portal abre en navegador local sin errores. Sin registros error/fatal en la ventana inicial breve.
+- Flujo autenticado LIVE y arrastre físico: NO VERIFICADOS. El lector Vercel recibe 403 del control de IP; no se cambiaron protecciones, IPs ni variables de entorno.
+- Evidencia y reversión: docs/04-development/FINAL_REPORT_NOTAS_SUGERENCIAS_20261012.md. No queda autorización pendiente para la publicación realizada.
+
+---
+
 ## Notas y Sugerencias — 12/10/2026
 Esta sección describe exclusivamente la implementación local preparada.
 - IMPLEMENTADO y TESTEADO localmente: tablero Pendiente, En desarrollo, Terminado y Rechazado; propuestas por empleados/jefes; orden y estados solo Administrador; motivo de rechazo visible al autor; controles de móvil y teclado.
