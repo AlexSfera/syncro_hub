@@ -86,6 +86,15 @@ function bTaskEstado(e){
   return '<span class="badge b-red">Abierta</span>';
 }
 
+// Mostrar el valor guardado; las tareas históricas sin habitación no se infieren.
+function bTaskRoom(task){
+  var room=String(task && task.room != null ? task.room : '').trim();
+  if(!room) return '';
+  var safe=room.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return '<span class="badge b-blue task-room">🚪 Habitación '+safe+'</span>';
+}
+
 // Badge clicable para las tablas de Validacion.
 function bTaskEstadoClick(e, taskId){
   var inner=bTaskEstado(e);
@@ -119,7 +128,8 @@ async function openTaskStateModal(taskId){
     +'<div><b>Estado:</b><br>'+bTaskEstado(state)+'</div>'
     +'<div><b>Departamento:</b><br>'+deptBadge(task.dept_destino||'—')+'</div>'
     +'<div><b>Prioridad:</b><br>'+bPrio(task.prioridad)+'</div>'
-    +'<div><b>Deadline:</b><br>'+fmtDate(task.deadline)+'</div></div>'
+    +'<div><b>Deadline:</b><br>'+fmtDate(task.deadline)+'</div>'
+    +'<div style="grid-column:span 2">'+(bTaskRoom(task)||'Sin habitación indicada')+'</div></div>'
     +'<div style="font-size:12px;"><b>'+formatDisplayValue(task.titulo||'Tarea')+'</b>'
     +'<div style="background:var(--bg2);padding:8px;border-radius:6px;margin-top:4px;">'
     +formatDisplayValue(task.descripcion||'Sin descripción')+'</div></div>';
@@ -324,7 +334,7 @@ async function renderTareas(){
     const canClose=canCloseTask(currentUser,t);
     return `<div class="task-card ${prioClass} ${stateClass}">
       <div class="task-meta">
-        ${bPrio(t.prioridad)} ${deptBadge(t.dept_destino)}
+        ${bPrio(t.prioridad)} ${deptBadge(t.dept_destino)} ${bTaskRoom(t)}
         <span class="task-origin">origen: ${t.origen}</span>
         ${t.dept_origen?`<span class="task-origin">de: ${deptIcon(t.dept_origen)} ${t.dept_origen}</span>`:''}
         ${overdue?'<span class="badge b-red">⚠ VENCIDA</span>':''}
@@ -430,7 +440,7 @@ function _renderTareas(tareas) {
   }
 
   el.innerHTML = '<table>'
-    + '<tr><th>Creada</th><th>Prioridad</th><th>Descripción</th><th>Destino</th><th>Responsable</th><th>Deadline</th><th>Estado</th></tr>'
+    + '<tr><th>Creada</th><th>Prioridad</th><th>Habitación</th><th>Descripción</th><th>Destino</th><th>Responsable</th><th>Deadline</th><th>Estado</th></tr>'
     + abiertas.map(function(t) {
       var vencida = isOverdue(t.deadline);
       var prioColor = t.prioridad === 'Alta' ? 'b-red' : t.prioridad === 'Media' ? 'b-yellow' : 'b-gray';
@@ -439,6 +449,7 @@ function _renderTareas(tareas) {
       return '<tr style="' + (vencida ? 'background:rgba(239,68,68,.05)' : '') + '">'
         + '<td style="font-family:var(--font-mono);font-size:11px">' + fmtDate(fechaCreada) + (horaCreada !== '—' ? '<br><span style="color:var(--text3)">' + horaCreada + '</span>' : '') + '</td>'
         + '<td><span class="badge ' + prioColor + '">' + (t.prioridad || '—') + '</span></td>'
+        + '<td>' + (bTaskRoom(t) || '—') + '</td>'
         + '<td style="font-size:12px;max-width:200px">' + formatDisplayValue(t.descripcion) + '</td>'
         + '<td>' + deptBadge(t.dept_destino) + '</td>'
         + '<td style="font-size:12px">' + formatDisplayValue(t.responsable_nombre) + '</td>'

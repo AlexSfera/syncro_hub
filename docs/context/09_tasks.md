@@ -1,5 +1,7 @@
 # 09 — Tareas
 
+> Actualización 12/10/2026: la habitación guardada en `tareas.room` se muestra como «🚪 Habitación N» en Tareas, su detalle, el resumen de tareas abiertas, la tarea del detalle de turno y el Kanban de Mantenimiento. El formulario manual y las tareas de incidencia ya guardaban este campo. Las vistas generales lo omitían; el Kanban lo mostraba con menos visibilidad. Las tareas sin habitación guardada no se infieren ni se modifican. No requiere migración ni backfill. Prueba funcional: `tests/task-room.test.js` (formulario de Pisos → guardado aislado → vistas de Mantenimiento; conservación de datos y permisos).
+
 *Actualizado 30 jul 2026 — cruzado contra `tareas.js` (20 KB) y `shared.js` del repo.*
 
 ---

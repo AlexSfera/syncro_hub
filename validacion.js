@@ -260,6 +260,7 @@ async function openShiftDetail(shiftId){
       html += '<div><span style="color:var(--text3)">Deadline: </span><strong>'+fmtDate(t.deadline)+'</strong></div>';
       html += '<div><span style="color:var(--text3)">Estado: </span>'+bTaskEstado(t.estado)+'</div>';
       html += '<div><span style="color:var(--text3)">Origen: </span>'+t.origen+'</div>';
+      if(t.room) html += '<div>'+bTaskRoom(t)+'</div>';
       if(t.descripcion) html += '<div style="grid-column:span 2"><span style="color:var(--text3)">Descripción: </span>'+t.descripcion+'</div>';
       html += '</div>';
     });

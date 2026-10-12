@@ -401,7 +401,7 @@ function _mantCard(t, colKey){
 
   var meta = [];
   if(t.tipo) meta.push('<span style="background:var(--bg2);border-radius:4px;padding:1px 6px;">' + _mantEsc(t.tipo) + '</span>');
-  if(t.room) meta.push('🚪 ' + _mantEsc(t.room));
+  if(t.room) meta.push('<span class="badge b-blue task-room">🚪 Habitación ' + _mantEsc(t.room) + '</span>');
   if(t.area && t.area !== 'Mantenimiento') meta.push('📍 ' + _mantEsc(t.area));
 
   var fe = _mantYMD(t.fecha_ejecucion);
@@ -417,8 +417,8 @@ function _mantCard(t, colKey){
     +   (isDone && t.completada_por ? '<span style="color:#22c55e;font-weight:700;">✓ ' + _mantEsc(t.completada_por) + '</span>' : '')
     + '</div>'
     + '<div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:6px;">' + _mantEsc(t.titulo || '—') + '</div>'
-    + (t.descripcion ? '<div style="font-size:11px;color:var(--text2);line-height:1.35;margin-bottom:6px;">' + _mantEsc(t.descripcion) + '</div>' : '')
     + (meta.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;font-family:var(--font-mono);font-size:10px;color:var(--text2);margin-bottom:6px;">' + meta.join('') + '</div>' : '')
+    + (t.descripcion ? '<div style="font-size:11px;color:var(--text2);line-height:1.35;margin-bottom:6px;">' + _mantEsc(t.descripcion) + '</div>' : '')
     + '<div style="font-family:var(--font-mono);font-size:9px;color:var(--text3);border-top:1px solid var(--border);padding-top:6px;line-height:1.5;">'
     +   '🛈 de ' + _mantEsc(t.dept_origen || '—') + ' · ' + _mantEsc(t.creado_por || '—') + '<br>'
     +   '🕐 ' + creadaTs
@@ -600,7 +600,7 @@ async function _mantOpenModal(taskId, opts){
 
   var meta = [];
   if(t.tipo) meta.push('<span style="background:var(--bg2);border-radius:4px;padding:1px 6px;">' + _mantEsc(t.tipo) + '</span>');
-  if(t.room) meta.push('🚪 ' + _mantEsc(t.room));
+  if(t.room) meta.push('<span class="badge b-blue task-room">🚪 Habitación ' + _mantEsc(t.room) + '</span>');
   if(t.area && t.area !== 'Mantenimiento') meta.push('📍 ' + _mantEsc(t.area));
 
   var minDate = planMode ? _mantDayAfterTomorrow() : today();
@@ -614,8 +614,8 @@ async function _mantOpenModal(taskId, opts){
       +   '<span class="badge b-blue">' + _mantEsc(colLabel) + '</span>'
       +   (overdue ? '<span class="badge b-red">⚠ VENCIDA</span>' : '')
       + '</div>'
-      + (t.descripcion ? '<div style="font-size:13px;color:var(--text2);line-height:1.4;margin-bottom:12px;">' + _mantEsc(t.descripcion) + '</div>' : '')
       + (meta.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--text2);margin-bottom:12px;">' + meta.join('') + '</div>' : '')
+      + (t.descripcion ? '<div style="font-size:13px;color:var(--text2);line-height:1.4;margin-bottom:12px;">' + _mantEsc(t.descripcion) + '</div>' : '')
       + '<div style="font-family:var(--font-mono);font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:14px;">'
       +   '🛈 de ' + _mantEsc(t.dept_origen || '—') + ' · ' + _mantEsc(t.creado_por || '—') + '<br>'
       +   '🕐 creada ' + (t.created_at ? (typeof fmtTs === 'function' ? fmtTs(t.created_at) : String(t.created_at).slice(0, 16)) : '—')
