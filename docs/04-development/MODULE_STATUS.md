@@ -1,3 +1,16 @@
+## Tablero compartido y cinco temas — 12/10/2026
+Esta sección prevalece para la visibilidad y clasificación de Notas y Sugerencias.
+- IMPLEMENTADO y TESTEADO: todo perfil activo puede escribir y consultar todas las propuestas; solo Administrador cambia prioridades y estados. La API mantiene la sesión, validación de autor, protección de origen y gestión admin-only.
+- Selector obligatorio «¿A qué se refiere?»: Aplicación y tecnología; Experiencia del huésped o cliente; Puesto de trabajo; Organización y procesos; Instalaciones y equipamiento. Se guarda en el campo existente modulo, sin migración ni backfill. Las notas antiguas vacías aparecen Sin clasificar.
+- Código 8bd04fbff81c1cc7eba11906c4f036465620bbca en codex/app-mejoras-20261012. Preview dpl_C8amfAo69ptTcG5nnYXLBfXu3Z6i y Producción dpl_FtAevvD7GqCM37uaDmGgvjQAFaZk READY; ambos builds 229 PASS, 0 FAIL y 1 E2E previa omitida. main conserva 38074d99302009228dee8fd8c31fa69c475fc1ab, sin fusión.
+- Navegador con datos ficticios y API/PostgreSQL aislado: empleado, jefe y otro departamento ven las 7 propuestas, sin controles; Administrador conserva gestión. Guardado de nueva clasificación y formulario móvil comprobados.
+- Producción: dominio y código confirmados; notas.js HTTP 200 idéntico al probado; API sin sesión HTTP 401; sesión real de Administrador carga las 10 notas y el formulario con las cinco opciones, sin errores de consola observados.
+- Supabase LIVE: 10 notas, huellas idénticas de contenido original y de todos los campos del tablero antes/después. No se modificó ninguna nota, prioridad, estado, esquema o grant durante esta publicación.
+- Sesiones reales de jefe/empleado y envío de una propuesta nueva LIVE: NO VERIFICADOS. El lector remoto de Preview recibe 403 del control de IP existente; no se cambiaron protecciones.
+- Evidencia, límites y reversión: docs/04-development/FINAL_REPORT_TABLERO_COMPARTIDO_20261012.md. Reversión al deployment anterior dpl_4w9hGfRvtxf3SaV14o6jzzwZJwUX, sin SQL.
+
+---
+
 ## Publicación de Notas y Sugerencias — 12/10/2026
 Esta sección prevalece para el tablero y su publicación.
 - IMPLEMENTADO y TESTEADO: Pendiente, En desarrollo, Terminado y Rechazado; propuestas por empleados/jefes; orden/estados solo Administrador; motivo de rechazo y controles de móvil/teclado.
