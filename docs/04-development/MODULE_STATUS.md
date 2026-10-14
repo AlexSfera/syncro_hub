@@ -211,3 +211,11 @@ Este registro cubre solo el alcance de esta revisión. El inventario de otros m�
 
 Reglas: [PROJECT_RULES.md](../../PROJECT_RULES.md).
 
+## SYNCRO SHIFT → Bitrix24 — 14/10/2026, estado LIVE
+- `Solicitar carga en Bitrix`: PRODUCCIÓN para registrar solicitud idempotente, no para escribir ShiftPlan. GitHub `2bda03f2fbd33a3edbf7774f10867b471e2a30a0`; Vercel `dpl_9ikrFVzt42wkpA2Z8tgBUY4fHqYe` READY. Mac Mini único equipo previsto; HP retirado.
+- Semana 19–25/10 Recepción SYNCROLAB v4: solicitud id 515 registrada; último reintento de aviso falló en `tasks.task.list`, HTTP 401 `insufficient_scope` (credencial sin permiso de Tareas); sin registro `notificar_carga_bitrix` ni tarea `[SYNCROSHIFT` para Alexander. Transferencia de turnos NO VERIFICADA y ejecutor Mac Mini NO IMPLEMENTADO.
+- Bitrix muestra los cinco turnos de Lucrezia con las horas esperadas, pero ya existían antes de la solicitud. Maria Fernanda: 7 jornadas sin registrar. Seis ausencias `PRUEBA` de Fabián/Kevin pendientes de retirar.
+- 238 pruebas PASS, 0 FAIL, 1 integración omitida. `main` sin fusión; sin migración Supabase ni cambios de permisos. Informe: `docs/04-development/FINAL_REPORT_PUBLICACION_BITRIX_20261014.md`.
+
+---
+

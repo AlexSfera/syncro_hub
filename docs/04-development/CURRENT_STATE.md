@@ -371,3 +371,11 @@ Fecha: 2026-07-31
 
 ---
 
+## Publicación asistida de horarios — estado 14/10/2026
+- Producción `dpl_9ikrFVzt42wkpA2Z8tgBUY4fHqYe` (GitHub `2bda03f2fbd33a3edbf7774f10867b471e2a30a0`) muestra el botón y distingue solicitud, aviso y carga. Solo Mac Mini; HP retirado.
+- Prueba LIVE de Recepción SYNCROLAB 19–25/10 v4: solicitud id 515 en Supabase, aviso Bitrix fallido (`tasks.task.list`, HTTP 401 `insufficient_scope`), ningún registro de aviso enviado ni tarea `[SYNCROSHIFT` para Alexander. Bitrix conserva turnos coincidentes de Lucrezia anteriores a la solicitud; no se ha demostrado transferencia.
+- Falta habilitar el aviso real, construir/ejecutar la carga local y verificar la lectura posterior. Maria Fernanda: 7 días sin clasificar. Ausencias `PRUEBA` de Fabián/Kevin aún presentes. Sin fusión a `main`, migración ni cambio de permisos.
+- Pruebas: 238 PASS, 0 FAIL, 1 omitida. Informe `docs/04-development/FINAL_REPORT_PUBLICACION_BITRIX_20261014.md`.
+
+---
+

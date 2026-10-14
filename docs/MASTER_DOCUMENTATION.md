@@ -188,3 +188,14 @@ El estado visual autenticado y las horas/condiciones contractuales no acreditada
 
 ---
 
+## Publicación asistida hacia Bitrix24 — prueba LIVE 14/10/2026
+Esta sección prevalece sobre las referencias históricas a Preview o al equipo HP.
+- Único equipo operativo: Mac Mini de Alexander. El responsable guarda el borrador y pulsa `Solicitar carga en Bitrix`; este botón **no escribe turnos** en ShiftPlan.
+- PRODUCCIÓN: `syncro-shift.vercel.app`, deployment `dpl_9ikrFVzt42wkpA2Z8tgBUY4fHqYe`, código GitHub `2bda03f2fbd33a3edbf7774f10867b471e2a30a0` de `codex/planificacion-jornadas-saldos-20261014`, READY. `main` no se fusionó.
+- TESTEADO LIVE: semana 19–25/10/2026 de Recepción SYNCROLAB, versión 4. La solicitud idempotente quedó en `planificacion_sync_log` id 515, estado `pendiente_mac_mini`; el aviso automático falló: `tasks.task.list` devolvió HTTP 401 `insufficient_scope` en el último reintento. No existe registro de `notificar_carga_bitrix` ni tarea `[SYNCROSHIFT` asignada a Alexander. Ningún ShiftPlan se escribió por esta solicitud.
+- VERIFICADO por lectura de la cuadrícula Bitrix: los cinco turnos de Lucrezia del 19 al 23 coinciden con SYNCRO SHIFT, pero ya constaban en la captura previa; **no** se atribuyen al botón. Maria Fernanda tiene siete fechas sin clasificar en la semana.
+- El ejecutor local del Mac Mini, la verificación posterior a escritura y el aviso automático en Bitrix siguen pendientes. Para el aviso falta autorizar el permiso mínimo de Tareas en la credencial Bitrix de Producción. Los seis registros de ausencia etiquetados `PRUEBA` de Fabián y Kevin siguen presentes.
+- Reversión del código publicado: promover el deployment anterior `dpl_Fr4uAh58JytkS8Q85bDMwRyZkpgw`; la solicitud auditada no se borra. Detalle: `docs/04-development/FINAL_REPORT_PUBLICACION_BITRIX_20261014.md`.
+
+---
+
