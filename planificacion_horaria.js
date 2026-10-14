@@ -4,7 +4,7 @@
 
 var _ph = {
   weekStart: '', department: '', data: null, assignments: [], loading: false,
-  timer: null, modalEmployee: '', modalDate: ''
+  timer: null, modalEmployee: '', modalDate: '', lastNotificationError: null
 };
 
 function _phEsc(value){
@@ -170,6 +170,7 @@ function _phRender(){
   var version = week ? week.version_actual : 0;
   var publicationRequest = (_ph.data.publicationRequests || [])[0] || null;
   var publicationNotification = (_ph.data.publicationNotifications || [])[0] || null;
+  var notificationError = _ph.lastNotificationError || (publicationRequest && publicationRequest.error_seguro);
   var refreshed = (_ph.data.mappings || []).filter(function(item){
     return item.departamento_id === _ph.department && item.ultima_lectura_at;
   }).map(function(item){ return new Date(item.ultima_lectura_at).toLocaleString('es-ES'); })[0] || '[NO DATA]';
@@ -205,7 +206,7 @@ function _phRender(){
     + (publicationRequest ? '<div class="ph-alert warn"><strong>Carga Bitrix pendiente:</strong> '
       + (publicationNotification ? 'aviso enviado a Alexander; falta procesarla desde el Mac Mini.'
         : 'aviso a Alexander no confirmado. Pulsa de nuevo «Solicitar carga en Bitrix» para reintentar.'
-          + (publicationRequest.error_seguro ? ' Error: ' + _phEsc(publicationRequest.error_seguro) + '.' : ''))
+          + (notificationError ? ' Error: ' + _phEsc(notificationError) + '.' : ''))
       + '</div>' : '')
     + (_phUnregisteredTotal() ? '<div class="ph-alert warn"><strong>Clasificación incompleta:</strong> quedan ' + _phUnregisteredTotal() + ' jornadas sin registrar en esta semana.</div>' : '')
     + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Flujo asistido:</strong> Bitrix24 no ofrece escritura oficial del ShiftPlan por API. El responsable solicita la carga aquí; Alexander recibe el aviso y la procesa desde su Mac Mini.</div>' : '')
@@ -577,10 +578,13 @@ async function _phPublishWeek(){
       week_id:_ph.data.week.id, expected_version:_ph.data.week.version_actual
     }});
     if(result.notification && result.notification.sent){
+      _ph.lastNotificationError = null;
       toast('Solicitud registrada y aviso enviado a Alexander en Bitrix','ok');
     }else{
+      _ph.lastNotificationError = (result.notification && result.notification.error || 'causa desconocida')
+        + (result.notification && result.notification.http_status ? ' (HTTP ' + result.notification.http_status + ')' : '');
       toast('Solicitud registrada, pero el aviso Bitrix falló: '
-        + (result.notification && result.notification.error || 'causa desconocida'),'warn');
+        + _ph.lastNotificationError,'warn');
     }
     await _phLoad(false);
   }catch(error){
