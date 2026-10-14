@@ -126,7 +126,12 @@ export default async function handler(req) {
           })
         });
       } catch (error) {
-        notification = { sent: false, error: error.code || 'BITRIX_TASK_NOTIFICATION_FAILED' };
+        const bitrixCode = error.detail && error.detail.bitrix_code;
+        notification = {
+          sent: false,
+          error: bitrixCode || error.code || 'BITRIX_TASK_NOTIFICATION_FAILED',
+          http_status: error.detail && error.detail.status || null
+        };
       }
     }
 
