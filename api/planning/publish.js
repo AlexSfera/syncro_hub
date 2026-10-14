@@ -127,6 +127,12 @@ export default async function handler(req) {
         });
       } catch (error) {
         const bitrixCode = error.detail && error.detail.bitrix_code;
+        console.warn('PLANNING_BITRIX_NOTIFY_FAILED', JSON.stringify({
+          code: error.code || 'BITRIX_TASK_NOTIFICATION_FAILED',
+          method: error.detail && error.detail.method || null,
+          status: error.detail && error.detail.status || null,
+          bitrix_code: bitrixCode || null
+        }));
         notification = {
           sent: false,
           error: bitrixCode || error.code || 'BITRIX_TASK_NOTIFICATION_FAILED',
