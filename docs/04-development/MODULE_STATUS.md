@@ -158,7 +158,24 @@ Los 100 movimientos anteriores del lote se conservaron. La reversión utiliza la
 
 # Estado comprobado de Planificación Horaria
 
-Fecha de revisión: 04/10/2026. Corte de saldos: **30/09/2026**.
+Fecha de revisión: 14/10/2026. Corte de saldos confirmados: **30/09/2026**.
+
+| Flujo | Estado | Límite |
+|---|---|---|
+| Clasificación única por empleado y fecha | IMPLEMENTADO / TESTEADO | Trabajo, descanso, vacaciones, festivo, recuperación, baja médica y otras ausencias; conflictos y días semanales sin registrar visibles |
+| Recuento anual por tipo | IMPLEMENTADO / TESTEADO | Usa versiones vigentes de la planificación, ausencias, recuperaciones y calendario aplicable; Preview READY |
+| Vacaciones futuras | IMPLEMENTADO / TESTEADO | Se muestran separadas y reducen solo el saldo proyectado; el saldo confirmado no se reescribe |
+| Recuperación festiva | IMPLEMENTADO / TESTEADO | Jornada completa registrada como ausencia: `-1`; recuperación horaria no se convierte automáticamente en día |
+| Saldos festivos negativos | CORREGIDO / TESTEADO | Ya no se filtran; `0`, negativos y `[NO DATA]` permanecen distintos |
+| Permisos de consulta | TESTEADO | Dirección/RRHH global, responsables por ámbito y empleado propio, incluso sin movimientos previos |
+| Preview | READY | `dpl_2cGQsTkP35iRcBAdZaD2Q4RZaDL9`, commit remoto `0eca395dd46ff8f624dff358c5752f822052193b` |
+| Producción | [NO DATA] para este cambio | Sigue en `dpl_5EVMnobUf56LdhaRvXVRAnwKGm89`; promoción pendiente de autorización explícita |
+
+No se aplicaron migraciones ni cambios de datos en Supabase LIVE. La escritura de ShiftPlan en Bitrix24 sigue bloqueada por falta de API oficial documentada.
+
+---
+
+Estado anterior (04/10/2026):
 
 | Flujo | Estado | Límite |
 |---|---|---|

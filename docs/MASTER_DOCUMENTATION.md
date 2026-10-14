@@ -1,3 +1,15 @@
+## Recuento de jornadas y saldos planificados — 14/10/2026
+Esta sección prevalece para Planificación Horaria y la calculadora de vacaciones/festivos.
+- IMPLEMENTADO y TESTEADO: cada fecha registrada se clasifica una sola vez como trabajo, descanso, vacaciones, festivo, recuperación festiva, baja médica u otra ausencia. La semana muestra los días sin registrar y los conflictos.
+- La consulta anual por empleado muestra el total y el desglose por tipo. Las vacaciones futuras reducen el saldo confirmado solo en la proyección; una recuperación festiva de jornada completa produce un movimiento de planificación de `-1`. Los saldos negativos confirmados ya no se ocultan.
+- Una recuperación horaria permanece visible, pero no se convierte en un día sin conocer la jornada contractual. Un turno planificado en festivo se muestra, pero no crea derecho confirmado sin evidencia de trabajo.
+- Código remoto `0eca395dd46ff8f624dff358c5752f822052193b`, rama `codex/planificacion-jornadas-saldos-20261014`. Preview `dpl_2cGQsTkP35iRcBAdZaD2Q4RZaDL9` READY; build: 236 PASS, 0 FAIL y 1 integración local previa OMITIDA.
+- Verificación visual local con datos ficticios: alerta semanal, desglose anual, vacaciones futuras, resultado festivo `-1` y conservación de `[NO DATA]`. Preview autenticada: `[NO DATA]` por control IP 403.
+- Producción conserva `dpl_5EVMnobUf56LdhaRvXVRAnwKGm89`; la promoción fue rechazada por requerir autorización explícita adicional. Supabase LIVE y Bitrix24 no se modificaron.
+- Informe: `docs/04-development/FINAL_REPORT_PLANIFICACION_JORNADAS_SALDOS_20261014.md`.
+
+---
+
 ## Habitación de tareas de Pisos — 12/10/2026
 Esta sección prevalece para la visualización de habitaciones en Tareas y Mantenimiento.
 - IMPLEMENTADO y TESTEADO: habitación guardada visible en lista general, detalle, resumen de tareas, detalle del turno y Kanban de Mantenimiento. Sin cambiar guardado ni permisos; no se infieren habitaciones ausentes.

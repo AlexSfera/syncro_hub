@@ -160,6 +160,16 @@ La reversión del CHECK SQL está protegida y se detiene si existen aperturas ce
 
 ---
 
+## Planificación de jornadas y proyección de saldos — 14/10/2026
+
+- IMPLEMENTADO y TESTEADO en la rama `codex/planificacion-jornadas-saldos-20261014`.
+- Cada empleado tiene recuento anual de trabajo, descanso, vacaciones, festivos, recuperación festiva, baja médica y otras ausencias. La semana señala jornadas sin registrar y conflictos.
+- La calculadora separa saldo confirmado, vacaciones futuras y saldo tras planificación. La recuperación festiva de jornada completa registra `-1`; los saldos negativos confirmados son visibles. No se inventa saldo cuando la base es `[NO DATA]`.
+- Preview `dpl_2cGQsTkP35iRcBAdZaD2Q4RZaDL9` READY sobre `0eca395dd46ff8f624dff358c5752f822052193b`; 236 pruebas superadas, 0 fallidas y 1 omitida.
+- Producción conserva `dpl_5EVMnobUf56LdhaRvXVRAnwKGm89`. Supabase LIVE y Bitrix24 sin cambios. Publicación pendiente de autorización explícita adicional.
+
+---
+
 # SYNCRO Shift — Estado actual del proyecto
 
 ## 1. Objetivo
