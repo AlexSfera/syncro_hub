@@ -10,12 +10,12 @@
 - IMPLEMENTADO y TESTEADO: botón `Solicitar carga en Bitrix`, cola
   idempotente sobre `planificacion_sync_log`, estado `pendiente_mac_mini` y
   aviso oficial mediante `tasks.task.list/add` asignado al usuario Bitrix `1`.
-- GitHub `0b345acbd34e3ba6dc3b20dafae52189a19921bb`; Preview Vercel
-  `dpl_3cosiVymzG9gqaPdAo4UVCAb7Lbm` READY. La comprobación HTTP externa recibe
-  el 403 esperado del control de IP; interfaz autenticada y aviso real: NO
-  VERIFICADOS. Producción no se modificó.
-- Ejecutor local del Mac Mini: PENDIENTE. Prueba del aviso y prueba completa
-  de carga en Bitrix24: NO VERIFICADAS. Detalle:
+- Primera Preview: GitHub `0b345acbd34e3ba6dc3b20dafae52189a19921bb`,
+  Vercel `dpl_3cosiVymzG9gqaPdAo4UVCAb7Lbm`. Posteriormente se publicó en
+  Producción `dpl_9ikrFVzt42wkpA2Z8tgBUY4fHqYe` y el aviso real se verificó
+  con la tarea Bitrix 66445 tras añadir `task` al webhook 209.
+- Ejecutor local del Mac Mini: PENDIENTE. Prueba completa de carga de turnos
+  en Bitrix24: NO VERIFICADA. Detalle:
   `docs/04-development/FLUJO_PUBLICACION_BITRIX_MAC_MINI_20261014.md`.
 
 ---
@@ -213,9 +213,9 @@ Reglas: [PROJECT_RULES.md](../../PROJECT_RULES.md).
 
 ## SYNCRO SHIFT → Bitrix24 — 14/10/2026, estado LIVE
 - `Solicitar carga en Bitrix`: PRODUCCIÓN para registrar solicitud idempotente, no para escribir ShiftPlan. GitHub `2bda03f2fbd33a3edbf7774f10867b471e2a30a0`; Vercel `dpl_9ikrFVzt42wkpA2Z8tgBUY4fHqYe` READY. Mac Mini único equipo previsto; HP retirado.
-- Semana 19–25/10 Recepción SYNCROLAB v4: solicitud id 515 registrada; último reintento de aviso falló en `tasks.task.list`, HTTP 401 `insufficient_scope` (credencial sin permiso de Tareas); sin registro `notificar_carga_bitrix` ni tarea `[SYNCROSHIFT` para Alexander. Transferencia de turnos NO VERIFICADA y ejecutor Mac Mini NO IMPLEMENTADO.
-- Bitrix muestra los cinco turnos de Lucrezia con las horas esperadas, pero ya existían antes de la solicitud. Maria Fernanda: 7 jornadas sin registrar. Seis ausencias `PRUEBA` de Fabián/Kevin pendientes de retirar.
-- 238 pruebas PASS, 0 FAIL, 1 integración omitida. `main` sin fusión; sin migración Supabase ni cambios de permisos. Informe: `docs/04-development/FINAL_REPORT_PUBLICACION_BITRIX_20261014.md`.
+- Semana 19–25/10 Recepción SYNCROLAB v4: solicitud id 515 registrada. El primer aviso falló con HTTP 401 `insufficient_scope`; tras añadir `task` al webhook Bitrix 209, el reintento LIVE mostró «aviso enviado» y la tarea 66445 fue confirmada en Bitrix, asignada a Alexander. Transferencia de turnos NO VERIFICADA y ejecutor Mac Mini NO IMPLEMENTADO.
+- Bitrix muestra los cinco turnos de Lucrezia con las horas esperadas, pero ya existían antes de la solicitud. Maria Fernanda: 7 jornadas sin registrar. Las seis ausencias `PRUEBA` de Fabián/Kevin fueron eliminadas y la vacación real de Andreea permanece.
+- 238 pruebas PASS, 0 FAIL, 1 integración omitida en la publicación anterior. `main` sin fusión; sin migración Supabase. Hubo cambio de permiso del webhook en Bitrix, sin cambio de credencial Vercel ni nuevo deployment. Informe: `docs/04-development/FINAL_REPORT_PUBLICACION_BITRIX_20261014.md`.
 
 ---
 

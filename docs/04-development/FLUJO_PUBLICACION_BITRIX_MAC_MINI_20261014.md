@@ -70,18 +70,23 @@ Alexander autorizó la promoción. Producción sirve el código
 `2bda03f2fbd33a3edbf7774f10867b471e2a30a0` en
 `dpl_9ikrFVzt42wkpA2Z8tgBUY4fHqYe` (READY). La semana de Recepción
 SYNCROLAB 19–25/10/2026, versión 4, genera una sola solicitud auditada
-(`planificacion_sync_log` id 515), pero el aviso mediante `tasks.task.list/add`
-falló con `BITRIX_READ_FAILED`: no hay confirmación de tarea ni registro de
-`notificar_carga_bitrix`. El último reintento autorizado mostró en el runtime
+(`planificacion_sync_log` id 515). El aviso mediante `tasks.task.list/add`
+falló inicialmente con `BITRIX_READ_FAILED`. El reintento diagnóstico mostró en el runtime
 de Producción `tasks.task.list`, HTTP 401, `insufficient_scope`. Una búsqueda
-de tareas `[SYNCROSHIFT` asignadas a Alexander devolvió cero resultados. Falta
-autorizar y configurar el permiso mínimo de Tareas en la credencial Bitrix;
-esto resolvería solo el aviso, no la escritura de turnos.
+de tareas `[SYNCROSHIFT` asignadas a Alexander devolvió entonces cero resultados.
+Alexander autorizó añadir únicamente `task` al webhook 209, conservando `user`
+y `timeman`. Tras guardar, un nuevo intento autorizado mostró «aviso enviado»
+en Producción y la lectura oficial de Bitrix confirmó la tarea 66445,
+`Cargar horario · Recepción SYNCROLAB · 2026-10-19 · v4`, asignada a Alexander.
+No fue necesario modificar la credencial Vercel. Esto verifica el aviso,
+no la escritura de turnos.
 
 La lectura de ShiftPlan muestra cinco turnos de Lucrezia coincidentes con el
 borrador, pero la captura anterior ya los mostraba. Por tanto, no existe
 evidencia de que SYNCRO SHIFT los volcara. El ejecutor Mac Mini continúa sin
-implementarse. La pantalla distingue el aviso fallido y no declara la semana
-publicada. Maria Fernanda conserva siete jornadas sin registrar. Los seis
-registros de ausencia `PRUEBA` de Fabián y Kevin siguen presentes; no se
-consideran resultado de esta publicación.
+implementarse. La pantalla distingue el aviso enviado de la carga pendiente;
+no declara la semana publicada. Maria Fernanda conserva siete jornadas sin
+registrar. Los seis registros de ausencia `PRUEBA` de Fabián y Kevin se
+eliminaron por autorización específica; se verificó que sus seis IDs ya no
+están y que la vacación real de Andreea permanece. No se consideran resultado
+de esta publicación.

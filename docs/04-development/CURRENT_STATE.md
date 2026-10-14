@@ -366,15 +366,15 @@ Fecha: 2026-07-31
 - Único equipo operativo: Mac Mini de Alexander. El equipo HP está retirado.
 - IMPLEMENTADO y TESTEADO localmente: solicitud idempotente de carga y aviso
   mediante tarea oficial de Bitrix24 para Alexander (usuario `1`).
-- PENDIENTE: ejecutor local Mac Mini, prueba real del aviso, escritura de los
+- PENDIENTE: ejecutor local Mac Mini, escritura de los
   turnos y lectura posterior. No está VERIFICADO ni en PRODUCCIÓN.
 
 ---
 
 ## Publicación asistida de horarios — estado 14/10/2026
 - Producción `dpl_9ikrFVzt42wkpA2Z8tgBUY4fHqYe` (GitHub `2bda03f2fbd33a3edbf7774f10867b471e2a30a0`) muestra el botón y distingue solicitud, aviso y carga. Solo Mac Mini; HP retirado.
-- Prueba LIVE de Recepción SYNCROLAB 19–25/10 v4: solicitud id 515 en Supabase, aviso Bitrix fallido (`tasks.task.list`, HTTP 401 `insufficient_scope`), ningún registro de aviso enviado ni tarea `[SYNCROSHIFT` para Alexander. Bitrix conserva turnos coincidentes de Lucrezia anteriores a la solicitud; no se ha demostrado transferencia.
-- Falta habilitar el aviso real, construir/ejecutar la carga local y verificar la lectura posterior. Maria Fernanda: 7 días sin clasificar. Ausencias `PRUEBA` de Fabián/Kevin aún presentes. Sin fusión a `main`, migración ni cambio de permisos.
+- Prueba LIVE de Recepción SYNCROLAB 19–25/10 v4: solicitud id 515 en Supabase. El primer aviso falló con HTTP 401 `insufficient_scope`; tras añadir `task` al webhook Bitrix 209, la web mostró «aviso enviado» y se confirmó la tarea 66445 asignada a Alexander. Bitrix conserva turnos coincidentes de Lucrezia anteriores a la solicitud; no se ha demostrado transferencia.
+- Falta construir/ejecutar la carga local y verificar la lectura posterior. Maria Fernanda: 7 días sin clasificar. Las seis ausencias `PRUEBA` de Fabián/Kevin fueron eliminadas; permanece la vacación real de Andreea. Sin fusión a `main` ni migración; sí hubo cambio mínimo de permiso Bitrix, sin nuevo deployment ni cambio de credencial Vercel.
 - Pruebas: 238 PASS, 0 FAIL, 1 omitida. Informe `docs/04-development/FINAL_REPORT_PUBLICACION_BITRIX_20261014.md`.
 
 ---
