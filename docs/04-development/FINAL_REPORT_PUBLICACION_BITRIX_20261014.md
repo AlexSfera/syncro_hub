@@ -70,9 +70,13 @@ debe borrarse. Esto no requiere SQL.
 ## Decisión necesaria de Alexander
 
 El último reintento diagnóstico se realizó y confirmó falta de permiso `task`
-en la credencial Bitrix de la web. Alexander debe autorizar por separado añadir
-el permiso mínimo de Tareas y actualizar la credencial en Vercel, sin divulgar
-el secreto. Después habrá que repetir el aviso y construir/probar el ejecutor
+en la credencial Bitrix de la web. Alexander autorizó corregir ese permiso,
+pero el cambio todavía **no está guardado**: las estadísticas de Bitrix señalan
+al webhook 209 `Shift Horas. Carles`, propiedad de Alexander, como único emisor
+de `timeman.schedule.get` hoy, y se pidió confirmación justo
+antes de guardar. Solo si cambia su clave habrá que actualizar Vercel, sin
+divulgar el secreto. Después habrá que repetir el aviso y construir/probar el ejecutor
 local del Mac Mini: corregir el aviso **no** volcará turnos. Antes de una carga
 semanal completa, completar o excluir con criterio explícito los siete días sin
-registrar de Maria Fernanda.
+registrar de Maria Fernanda. La eliminación de las seis ausencias `PRUEBA`
+está pendiente de confirmación de acción.
