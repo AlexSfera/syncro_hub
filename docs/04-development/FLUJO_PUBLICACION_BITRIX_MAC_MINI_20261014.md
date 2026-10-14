@@ -55,6 +55,10 @@ El flujo estará terminado cuando una prueba etiquetada pueda recorrer:
 -> coincidencia verificada -> prueba eliminada`.
 
 El botón, la cola idempotente y la creación/reutilización del aviso Bitrix están
-`IMPLEMENTADOS` y `TESTEADOS` localmente. El ejecutor Mac Mini y la prueba real
-de extremo a extremo siguen pendientes; por ello el flujo completo no es
+`IMPLEMENTADOS` y `TESTEADOS` localmente. La revisión GitHub es
+`0b345acbd34e3ba6dc3b20dafae52189a19921bb` y su Preview Vercel
+`dpl_3cosiVymzG9gqaPdAo4UVCAb7Lbm` está `READY`. La comprobación HTTP remota
+recibe el `403` previsto del control de IP, por lo que la interfaz autenticada
+y el aviso real siguen sin verificar. El ejecutor Mac Mini y la prueba real de
+extremo a extremo también siguen pendientes; por ello el flujo completo no es
 `VERIFICADO` ni `PRODUCCIÓN`.

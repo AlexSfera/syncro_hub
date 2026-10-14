@@ -7,9 +7,13 @@
   La carga y verificación se ejecutan localmente desde el Mac Mini.
 - API oficial: `timeman.schedule.get` permite lectura, pero no existe escritura
   REST documentada del ShiftPlan. El aviso puede usar `tasks.task.add`.
-- IMPLEMENTADO y TESTEADO localmente: botón `Solicitar carga en Bitrix`, cola
+- IMPLEMENTADO y TESTEADO: botón `Solicitar carga en Bitrix`, cola
   idempotente sobre `planificacion_sync_log`, estado `pendiente_mac_mini` y
   aviso oficial mediante `tasks.task.list/add` asignado al usuario Bitrix `1`.
+- GitHub `0b345acbd34e3ba6dc3b20dafae52189a19921bb`; Preview Vercel
+  `dpl_3cosiVymzG9gqaPdAo4UVCAb7Lbm` READY. La comprobación HTTP externa recibe
+  el 403 esperado del control de IP; interfaz autenticada y aviso real: NO
+  VERIFICADOS. Producción no se modificó.
 - Ejecutor local del Mac Mini: PENDIENTE. Prueba del aviso y prueba completa
   de carga en Bitrix24: NO VERIFICADAS. Detalle:
   `docs/04-development/FLUJO_PUBLICACION_BITRIX_MAC_MINI_20261014.md`.
