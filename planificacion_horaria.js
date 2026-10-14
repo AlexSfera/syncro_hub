@@ -168,6 +168,7 @@ function _phRender(){
   var week = _ph.data.week;
   var state = week ? week.estado : 'sin planificación';
   var version = week ? week.version_actual : 0;
+  var publicationRequest = (_ph.data.publicationRequests || [])[0] || null;
   var refreshed = (_ph.data.mappings || []).filter(function(item){
     return item.departamento_id === _ph.department && item.ultima_lectura_at;
   }).map(function(item){ return new Date(item.ultima_lectura_at).toLocaleString('es-ES'); })[0] || '[NO DATA]';
@@ -196,12 +197,13 @@ function _phRender(){
     + (_ph.data.permissions.canManageLaborConditions ? '<button class="btn" onclick="_phOpenOperation(\'labor\')">Condición laboral</button>' : '')
     + (canEdit ? '<button class="btn" onclick="_phRefreshCatalog(false)">Actualizar Bitrix24</button>' : '')
     + (canEdit ? '<button class="btn btn-primary" onclick="_phSaveWeek()">Guardar borrador</button>' : '')
-    + (canEdit && week ? '<button class="btn" onclick="_phPublishWeek()">Comprobar publicación</button>' : '')
+    + (canEdit && week ? '<button class="btn" onclick="_phPublishWeek()">Solicitar carga en Bitrix</button>' : '')
     + '</div></div>'
     + '<div class="ph-status"><span class="ph-pill">Estado: ' + _phEsc(state) + '</span><span class="ph-pill">Versión: ' + version + '</span>'
     + '<span class="ph-pill">Catálogo Bitrix24: ' + _phEsc(refreshed) + '</span><span class="ph-pill">' + _phEsc(_phOpeningLabel()) + '</span></div>'
+    + (publicationRequest ? '<div class="ph-alert warn"><strong>Carga Bitrix pendiente:</strong> solicitud registrada para procesar desde el Mac Mini de Alexander.</div>' : '')
     + (_phUnregisteredTotal() ? '<div class="ph-alert warn"><strong>Clasificación incompleta:</strong> quedan ' + _phUnregisteredTotal() + ' jornadas sin registrar en esta semana.</div>' : '')
-    + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Publicación protegida:</strong> la escritura de ShiftPlan en Bitrix24 permanece bloqueada porque no existe una API oficial documentada. No se usan clics internos ni endpoints no oficiales.</div>' : '')
+    + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Flujo asistido:</strong> Bitrix24 no ofrece escritura oficial del ShiftPlan por API. El responsable solicita la carga aquí; Alexander recibe el aviso y la procesa desde su Mac Mini.</div>' : '')
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th>'
     + (_ph.data.dates || []).map(function(date){ return '<th>' + _phEsc(_phDayLabel(date)) + '<div class="ph-muted">' + _phEsc(date.slice(5)) + '</div></th>'; }).join('')
     + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
@@ -566,13 +568,17 @@ window._phSaveWeek = _phSaveWeek;
 async function _phPublishWeek(){
   try{
     await _phRefreshCatalog(true);
-    await _phApi('/api/planning/publish', {method:'POST', body:{
+    var result = await _phApi('/api/planning/publish', {method:'POST', body:{
       week_id:_ph.data.week.id, expected_version:_ph.data.week.version_actual
     }});
+    if(result.notification && result.notification.sent){
+      toast('Solicitud registrada y aviso enviado a Alexander en Bitrix','ok');
+    }else{
+      toast('Solicitud registrada. El aviso de Bitrix requiere revisión','warn');
+    }
+    await _phLoad(false);
   }catch(error){
-    if(error.message === 'BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO'){
-      toast('Publicación bloqueada de forma segura: API oficial no disponible','warn');
-    }else toast('Comprobación fallida: ' + error.message,'err');
+    toast('No se pudo solicitar la carga: ' + error.message,'err');
   }
 }
 window._phPublishWeek = _phPublishWeek;

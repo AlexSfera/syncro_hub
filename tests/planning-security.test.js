@@ -53,13 +53,16 @@ test('APIs mutables exigen autenticación y mismo origen', async () => {
   }
 });
 
-test('la integración Bitrix solo lee el método oficial de catálogo', async () => {
+test('la integración Bitrix lee catálogo y solo crea el aviso oficial de carga', async () => {
   const server = await read('lib/planning-server.js');
   const publish = await read('api/planning/publish.js');
   assert.match(server, /bitrixCall\('timeman\.schedule\.get'/);
+  assert.match(server, /bitrixCall\('tasks\.task\.list'/);
+  assert.match(server, /bitrixCall\('tasks\.task\.add'/);
   assert.doesNotMatch(server, /ShiftPlan|\.click\(|querySelector\(/);
-  assert.match(publish, /BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO/);
-  assert.match(publish, /safe: true/);
+  assert.match(publish, /solicitar_carga_bitrix/);
+  assert.match(publish, /PENDING_MAC_MINI/);
+  assert.doesNotMatch(publish, /publicado_bitrix/);
 });
 
 test('interfaz expone planificación a todas las ramas de navegación', async () => {

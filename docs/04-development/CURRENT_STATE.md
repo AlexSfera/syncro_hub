@@ -361,3 +361,13 @@ Estado del documento: BORRADOR
 
 Fecha: 2026-07-31
 
+## Solicitud de carga de horarios Bitrix24 — 14/10/2026
+
+- Único equipo operativo: Mac Mini de Alexander. El equipo HP está retirado.
+- IMPLEMENTADO y TESTEADO localmente: solicitud idempotente de carga y aviso
+  mediante tarea oficial de Bitrix24 para Alexander (usuario `1`).
+- PENDIENTE: ejecutor local Mac Mini, prueba real del aviso, escritura de los
+  turnos y lectura posterior. No está VERIFICADO ni en PRODUCCIÓN.
+
+---
+

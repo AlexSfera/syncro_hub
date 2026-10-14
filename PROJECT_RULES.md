@@ -11,6 +11,15 @@
 
 Cuando no exista evidencia suficiente, usar `[NO DATA]`.
 
+## Entorno operativo vigente
+
+- El único ordenador operativo autorizado para la carga asistida de horarios
+  en Bitrix24 es el **Mac Mini de Alexander**.
+- El antiguo equipo HP ya no existe y no debe proponerse, solicitarse ni
+  considerarse disponible en planes, instrucciones o automatizaciones.
+- Los responsables de departamento trabajan en SYNCRO SHIFT. No deben entrar
+  en Bitrix24 para completar la publicación de sus horarios.
+
 ## Alcance de las autorizaciones
 
 | Petición de Alexander | Acción permitida |

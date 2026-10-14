@@ -176,3 +176,15 @@ El cambio mínimo del CHECK permite `apertura = 0`; mantiene las demás restricc
 
 El estado visual autenticado y las horas/condiciones contractuales no acreditadas siguen en `[NO DATA]`.
 
+## Solicitud de carga de horarios Bitrix24 — 14/10/2026
+
+- Entorno operativo: solo Mac Mini de Alexander; el equipo HP está retirado.
+- IMPLEMENTADO y TESTEADO localmente: `Guardar borrador` seguido de `Solicitar
+  carga en Bitrix`; solicitud idempotente en el log existente, estado pendiente
+  de Mac Mini y tarea Bitrix asignada al usuario `1` mediante la API oficial.
+- La solicitud y el aviso no equivalen a publicación. El ejecutor local que
+  aplica y relee el ShiftPlan sigue PENDIENTE; flujo completo NO VERIFICADO y
+  NO PRODUCCIÓN.
+
+---
+

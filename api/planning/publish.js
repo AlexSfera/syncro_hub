@@ -9,6 +9,7 @@ import {
 import { publicationReadiness } from '../../lib/planning-domain.js';
 import {
   assertCanEditDepartment,
+  ensureBitrixPlanningTask,
   planningError,
   requirePlanningActor,
   validateDraftAgainstDatabase
@@ -77,36 +78,97 @@ export default async function handler(req) {
     const readiness = publicationReadiness({
       validation,
       catalogFresh,
-      bitrixWriteSupported: false,
+      bitrixWriteSupported: true,
       assignments
     });
+    if (!readiness.ready) {
+      return jsonResponse({ error: 'PUBLICATION_REQUEST_BLOCKED', readiness, validation }, 409);
+    }
 
-    const idempotencyKey = `${week.id}:${expectedVersion}:publish:unsupported`;
-    await adminRequest('planificacion_sync_log?on_conflict=idempotency_key', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-      body: JSON.stringify({
-        semana_id: week.id,
-        version: expectedVersion,
-        asignacion_id: null,
-        operacion: 'publicar_semana',
-        idempotency_key: idempotencyKey,
-        resultado_envio: 'no_soportado',
-        resultado_verificacion: 'no_ejecutado',
-        intentos: 1,
-        error_seguro: 'BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO',
-        actor: session.profile.id,
-        request_snapshot: { week_id: week.id, version: expectedVersion },
-        response_snapshot: { blockers: readiness.blockers }
-      })
-    });
+    const requestKey = `${week.id}:${expectedVersion}:request-bitrix`;
+    const notificationKey = `${week.id}:${expectedVersion}:notify-bitrix`;
+    const existingRequests = await adminRequest(
+      'planificacion_sync_log?idempotency_key=eq.' + encodeURIComponent(requestKey)
+        + '&select=id,response_snapshot,error_seguro,created_at&limit=1'
+    );
+    const existingNotifications = await adminRequest(
+      'planificacion_sync_log?idempotency_key=eq.' + encodeURIComponent(notificationKey)
+        + '&select=id,response_snapshot,created_at&limit=1'
+    );
+
+    let notification = Array.isArray(existingNotifications) && existingNotifications[0]
+      ? { sent: true, task_id: existingNotifications[0].response_snapshot.bitrix_task_id, duplicate: true }
+      : { sent: false, error: null };
+    if (!notification.sent) {
+      try {
+        const task = await ensureBitrixPlanningTask({
+          week,
+          assignmentCount: assignments.length,
+          actorName: session.profile.nombre
+        });
+        notification = { sent: true, task_id: task.id, created: task.created };
+        await adminRequest('planificacion_sync_log?on_conflict=idempotency_key', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+          body: JSON.stringify({
+            semana_id: week.id,
+            version: expectedVersion,
+            asignacion_id: null,
+            operacion: 'notificar_carga_bitrix',
+            idempotency_key: notificationKey,
+            resultado_envio: 'aviso_enviado',
+            resultado_verificacion: 'pendiente_mac_mini',
+            intentos: 1,
+            error_seguro: null,
+            actor: session.profile.id,
+            request_snapshot: { week_id: week.id, version: expectedVersion },
+            response_snapshot: { bitrix_task_id: task.id, responsible_id: task.responsibleId }
+          })
+        });
+      } catch (error) {
+        notification = { sent: false, error: error.code || 'BITRIX_TASK_NOTIFICATION_FAILED' };
+      }
+    }
+
+    if (!Array.isArray(existingRequests) || !existingRequests[0]) {
+      await adminRequest('planificacion_sync_log?on_conflict=idempotency_key', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+        body: JSON.stringify({
+          semana_id: week.id,
+          version: expectedVersion,
+          asignacion_id: null,
+          operacion: 'solicitar_carga_bitrix',
+          idempotency_key: requestKey,
+          resultado_envio: 'pendiente_mac_mini',
+          resultado_verificacion: 'pendiente',
+          intentos: 1,
+          error_seguro: notification.sent ? null : notification.error,
+          actor: session.profile.id,
+          request_snapshot: {
+            week_id: week.id,
+            version: expectedVersion,
+            department: week.departamento_id,
+            week_start: week.fecha_inicio,
+            assignments: assignments.length
+          },
+          response_snapshot: {
+            notification_sent: notification.sent,
+            bitrix_task_id: notification.task_id || null,
+            executor: 'mac_mini'
+          }
+        })
+      });
+    }
 
     return jsonResponse({
-      error: 'BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO',
+      ok: true,
+      status: 'PENDING_MAC_MINI',
+      duplicate: !!(Array.isArray(existingRequests) && existingRequests[0]),
+      notification,
       readiness,
-      validation,
-      safe: true
-    }, 409);
+      validation
+    }, 202);
   } catch (error) {
     const invalidBody = error && (error.message === 'INVALID_JSON' || error.message === 'REQUEST_TOO_LARGE');
     return jsonResponse({

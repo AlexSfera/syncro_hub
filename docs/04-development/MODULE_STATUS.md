@@ -1,3 +1,21 @@
+## Publicación de horarios Bitrix24 desde Mac Mini — 14/10/2026
+
+- DOCUMENTADO: el único ordenador operativo es el Mac Mini de Alexander; el
+  equipo HP está retirado y no debe volver a proponerse.
+- Flujo decidido: el jefe guarda el borrador y pulsa `Solicitar carga en
+  Bitrix`; SYNCRO SHIFT registra la solicitud y avisa a Alexander en Bitrix24.
+  La carga y verificación se ejecutan localmente desde el Mac Mini.
+- API oficial: `timeman.schedule.get` permite lectura, pero no existe escritura
+  REST documentada del ShiftPlan. El aviso puede usar `tasks.task.add`.
+- IMPLEMENTADO y TESTEADO localmente: botón `Solicitar carga en Bitrix`, cola
+  idempotente sobre `planificacion_sync_log`, estado `pendiente_mac_mini` y
+  aviso oficial mediante `tasks.task.list/add` asignado al usuario Bitrix `1`.
+- Ejecutor local del Mac Mini: PENDIENTE. Prueba del aviso y prueba completa
+  de carga en Bitrix24: NO VERIFICADAS. Detalle:
+  `docs/04-development/FLUJO_PUBLICACION_BITRIX_MAC_MINI_20261014.md`.
+
+---
+
 ## Habitación de tareas de Pisos — 12/10/2026
 Esta sección prevalece para la visualización de habitaciones en Tareas y Mantenimiento.
 - IMPLEMENTADO y TESTEADO: habitación guardada visible en lista general, detalle, resumen de tareas, detalle del turno y Kanban de Mantenimiento. Sin cambiar guardado ni permisos; no se infieren habitaciones ausentes.
