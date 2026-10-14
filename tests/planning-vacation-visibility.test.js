@@ -18,6 +18,21 @@ test('historico conserva 2023 y 2024 separados y festivos cero confirmados',()=>
   assert.equal(b.holiday_confirmed_as_of,'2026-10-06');
 });
 
+test('conserva saldos negativos de festivos y aplica la planificación futura',()=>{
+  const negative=calculate({holidayConfirmations:[{...holiday,valor_nuevo:{ambito:'festivos_compensacion',saldo_dias:-1}}]});
+  assert.equal(negative.holiday_pending_value,-1);
+  const planned=calculate({daySummaries:[{
+    employee_id:employee.id,
+    counts:{turno:4,descanso:2,vacaciones:3,festivo:0,recuperacion_festivo:1,baja_medica:0,otras_ausencias:0},
+    total_registered:10,conflict_days:0,holiday_work_planned_days:1,
+    future_vacation_days:3,future_explicit_vacation_days:2,future_recovery_days:1
+  }]});
+  assert.equal(planned.future_vacation_days,2);
+  assert.equal(planned.vacation_after_planning,6);
+  assert.equal(planned.holiday_planning_delta,-1);
+  assert.equal(planned.holiday_after_planning,-1);
+});
+
 test('saldos historicos y festivos no se revelan a otro empleado',()=>{
   const b=calculate({actor:{id:'fixture-other'}});
   assert.deepEqual(b.historical_values,[]);
@@ -42,7 +57,10 @@ test('tabla y ayuda muestran historico, cero y ficha sin asignar con escape HTML
   const context=vm.createContext({window:{},document:{getElementById:id=>id==='ph-modal-card'?modal:layer}});
   vm.runInContext(source,context);
   context._ph.weekStart='2026-10-05';
-  context._ph.data={balanceEmployees:[{...employee,nombre:'<img src=x>',estado:'Sin asignar',area:''}],balances:[calculate()]};
+  context._ph.data={balanceEmployees:[{...employee,nombre:'<img src=x>',estado:'Sin asignar',area:''}],balances:[calculate({daySummaries:[{
+    employee_id:employee.id,counts:{turno:4,descanso:2,vacaciones:1,festivo:1,recuperacion_festivo:1,baja_medica:1,otras_ausencias:0},
+    total_registered:10,conflict_days:0,holiday_work_planned_days:0,future_vacation_days:1,future_explicit_vacation_days:1,future_recovery_days:1
+  }]})]};
   const html=context._phBalancesPanel();
   assert.match(html,/Vacaciones y festivos pendientes de compensar/);
   assert.match(html,/2023: 13 días laborables/);
@@ -50,10 +68,11 @@ test('tabla y ayuda muestran historico, cero y ficha sin asignar con escape HTML
   assert.match(html,/Sin asignar/);
   assert.match(html,/&lt;img src=x&gt;/);
   assert.doesNotMatch(html,/<img src=x>/);
-  assert.match(html,/Festivos pendientes/);
-  assert.match(html,/<td>0<\/td>/);
+  assert.match(html,/Baja médica 1/);
+  assert.match(html,/Planificación: -1/);
+  assert.match(html,/Resultado: -1/);
   context._phBalanceHelp();
-  assert.match(modal.innerHTML,/un 0 es confirmado/);
+  assert.match(modal.innerHTML,/Un 0 es confirmado/);
 });
 
 test('bootstrap separa consulta de saldos de empleados habilitados para turnos',async t=>{
@@ -75,7 +94,7 @@ test('bootstrap separa consulta de saldos de empleados habilitados para turnos',
     if(table==='bitrix_horarios_departamento')data=[{departamento_id:'Cocina',bitrix_schedule_id:1,tipo_uso:'principal_departamento'}];
     if(table==='vacaciones_movimientos'){
       assert.equal(url.searchParams.get('ejercicio'),'lte.2026');
-      data=employees.map(e=>({...movement(2026,8),empleado_id:e.id}));
+      data=employees.filter(e=>e.id!=='fixture-e').map(e=>({...movement(2026,8),empleado_id:e.id}));
     }
     if(table==='planificacion_audit'&&url.searchParams.get('accion')==='eq.CONFIRMAR_SALDO_FESTIVOS')data=[holiday];
     return new Response(JSON.stringify(data),{status:200});
@@ -92,6 +111,9 @@ test('bootstrap separa consulta de saldos de empleados habilitados para turnos',
     const self=await loadPlanningBootstrap({...args,actor:employees[0]});
     assert.deepEqual(self.balanceEmployees.map(e=>e.id),['fixture-a']);
     assert.equal(self.balances[0].holiday_pending_value,0);
+    const selfWithoutMovement=await loadPlanningBootstrap({...args,actor:employees[4]});
+    assert.deepEqual(selfWithoutMovement.balanceEmployees.map(e=>e.id),['fixture-e']);
+    assert.equal(selfWithoutMovement.balances[0].value,'[NO DATA]');
   }finally{
     if(prior.url===undefined)delete process.env.SUPABASE_URL;else process.env.SUPABASE_URL=prior.url;
     if(prior.key===undefined)delete process.env.SUPABASE_SERVICE_KEY;else process.env.SUPABASE_SERVICE_KEY=prior.key;

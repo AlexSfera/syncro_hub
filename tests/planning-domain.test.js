@@ -11,6 +11,8 @@ import {
   mondayOfWeek,
   planningCapabilities,
   publicationReadiness,
+  registeredAbsenceType,
+  registeredDaySummaries,
   validateExtraRecoveryAction,
   validateWeekDraft,
   withinAbsenceCorrectionWindow,
@@ -72,6 +74,39 @@ test('distingue vacaciones naturales y laborables', () => {
   assert.equal(calculateVacationConsumption({
     conventionId:'instalaciones_deportivas_estatal', startDate:'2026-10-01', endDate:'2026-10-07'
   }), NO_DATA);
+});
+
+test('clasifica cada fecha registrada una sola vez y detecta conflictos', () => {
+  assert.equal(registeredAbsenceType({tipo_ausencia_id:'BAJA MÉDICA'}), 'baja_medica');
+  assert.equal(registeredAbsenceType({etiqueta_publica:'RF 09/10'}), 'recuperacion_festivo');
+  assert.equal(registeredAbsenceType({tipo_ausencia_id:'vacaciones'}), 'vacaciones');
+
+  const [summary] = registeredDaySummaries({
+    employees:[{id:'E1'}], exercise:2026, today:'2026-10-14',
+    holidays:[{fecha:'2026-10-09'}],
+    assignments:[
+      {empleado_id:'E1',fecha_operativa:'2026-10-09',tipo_dia:'turno'},
+      {empleado_id:'E1',fecha_operativa:'2026-10-10',tipo_dia:'descanso'},
+      {empleado_id:'E1',fecha_operativa:'2026-10-14',tipo_dia:'vacaciones'},
+      {empleado_id:'E1',fecha_operativa:'2026-10-15',tipo_dia:'ausencia'}
+    ],
+    absences:[
+      {empleado_id:'E1',fecha_inicio:'2026-10-15',fecha_fin:'2026-10-15',tipo_ausencia_id:'baja médica'},
+      {empleado_id:'E1',fecha_inicio:'2026-10-16',fecha_fin:'2026-10-17',tipo_ausencia_id:'vacaciones'},
+      {empleado_id:'E1',fecha_inicio:'2026-10-18',fecha_fin:'2026-10-18',etiqueta_publica:'Recuperación festivo 09/10'}
+    ],
+    extras:[{empleado_id:'E1',fecha:'2026-10-19',tipo:'recuperacion',minutos:60,estado:'aprobado'}]
+  });
+  assert.deepEqual(summary.counts, {
+    turno:1, descanso:1, vacaciones:3, festivo:0,
+    recuperacion_festivo:2, baja_medica:1, otras_ausencias:0
+  });
+  assert.equal(summary.total_registered, 8);
+  assert.equal(summary.conflict_days, 1);
+  assert.equal(summary.holiday_work_planned_days, 1);
+  assert.equal(summary.future_vacation_days, 3);
+  assert.equal(summary.future_explicit_vacation_days, 1);
+  assert.equal(summary.future_recovery_days, 1);
 });
 
 test('aplica ventana retrospectiva exacta de 28 días', () => {

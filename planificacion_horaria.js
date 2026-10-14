@@ -200,6 +200,7 @@ function _phRender(){
     + '</div></div>'
     + '<div class="ph-status"><span class="ph-pill">Estado: ' + _phEsc(state) + '</span><span class="ph-pill">Versión: ' + version + '</span>'
     + '<span class="ph-pill">Catálogo Bitrix24: ' + _phEsc(refreshed) + '</span><span class="ph-pill">' + _phEsc(_phOpeningLabel()) + '</span></div>'
+    + (_phUnregisteredTotal() ? '<div class="ph-alert warn"><strong>Clasificación incompleta:</strong> quedan ' + _phUnregisteredTotal() + ' jornadas sin registrar en esta semana.</div>' : '')
     + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Publicación protegida:</strong> la escritura de ShiftPlan en Bitrix24 permanece bloqueada porque no existe una API oficial documentada. No se usan clics internos ni endpoints no oficiales.</div>' : '')
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th>'
     + (_ph.data.dates || []).map(function(date){ return '<th>' + _phEsc(_phDayLabel(date)) + '<div class="ph-muted">' + _phEsc(date.slice(5)) + '</div></th>'; }).join('')
@@ -233,6 +234,53 @@ function _phExtra(employeeId, date){
   return (_ph.data.extras || []).filter(function(item){
     return String(item.empleado_id) === String(employeeId) && item.fecha === date;
   });
+}
+
+function _phNormalizeType(value){
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+}
+
+function _phAbsenceType(absence){
+  var value = _phNormalizeType((absence && absence.tipo_ausencia_id || '') + ' ' + (absence && absence.etiqueta_publica || ''));
+  if(/\b(vacacion|vacaciones)\b/.test(value)) return 'vacaciones';
+  if(/\b(baja medica|baja laboral|ausencia medica|enfermedad|incapacidad|hospitalizacion|accidente|it)\b/.test(value)) return 'baja_medica';
+  if(/\b(recuperacion|recupera|devolucion (?:de )?festivo|disfrute (?:de )?festivo)\b/.test(value)||/(^|\s)rf([\s_/-]|$)/.test(value)) return 'recuperacion_festivo';
+  return 'otras_ausencias';
+}
+
+function _phWeekCounts(employeeId){
+  var counts={turno:0,descanso:0,vacaciones:0,festivo:0,recuperacion_festivo:0,baja_medica:0,otras_ausencias:0,sin_registrar:0,conflictos:0};
+  (_ph.data.dates || []).forEach(function(date){
+    var assignment=_phAssignment(employeeId,date);
+    var absence=_phAbsence(employeeId,date);
+    var holiday=_phHoliday(date);
+    var recovery=_phExtra(employeeId,date).some(function(item){
+      return item.tipo==='recuperacion'&&item.estado!=='rechazado'&&item.estado!=='rectificado';
+    });
+    if(assignment&&absence) counts.conflictos+=1;
+    var type=absence?_phAbsenceType(absence)
+      :assignment?(assignment.tipo_dia==='ausencia'?'otras_ausencias':assignment.tipo_dia)
+      :recovery?'recuperacion_festivo'
+      :holiday?'festivo':null;
+    if(type&&Object.prototype.hasOwnProperty.call(counts,type)) counts[type]+=1;
+    else counts.sin_registrar+=1;
+  });
+  return counts;
+}
+
+function _phWeekCountsLabel(employeeId){
+  var counts=_phWeekCounts(employeeId);
+  return '<div class="ph-muted">Semana: trabajo '+counts.turno+' · descanso '+counts.descanso+' · vacaciones '+counts.vacaciones
+    +' · festivo '+counts.festivo+' · recuperación '+counts.recuperacion_festivo+' · baja médica '+counts.baja_medica
+    +' · otras ausencias '+counts.otras_ausencias+'</div>'
+    +'<div class="ph-muted">Sin registrar: '+counts.sin_registrar
+    +(counts.conflictos?' · Conflictos: '+counts.conflictos:'')+'</div>';
+}
+
+function _phUnregisteredTotal(){
+  return (_ph.data.employees || []).reduce(function(total,employee){
+    return total+_phWeekCounts(employee.id).sin_registrar;
+  },0);
 }
 
 function _phDateLabel(value){
@@ -271,7 +319,27 @@ function _phBalanceLines(balance){
     html += ' · Apertura al ' + _phEsc(_phDateLabel(balance.previous_opening_as_of))
       + ': ' + _phEsc(_phBalanceValue(balance.previous_opening_value, balance.previous_unit));
   }
-  return html + '</div>';
+  html += '</div><div class="ph-muted">Vacaciones futuras registradas: '
+    + _phEsc(_phBalanceValue(balance.future_vacation_days, balance.unit))
+    + ' · Saldo tras planificación: ' + _phEsc(_phBalanceValue(balance.vacation_after_planning, balance.unit)) + '</div>';
+  html += '<div class="ph-muted">Festivos: movimiento por planificación '
+    + _phEsc(_phBalanceValue(balance.holiday_planning_delta, null))
+    + ' · Saldo tras planificación ' + _phEsc(_phBalanceValue(balance.holiday_after_planning, null)) + '</div>';
+  return html;
+}
+
+function _phRegisteredCounts(balance){
+  var counts = balance && balance.registered_day_counts;
+  if(!counts) return '[NO DATA]';
+  return 'Total ' + Number(balance.registered_days_total || 0)
+    + ' · Trabajo ' + Number(counts.turno || 0)
+    + ' · Descanso ' + Number(counts.descanso || 0)
+    + ' · Vacaciones ' + Number(counts.vacaciones || 0)
+    + ' · Festivo ' + Number(counts.festivo || 0)
+    + ' · Recuperación ' + Number(counts.recuperacion_festivo || 0)
+    + ' · Baja médica ' + Number(counts.baja_medica || 0)
+    + ' · Otras ausencias ' + Number(counts.otras_ausencias || 0)
+    + ' · Trabajo planificado en festivo ' + Number(balance.holiday_work_planned_days || 0);
 }
 
 
@@ -291,22 +359,31 @@ function _phBalancesPanel(){
       + '<td>' + _phEsc(_phBalanceValue(balance.value,balance.unit)) + '</td>'
       + '<td>' + _phEsc(_phBalanceValue(balance.previous_value,balance.previous_unit)) + '</td>'
       + '<td>' + historical + '</td>'
-      + '<td>' + _phEsc(_phBalanceValue(balance.holiday_pending_value,null)) + '</td></tr>';
+      + '<td>' + _phEsc(_phRegisteredCounts(balance))
+      + (Number(balance.registered_day_conflicts || 0) ? '<br><span class="ph-alert warn">Conflictos: ' + Number(balance.registered_day_conflicts) + '</span>' : '') + '</td>'
+      + '<td>' + _phEsc(_phBalanceValue(balance.future_vacation_days,balance.unit)) + '</td>'
+      + '<td>' + _phEsc(_phBalanceValue(balance.vacation_after_planning,balance.unit)) + '</td>'
+      + '<td>Confirmado: ' + _phEsc(_phBalanceValue(balance.holiday_pending_value,null))
+      + '<br>Planificación: ' + _phEsc(_phBalanceValue(balance.holiday_planning_delta,null))
+      + '<br>Resultado: ' + _phEsc(_phBalanceValue(balance.holiday_after_planning,null)) + '</td></tr>';
   }).join('');
   return '<div class="card" id="ph-vacation-balances" style="margin-top:16px">'
     + '<div class="ph-toolbar"><h3 style="margin:0">Vacaciones y festivos pendientes de compensar</h3>'
     + '<button class="btn" aria-label="Instrucciones de saldos" onclick="_phBalanceHelp()">ⓘ Cómo consultar</button></div>'
     + '<p class="ph-muted">Consulta de saldos confirmados. Las fichas sin asignar o de baja se muestran para consultar su saldo.</p>'
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th><th>Departamento</th><th>Estado de ficha</th>'
-    + '<th>Vacaciones ' + exercise + '</th><th>Pendiente ' + (exercise - 1) + '</th><th>Años anteriores</th><th>Festivos pendientes</th>'
-    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="7">[NO DATA]</td></tr>') + '</tbody></table></div></div>';
+    + '<th>Vacaciones ' + exercise + '</th><th>Pendiente ' + (exercise - 1) + '</th><th>Años anteriores</th>'
+    + '<th>Jornadas registradas ' + exercise + '</th><th>Vacaciones futuras</th><th>Saldo tras planificación</th><th>Festivos y recuperación</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="10">[NO DATA]</td></tr>') + '</tbody></table></div></div>';
 }
 
 function _phBalanceHelp(){
   var card = document.getElementById('ph-modal-card');
   card.innerHTML = '<div class="ph-modal-title">Cómo consultar los saldos</div>'
     + '<p>Vacaciones muestra los días pendientes del año seleccionado. Pendiente muestra el ejercicio anterior. Años anteriores conserva los saldos de cada año por separado.</p>'
-    + '<p>Trabajar un festivo genera un día pendiente de compensar. El descanso compensatorio disfrutado reduce ese mismo saldo. La pantalla muestra cantidades confirmadas y su corte; un 0 es confirmado y [NO DATA] indica falta de evidencia. No se suman vacaciones y festivos ni se vuelven a contar movimientos anteriores al corte.</p>'
+    + '<p>Cada fecha registrada se clasifica una sola vez como trabajo, descanso, vacaciones, festivo, recuperación, baja médica u otra ausencia. Los conflictos se señalan para corregirlos.</p>'
+    + '<p>Trabajar un festivo acreditado genera un día pendiente de compensar. Una recuperación de jornada completa, registrada como ausencia, resta un día y puede dejar el resultado en negativo. Una recuperación por horas se mantiene visible, pero no se convierte automáticamente en un día. Un turno solo planificado en festivo se muestra, pero no se convierte en derecho confirmado hasta acreditar el trabajo.</p>'
+    + '<p>Vacaciones futuras reduce el saldo confirmado para mostrar el saldo tras planificación. Un 0 es confirmado y [NO DATA] indica falta de saldo base; nunca se inventa un cero.</p>'
     + '<p>La semana selecciona el año de consulta. Dirección y RRHH ven todos los saldos; los jefes ven su departamento y cada empleado ve su saldo.</p>'
     + '<p>Los periodos de vacaciones y otras ausencias aparecen en las fechas del calendario. Usa Ausencia para registrar un periodo con sus fechas.</p>'
     + '<div class="ph-modal-footer"><button class="btn" onclick="_phCloseModal()">Cerrar</button></div>';
@@ -351,7 +428,7 @@ function _phEmployeeRow(employee){
       ? ' onclick="_phOpenCell(\'' + _phEsc(String(employee.id)) + '\',\'' + date + '\')"' : '') + '>' + html + '</div></td>';
   }).join('');
   return '<tr><td><div class="ph-name">' + _phEsc(employee.nombre) + '</div><div class="ph-muted">' + _phEsc(employee.puesto || employee.area || '')
-    + '</div>' + _phBalanceLines(balance) + '</td>' + cells + '</tr>';
+    + '</div>' + _phWeekCountsLabel(employee.id) + _phBalanceLines(balance) + '</td>' + cells + '</tr>';
 }
 
 function _phTime(value){
