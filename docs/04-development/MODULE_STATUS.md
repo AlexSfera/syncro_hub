@@ -1,7 +1,7 @@
 ## Ejecutor de horarios Bitrix24 — avance 15/10/2026
 
-- En rama de trabajo y Producción (`dpl_DAHeFuBueHRHhqwQnPntFWgKSDfa`,
-  `5bf57f1`), `IMPLEMENTADO` el bloqueo de semana incompleta y la cola segura
+- En rama de trabajo y Producción (`dpl_F3iSTYnLFpHeH2fCMxvXKrNsMQJb`,
+  `b78b517`), `IMPLEMENTADO` el bloqueo de semana incompleta y la cola segura
   restringida al horario 33 de Recepción SyncroLab. El ejecutor está instalado
   y activado como LaunchAgent en este Mac Mini; terminó una ejecución sin
   trabajo pendiente con código 0.
