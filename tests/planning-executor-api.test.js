@@ -64,4 +64,6 @@ test('entrega solo la semana solicitada y bloquea una versión incompleta', asyn
   assert.equal(payload.job.blocked, 'WEEK_INCOMPLETE');
   assert.equal(payload.job.missing_count, 6);
   assert.ok(requests.every(path => path.startsWith('https://example.supabase.test/rest/v1/')));
+  assert.ok(requests.some(path => path.includes('response_snapshot-%3E%3Eautomatic=eq.true')
+    || path.includes('response_snapshot->>automatic=eq.true')));
 });
