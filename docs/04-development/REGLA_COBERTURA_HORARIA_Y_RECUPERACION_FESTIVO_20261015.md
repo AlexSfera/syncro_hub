@@ -1,9 +1,10 @@
 # SYNCRO SHIFT — cobertura semanal y recuperación de festivo
 
 Estado: **REGLA DOCUMENTADA, NO IMPLEMENTADA**. Alexander aclaró el alcance
-semanal y el papel del calendario de RRHH el 15/10/2026. Queda por precisar
-cuándo se acredita el trabajo efectivo en festivo. Este documento no declara
-la regla operativa ni autoriza migraciones o cambios de datos LIVE.
+semanal, el papel del calendario de RRHH y el momento de acreditación del
+festivo el 15/10/2026. Falta identificar la fuente verificable del trabajo
+efectivo por persona y fecha. Este documento no declara la regla operativa ni
+autoriza migraciones o cambios de datos LIVE.
 
 ## Intención confirmada
 
@@ -40,14 +41,19 @@ la regla operativa ni autoriza migraciones o cambios de datos LIVE.
   señala el festivo concreto que las generó. No se debe contar el mismo
   festivo dos veces ni compensarlo dos veces. Los saldos históricos negativos
   existentes no se corrigen ni se borran por esta regla nueva.
+- Un turno **solo planificado**, incluso en un festivo futuro publicado, genera
+  **0 minutos confirmados**. El derecho de **+480 minutos** nace una sola vez
+  cuando se confirma que esa persona trabajó efectivamente ese festivo. Si el
+  turno se cancela o no se trabaja, no nace el derecho. La recuperación de un
+  día completo consume **-480 minutos** del derecho confirmado y disponible.
 - La fecha origen debe proponerse desde festivos anteriores de **esa misma
   persona**, publicados por RRHH, con trabajo acreditado y compensación aún
   disponible. Si hay varias fechas elegibles, la interfaz debe mostrarlas
   claramente para elegir la correcta. Si no hay ninguna, no debe inventarla.
 - Publicar un festivo y planificar un turno en él no demuestra por sí solo que
-  se trabajó. Está pendiente confirmar si el derecho se acredita al guardar
-  el turno o después de validar el trabajo efectivo; esta decisión afecta al
-  saldo y no se resuelve por inferencia.
+  se trabajó. La fuente y el mecanismo auditable para confirmar el trabajo
+  efectivo por persona y fecha siguen en `[NO DATA]`; no se debe crear saldo
+  confirmado ni ofrecer un origen recuperable sin esa evidencia.
 
 ## Distinción de controles existentes
 
@@ -75,13 +81,15 @@ turnos para corregir los huecos.
   acreditado; no hay evidencia en este proyecto de una fuente individual por
   fecha que permita sugerir automáticamente qué festivo se trabajó.
 
-## Decisión pendiente que cambia el saldo
+## Decisión confirmada y dependencia técnica
 
-¿Las 8 horas se acreditan al **planificar** un turno en festivo futuro o solo
-después de confirmar que la persona **trabajó**? La fuente concreta de esa
-confirmación sigue en `[NO DATA]` en la implementación actual.
+Alexander confirmó: **solo se acreditan las 8 horas después de confirmar el
+trabajo real**; la planificación no acredita saldo. La fuente concreta y el
+validador de esa confirmación siguen en `[NO DATA]` en la implementación
+actual. Identificarlos y verificar su trazabilidad es requisito previo para
+implementar el cálculo automático.
 
-## Criterios de aceptación una vez resueltas las decisiones
+## Criterios de aceptación para la implementación
 
 1. El responsable ve los huecos de las siete fechas de todas las personas de
    su departamento y los suyos; el servidor vuelve a calcular el mismo
@@ -94,6 +102,9 @@ confirmación sigue en `[NO DATA]` en la implementación actual.
    pertenece a la misma persona, que es anterior y que hay prueba del trabajo,
    y evitan consumir dos veces el mismo festivo; el balance se expresa en
    minutos para que 480 de generación y 480 de consumo sean comprobables.
+   Se prueba expresamente: turno festivo planificado = 0 confirmado; trabajo
+   efectivo confirmado = +480 una sola vez; turno cancelado/no trabajado = 0;
+   recuperación completa válida = -480 una sola vez.
 4. Se prueban límites de año, altas/bajas laborales, cambios de versión,
    permisos de RRHH, jefes y administradores, publicación del calendario,
    modificaciones de turnos y llamadas directas a la API.
