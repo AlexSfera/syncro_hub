@@ -17,6 +17,7 @@ async function pendingRequest() {
   for (let offset = 0; offset < 10000; offset += 100) {
     const requests = await adminRequest(
       'planificacion_sync_log?operacion=eq.solicitar_carga_bitrix'
+        + '&response_snapshot->>automatic=eq.true'
         + '&select=id,semana_id,version,actor,created_at&order=created_at.asc,id.asc',
       { headers: { Range: `${offset}-${offset + 99}` } }
     );
