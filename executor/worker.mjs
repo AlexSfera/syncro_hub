@@ -148,6 +148,15 @@ async function run() {
       await new Promise(resolve => context.on('close', resolve));
       return;
     }
+    await page.goto(`${bitrixUrl}/timeman/schedules/33/shiftplan/`, {
+      waitUntil: 'domcontentloaded', timeout: 30000
+    });
+    const gridReady = await page.locator('#TM_SHIFT_PLAN_GRID_33_table')
+      .waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
+    if (!gridReady) {
+      console.error('BITRIX_SESSION_OR_GRID_UNAVAILABLE');
+      return; // La solicitud permanece en cola para reintentar tras iniciar sesión.
+    }
     const preflight = [];
     for (const assignment of job.assignments) {
       try {
