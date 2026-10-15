@@ -601,8 +601,11 @@ async function _phPublishWeek(){
     var card = document.getElementById('ph-modal-card');
     var modal = document.getElementById('ph-modal');
     if(card && modal){
+      var message = result.automatic
+        ? 'La semana está completa y la carga automática ha quedado en cola. Aún no significa que los turnos estén publicados: aquí aparecerá el resultado después de verificarlos.'
+        : 'La semana está completa, pero la carga automática todavía no está activada. Se ha registrado la solicitud y, si el aviso se envió, Alexander deberá gestionarla. Ningún turno se ha publicado por esta acción.';
       card.innerHTML = '<div class="ph-modal-title">Solicitud recibida</div>'
-        + '<p>La semana está completa y la carga en Bitrix será procesada. Aún no significa que los turnos estén publicados: aquí aparecerá el resultado después de verificarlos.</p>'
+        + '<p>' + message + '</p>'
         + '<div class="ph-modal-footer"><button class="btn" onclick="_phCloseModal()">Entendido</button></div>';
       modal.classList.add('open');
     }
