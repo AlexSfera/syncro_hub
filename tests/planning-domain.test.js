@@ -9,6 +9,7 @@ import {
   canEditPlanningDepartment,
   employeeBelongsToPlanningDepartment,
   mondayOfWeek,
+  missingWeekAssignments,
   planningCapabilities,
   publicationReadiness,
   registeredAbsenceType,
@@ -184,4 +185,23 @@ test('publicación permanece bloqueada sin escritura oficial ShiftPlan', () => {
   assert.deepEqual(publicationReadiness({
     validation:{valid:true}, catalogFresh:true, bitrixWriteSupported:false, assignments:[{}]
   }), {ready:false, blockers:['BITRIX_SHIFTPLAN_WRITE_NO_SOPORTADO']});
+});
+
+test('la solicitud detecta días sin clasificar de la jefa y sus empleados', () => {
+  const employees = [
+    {id:'JEFA',nombre:'Jefa',area:'Recepción SYNCROLAB',estado:'Activo'},
+    {id:'EMPLEADA',nombre:'Empleada',area:'Recepción SYNCROLAB',estado:'Activo'},
+    {id:'EXTERNA',nombre:'Externa',area:'Marketing',estado:'Activo'},
+    {id:'BAJA',nombre:'Baja',area:'Recepción SYNCROLAB',estado:'Inactivo'}
+  ];
+  const assignments = [
+    {empleado_id:'JEFA',fecha_operativa:'2026-10-19',tipo_dia:'turno'},
+    {empleado_id:'EMPLEADA',fecha_operativa:'2026-10-19',tipo_dia:'descanso'}
+  ];
+  const missing = missingWeekAssignments({
+    weekStart:'2026-10-19',department:'Recepción SYNCROLAB',employees,assignments
+  });
+  assert.equal(missing.length, 12);
+  assert.deepEqual(missing[0], {empleado_id:'JEFA',empleado:'Jefa',fecha:'2026-10-20'});
+  assert.ok(missing.every(item => item.empleado_id !== 'EXTERNA' && item.empleado_id !== 'BAJA'));
 });

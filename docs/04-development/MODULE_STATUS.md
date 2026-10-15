@@ -1,3 +1,16 @@
+## Ejecutor de horarios Bitrix24 — avance 15/10/2026
+
+- En rama de trabajo, `IMPLEMENTADO` el bloqueo de semana incompleta, la cola
+  segura para Mac Mini y un ejecutor restringido al horario 33 de Recepción
+  SyncroLab. El ejecutor está preparado en este Mac, no activado aún.
+- `TESTEADO` localmente: cobertura, rechazo de acceso sin credencial, bloqueo
+  de versión incompleta y suite general. `NO VERIFICADO`: escritura LIVE de un
+  turno desde SYNCRO SHIFT, login del perfil dedicado, ausencias Bitrix y
+  funcionamiento desatendido. `NO PRODUCCIÓN` para este cambio hasta un
+  deployment identificado. Véase `EJECUTOR_BITRIX_MAC_MINI_20261015.md`.
+- La variable sensible del ejecutor existe solo en Vercel Producción. El flag
+  de activación sigue ausente, por lo que el flujo anterior conserva su aviso.
+
 ## Publicación de horarios Bitrix24 desde Mac Mini — 14/10/2026
 
 - DOCUMENTADO: el único ordenador operativo es el Mac Mini de Alexander; el

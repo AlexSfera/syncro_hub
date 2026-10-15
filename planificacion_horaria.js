@@ -170,6 +170,7 @@ function _phRender(){
   var version = week ? week.version_actual : 0;
   var publicationRequest = (_ph.data.publicationRequests || [])[0] || null;
   var publicationNotification = (_ph.data.publicationNotifications || [])[0] || null;
+  var executionResult = (_ph.data.executionResults || [])[0] || null;
   var notificationError = _ph.lastNotificationError || (publicationRequest && publicationRequest.error_seguro);
   var refreshed = (_ph.data.mappings || []).filter(function(item){
     return item.departamento_id === _ph.department && item.ultima_lectura_at;
@@ -203,13 +204,20 @@ function _phRender(){
     + '</div></div>'
     + '<div class="ph-status"><span class="ph-pill">Estado: ' + _phEsc(state) + '</span><span class="ph-pill">Versión: ' + version + '</span>'
     + '<span class="ph-pill">Catálogo Bitrix24: ' + _phEsc(refreshed) + '</span><span class="ph-pill">' + _phEsc(_phOpeningLabel()) + '</span></div>'
-    + (publicationRequest ? '<div class="ph-alert warn"><strong>Carga Bitrix pendiente:</strong> '
-      + (publicationNotification ? 'aviso enviado a Alexander; falta procesarla desde el Mac Mini.'
-        : 'aviso a Alexander no confirmado. Pulsa de nuevo «Solicitar carga en Bitrix» para reintentar.'
-          + (notificationError ? ' Error: ' + _phEsc(notificationError) + '.' : ''))
-      + '</div>' : '')
+    + (executionResult ? '<div class="ph-alert ' + (executionResult.resultado_envio === 'verified_shifts' ? '' : 'warn')
+      + '"><strong>Resultado del ejecutor:</strong> '
+      + _phEsc(executionResult.resultado_envio === 'verified_shifts'
+        ? 'turnos verificados en Bitrix para esta versión.'
+        : executionResult.resultado_envio === 'partial'
+          ? 'turnos tratados, pero las ausencias o festivos aún no están confirmados en Bitrix.'
+          : 'carga bloqueada o fallida; no está publicada.')
+      + (executionResult.error_seguro ? ' ' + _phEsc(executionResult.error_seguro) : '') + '</div>'
+      : publicationRequest ? '<div class="ph-alert warn"><strong>Carga Bitrix pendiente:</strong> la solicitud está en cola para el ejecutor del Mac Mini.'
+        + (publicationNotification ? ' Se ha enviado un aviso a Alexander.'
+          : notificationError ? ' Aviso no confirmado: ' + _phEsc(notificationError) + '.' : '')
+        + '</div>' : '')
     + (_phUnregisteredTotal() ? '<div class="ph-alert warn"><strong>Clasificación incompleta:</strong> quedan ' + _phUnregisteredTotal() + ' jornadas sin registrar en esta semana.</div>' : '')
-    + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Flujo asistido:</strong> Bitrix24 no ofrece escritura oficial del ShiftPlan por API. El responsable solicita la carga aquí; Alexander recibe el aviso y la procesa desde su Mac Mini.</div>' : '')
+    + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Integración en preparación:</strong> Bitrix24 no ofrece escritura oficial del ShiftPlan por API. La solicitud queda en cola para el ejecutor del Mac Mini; hasta verificar su instalación no debe considerarse publicada.</div>' : '')
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th>'
     + (_ph.data.dates || []).map(function(date){ return '<th>' + _phEsc(_phDayLabel(date)) + '<div class="ph-muted">' + _phEsc(date.slice(5)) + '</div></th>'; }).join('')
     + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
@@ -577,7 +585,10 @@ async function _phPublishWeek(){
     var result = await _phApi('/api/planning/publish', {method:'POST', body:{
       week_id:_ph.data.week.id, expected_version:_ph.data.week.version_actual
     }});
-    if(result.notification && result.notification.sent){
+    if(result.automatic){
+      _ph.lastNotificationError = null;
+      toast('Semana completa: carga automática en cola. Se confirmará tras verificar Bitrix.','ok');
+    }else if(result.notification && result.notification.sent){
       _ph.lastNotificationError = null;
       toast('Solicitud registrada y aviso enviado a Alexander en Bitrix','ok');
     }else{
@@ -587,7 +598,29 @@ async function _phPublishWeek(){
         + _ph.lastNotificationError,'warn');
     }
     await _phLoad(false);
+    var card = document.getElementById('ph-modal-card');
+    var modal = document.getElementById('ph-modal');
+    if(card && modal){
+      card.innerHTML = '<div class="ph-modal-title">Solicitud recibida</div>'
+        + '<p>La semana está completa y la carga en Bitrix será procesada. Aún no significa que los turnos estén publicados: aquí aparecerá el resultado después de verificarlos.</p>'
+        + '<div class="ph-modal-footer"><button class="btn" onclick="_phCloseModal()">Entendido</button></div>';
+      modal.classList.add('open');
+    }
   }catch(error){
+    if(error.payload && error.payload.error === 'WEEK_INCOMPLETE'){
+      var missing = error.payload.missing || [];
+      var card = document.getElementById('ph-modal-card');
+      var modal = document.getElementById('ph-modal');
+      if(card && modal){
+        card.innerHTML = '<div class="ph-modal-title">Faltan días por asignar</div>'
+          + '<p>Completa los siete días de cada persona de este departamento, incluida la jefatura, antes de solicitar la carga en Bitrix.</p>'
+          + '<div class="ph-alert err" style="max-height:260px;overflow:auto">'
+          + missing.map(function(item){ return _phEsc(item.empleado || item.empleado_id) + ': ' + _phEsc(item.fecha); }).join('<br>')
+          + '</div><div class="ph-modal-footer"><button class="btn" onclick="_phCloseModal()">Entendido</button></div>';
+        modal.classList.add('open');
+      }
+      return;
+    }
     toast('No se pudo solicitar la carga: ' + error.message,'err');
   }
 }

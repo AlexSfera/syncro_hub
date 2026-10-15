@@ -6,7 +6,7 @@ import {
   requireMethod,
   requireSameOrigin
 } from '../../lib/auth-server.js';
-import { publicationReadiness } from '../../lib/planning-domain.js';
+import { employeeBelongsToPlanningDepartment, missingWeekAssignments, publicationReadiness } from '../../lib/planning-domain.js';
 import {
   assertCanEditDepartment,
   ensureBitrixPlanningTask,
@@ -65,6 +65,29 @@ export default async function handler(req) {
       }))
     });
     const validation = checked.validation;
+    const activeEmployees = await adminRequest(
+      'employees?estado=eq.Activo&select=id,nombre,area,puesto,rol,estado&limit=1001'
+    );
+    if (!Array.isArray(activeEmployees) || activeEmployees.length >= 1000) {
+      throw planningError('EMPLOYEE_ROSTER_UNAVAILABLE', 503);
+    }
+    if (!activeEmployees.some(employee =>
+      employeeBelongsToPlanningDepartment(employee, week.departamento_id))) {
+      throw planningError('DEPARTMENT_ROSTER_EMPTY', 409);
+    }
+    const missing = missingWeekAssignments({
+      weekStart: week.fecha_inicio,
+      department: week.departamento_id,
+      employees: activeEmployees,
+      assignments
+    });
+    if (missing.length) {
+      return jsonResponse({
+        error: 'WEEK_INCOMPLETE',
+        missing,
+        validation
+      }, 409);
+    }
     const mappings = await adminRequest(
       'bitrix_horarios_departamento?departamento_id=eq.' + encodeURIComponent(week.departamento_id)
         + '&tipo_uso=eq.principal_departamento&activo=eq.true&select=ultima_lectura_at,ultimo_resultado'
@@ -96,10 +119,13 @@ export default async function handler(req) {
         + '&select=id,response_snapshot,created_at&limit=1'
     );
 
-    let notification = Array.isArray(existingNotifications) && existingNotifications[0]
+    const automatic = process.env.SYNCRO_PLANNING_EXECUTOR_ENABLED === 'true'
+      && !!process.env.SYNCRO_PLANNING_EXECUTOR_TOKEN;
+    let notification = automatic ? { sent: false, skipped: 'EXECUTOR_QUEUE' }
+      : Array.isArray(existingNotifications) && existingNotifications[0]
       ? { sent: true, task_id: existingNotifications[0].response_snapshot.bitrix_task_id, duplicate: true }
       : { sent: false, error: null };
-    if (!notification.sent) {
+    if (!automatic && !notification.sent) {
       try {
         const task = await ensureBitrixPlanningTask({
           week,
@@ -154,7 +180,7 @@ export default async function handler(req) {
           resultado_envio: 'pendiente_mac_mini',
           resultado_verificacion: 'pendiente',
           intentos: 1,
-          error_seguro: notification.sent ? null : notification.error,
+          error_seguro: automatic || notification.sent ? null : notification.error,
           actor: session.profile.id,
           request_snapshot: {
             week_id: week.id,
@@ -166,7 +192,8 @@ export default async function handler(req) {
           response_snapshot: {
             notification_sent: notification.sent,
             bitrix_task_id: notification.task_id || null,
-            executor: 'mac_mini'
+            executor: 'mac_mini',
+            automatic
           }
         })
       });
@@ -176,6 +203,7 @@ export default async function handler(req) {
       ok: true,
       status: 'PENDING_MAC_MINI',
       duplicate: !!(Array.isArray(existingRequests) && existingRequests[0]),
+      automatic,
       notification,
       readiness,
       validation

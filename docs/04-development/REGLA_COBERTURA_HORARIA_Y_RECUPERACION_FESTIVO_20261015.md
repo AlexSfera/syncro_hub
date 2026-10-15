@@ -1,6 +1,10 @@
 # SYNCRO SHIFT — cobertura semanal y recuperación de festivo
 
-Estado: **REGLA DOCUMENTADA, NO IMPLEMENTADA**. Alexander aclaró el alcance
+Estado original: **REGLA DOCUMENTADA, NO IMPLEMENTADA**. Actualización en rama
+de trabajo del 15/10: el control de siete días y el modal de huecos están
+`IMPLEMENTADOS` y `TESTEADOS` localmente, todavía no verificados en Producción.
+La recuperación de festivo y su fecha origen siguen `NO IMPLEMENTADOS`.
+Alexander aclaró el alcance
 semanal, el papel del calendario de RRHH y el momento de acreditación del
 festivo el 15/10/2026. Falta identificar la fuente verificable del trabajo
 efectivo por persona y fecha. Este documento no declara la regla operativa ni
