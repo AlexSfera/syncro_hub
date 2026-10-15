@@ -2,10 +2,14 @@
 
 ## Estado al 15/10/2026
 
-`IMPLEMENTADO` en la rama de trabajo y `TESTEADO` solo en pruebas locales de
-API/lógica. `NO VERIFICADO` para escritura LIVE de un turno y `NO PRODUCCIÓN`
-hasta desplegar y observar la prueba controlada. El antiguo equipo HP no
-interviene.
+`IMPLEMENTADO` en la rama de trabajo y `PRODUCCIÓN` para la web en el deployment
+`dpl_DAHeFuBueHRHhqwQnPntFWgKSDfa` (commit `5bf57f1`). `TESTEADO` en
+pruebas locales de API/lógica y consulta autenticada de la cola en Producción:
+HTTP 200, sin solicitudes automáticas pendientes. El agente `launchd` del Mac
+Mini está activado y terminó una ejecución con código 0 y `NO_PENDING_JOB`.
+`NO VERIFICADO` para escritura LIVE de un turno y `NO ACTIVADO` el flag de
+solicitudes automáticas hasta completar el acceso dedicado a Bitrix y la
+semana de prueba. El antiguo equipo HP no interviene.
 
 ## Recorrido previsto
 
@@ -44,9 +48,9 @@ interviene.
   El Mac Mini debe estar encendido, con conexión a Internet y sesión vigente.
   Si se cierra la sesión o hay conflicto, se registra error y se requiere
   intervención; no se pide a Alexander un comando semanal.
-- Las solicitudes antiguas incompletas se registran como bloqueadas. No se
-  completan inventando jornadas. Una nueva versión completa necesita una
-  nueva solicitud de la jefa.
+- Las solicitudes antiguas, no marcadas como automáticas, quedan fuera de esta
+  cola. No se completan inventando jornadas. Una nueva versión completa
+  necesita una nueva solicitud de la jefa.
 
 ## Configuración y reversión
 
@@ -56,7 +60,8 @@ interviene.
 - El flag `SYNCRO_PLANNING_EXECUTOR_ENABLED=true` solo se pondrá tras verificar
   que el agente local está operativo. Sin flag, el flujo de aviso anterior
   permanece vigente.
-- El instalador prepara un Node y Playwright locales. `--activate` registra
+- El instalador usa el Node firmado del runtime de Codex y prepara Playwright
+  local. `--activate` registra
   `~/Library/LaunchAgents/com.syncrosfera.syncroshift-executor.plist` con
   intervalo de 60 segundos. `launchctl bootout gui/<uid> <plist>` lo detiene;
   no elimina registros ni turnos ya escritos.
