@@ -3,7 +3,7 @@
 ## Estado al 15/10/2026
 
 `IMPLEMENTADO` en la rama de trabajo y `PRODUCCIÓN` para la web en el deployment
-`dpl_DAHeFuBueHRHhqwQnPntFWgKSDfa` (commit `5bf57f1`). `TESTEADO` en
+`dpl_F3iSTYnLFpHeH2fCMxvXKrNsMQJb` (commit `b78b517`). `TESTEADO` en
 pruebas locales de API/lógica y consulta autenticada de la cola en Producción:
 HTTP 200, sin solicitudes automáticas pendientes. El agente `launchd` del Mac
 Mini está activado y terminó una ejecución con código 0 y `NO_PENDING_JOB`.
