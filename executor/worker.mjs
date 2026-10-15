@@ -122,6 +122,19 @@ async function verifyAssignment(page, assignment, dryRun) {
 async function run() {
   const login = process.argv.includes('--login');
   const dryRun = process.argv.includes('--dry-run');
+  let token;
+  let job;
+  if (!login) {
+    token = readToken();
+    ({ job } = await api(token, 'GET'));
+    if (!job) { console.log('NO_PENDING_JOB'); return; }
+    if (job.blocked) {
+      console.log(`BLOCKED ${job.week_id} v${job.version} ${job.blocked}`);
+      if (!dryRun) await api(token, 'POST', { week_id: job.week_id, version: job.version,
+        result: 'blocked', error: job.blocked, evidence: [] });
+      return;
+    }
+  }
   const context = await chromium.launchPersistentContext(profilePath, {
     channel: 'chrome', headless: !login,
     viewport: { width: 1600, height: 900 },
@@ -133,15 +146,6 @@ async function run() {
       await page.goto(`${bitrixUrl}/timeman/schedules/33/shiftplan/`, { waitUntil: 'domcontentloaded' });
       console.log('Inicia sesión en Bitrix en esta ventana y ciérrala al terminar.');
       await new Promise(resolve => context.on('close', resolve));
-      return;
-    }
-    const token = readToken();
-    const { job } = await api(token, 'GET');
-    if (!job) { console.log('NO_PENDING_JOB'); return; }
-    if (job.blocked) {
-      console.log(`BLOCKED ${job.week_id} v${job.version} ${job.blocked}`);
-      if (!dryRun) await api(token, 'POST', { week_id: job.week_id, version: job.version,
-        result: 'blocked', error: job.blocked, evidence: [] });
       return;
     }
     const preflight = [];
