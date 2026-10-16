@@ -17,6 +17,13 @@ import {
 
 export const config = { runtime: 'edge' };
 
+export function shouldQueueAutomatically({ enabled, tokenConfigured, mappings, existingRequest }) {
+  return enabled && tokenConfigured
+    && Array.isArray(mappings) && mappings.length === 1
+    && Number(mappings[0].bitrix_schedule_id) === 33
+    && (!existingRequest || existingRequest.response_snapshot?.automatic === true);
+}
+
 export default async function handler(req) {
   const disabled = requireAuthEnabled();
   if (disabled) return disabled;
@@ -90,7 +97,7 @@ export default async function handler(req) {
     }
     const mappings = await adminRequest(
       'bitrix_horarios_departamento?departamento_id=eq.' + encodeURIComponent(week.departamento_id)
-        + '&tipo_uso=eq.principal_departamento&activo=eq.true&select=ultima_lectura_at,ultimo_resultado'
+        + '&tipo_uso=eq.principal_departamento&activo=eq.true&select=bitrix_schedule_id,ultima_lectura_at,ultimo_resultado'
     );
     const freshLimit = Date.now() - 5 * 60 * 1000;
     const catalogFresh = mappings.length > 0 && mappings.every(mapping =>
@@ -119,8 +126,12 @@ export default async function handler(req) {
         + '&select=id,response_snapshot,created_at&limit=1'
     );
 
-    const automatic = process.env.SYNCRO_PLANNING_EXECUTOR_ENABLED === 'true'
-      && String(process.env.SYNCRO_PLANNING_EXECUTOR_TOKEN || '').length >= 32;
+    const automatic = shouldQueueAutomatically({
+      enabled: process.env.SYNCRO_PLANNING_EXECUTOR_ENABLED === 'true',
+      tokenConfigured: String(process.env.SYNCRO_PLANNING_EXECUTOR_TOKEN || '').length >= 32,
+      mappings,
+      existingRequest: Array.isArray(existingRequests) ? existingRequests[0] : null
+    });
     let notification = automatic ? { sent: false, skipped: 'EXECUTOR_QUEUE' }
       : Array.isArray(existingNotifications) && existingNotifications[0]
       ? { sent: true, task_id: existingNotifications[0].response_snapshot.bitrix_task_id, duplicate: true }
