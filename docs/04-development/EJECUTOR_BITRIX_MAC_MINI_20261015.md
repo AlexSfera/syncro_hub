@@ -4,7 +4,7 @@
 
 `IMPLEMENTADO` y `PRODUCCIÓN` para la solicitud automática **solo** del horario
 Bitrix 33 de Recepción SYNCROLAB: rama `codex/bitrix-auto-publish-20261016`,
-commit remoto `f8a9513`, deployment `dpl_93Mn9EhiUgYwqj7p2t5ToM7XCYVs`
+commit remoto `d409d39`, deployment `dpl_7ABoWrTm9kEfB95mVr53vzzLgEj3`
 READY en `syncro-shift.vercel.app`. El flag de producción
 `SYNCRO_PLANNING_EXECUTOR_ENABLED=true` está configurado; los demás horarios
 conservan el aviso manual. El Mac Mini ejecuta el LaunchAgent cada 60 segundos,

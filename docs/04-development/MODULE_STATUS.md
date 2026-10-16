@@ -1,8 +1,8 @@
 ## Ejecutor de horarios Bitrix24 — estado 16/10/2026
 
 - `PRODUCCIÓN` del canal automático piloto **solo** para horario 33 de
-  Recepción SYNCROLAB: `f8a9513`, Vercel
-  `dpl_93Mn9EhiUgYwqj7p2t5ToM7XCYVs` READY. Mac Mini con LaunchAgent de
+  Recepción SYNCROLAB: `d409d39`, Vercel
+  `dpl_7ABoWrTm9kEfB95mVr53vzzLgEj3` READY. Mac Mini con LaunchAgent de
   60 segundos y sesión Bitrix dedicada verificada. Los demás horarios siguen
   por aviso manual. Suite: 243 PASS, 0 FAIL, 1 OMITIDA.
 - `NO VERIFICADO` el volcado real de turnos: cola automática vacía; la semana
