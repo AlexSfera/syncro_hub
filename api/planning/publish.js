@@ -17,8 +17,9 @@ import {
 
 export const config = { runtime: 'edge' };
 
-export function shouldQueueAutomatically({ enabled, tokenConfigured, mappings, existingRequest }) {
+export function shouldQueueAutomatically({ enabled, tokenConfigured, department, mappings, existingRequest }) {
   return enabled && tokenConfigured
+    && department === 'Recepción SYNCROLAB'
     && Array.isArray(mappings) && mappings.length === 1
     && Number(mappings[0].bitrix_schedule_id) === 33
     && (!existingRequest || existingRequest.response_snapshot?.automatic === true);
@@ -129,6 +130,7 @@ export default async function handler(req) {
     const automatic = shouldQueueAutomatically({
       enabled: process.env.SYNCRO_PLANNING_EXECUTOR_ENABLED === 'true',
       tokenConfigured: String(process.env.SYNCRO_PLANNING_EXECUTOR_TOKEN || '').length >= 32,
+      department: week.departamento_id,
       mappings,
       existingRequest: Array.isArray(existingRequests) ? existingRequests[0] : null
     });

@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { shouldQueueAutomatically } from '../api/planning/publish.js';
 
-const ready = { enabled: true, tokenConfigured: true,
+const ready = { enabled: true, tokenConfigured: true, department: 'Recepción SYNCROLAB',
   mappings: [{ bitrix_schedule_id: 33 }], existingRequest: null };
 
 test('solo el horario piloto 33 entra en la cola automática', () => {
   assert.equal(shouldQueueAutomatically(ready), true);
   assert.equal(shouldQueueAutomatically({ ...ready,
     mappings: [{ bitrix_schedule_id: 55 }] }), false);
+  assert.equal(shouldQueueAutomatically({ ...ready,
+    department: 'Cocina' }), false);
   assert.equal(shouldQueueAutomatically({ ...ready,
     mappings: [{ bitrix_schedule_id: 33 }, { bitrix_schedule_id: 55 }] }), false);
   assert.equal(shouldQueueAutomatically({ ...ready, enabled: false }), false);

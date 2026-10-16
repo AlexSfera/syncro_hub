@@ -39,6 +39,9 @@ async function loadJob(request) {
   if (!week || Number(week.version_actual) !== Number(request.version)) {
     return { request_id: request.id, week_id: request.semana_id, version: request.version, blocked: 'VERSION_OBSOLETA' };
   }
+  if (week.departamento_id !== 'Recepción SYNCROLAB') {
+    return { request_id: request.id, week_id: week.id, version: request.version, blocked: 'DEPARTMENT_NOT_ALLOWED' };
+  }
   const assignments = await adminRequest('planificacion_asignaciones?semana_id=eq.' + encodeURIComponent(week.id)
     + '&version=eq.' + encodeURIComponent(request.version) + '&select=*&order=empleado_id.asc,fecha_operativa.asc');
   const employees = await adminRequest('employees?estado=eq.Activo'
