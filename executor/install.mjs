@@ -22,6 +22,7 @@ mkdirSync(root, { recursive: true, mode: 0o700 });
 chmodSync(root, 0o700);
 mkdirSync(join(root, 'node_modules'), { recursive: true, mode: 0o700 });
 copyFileSync(join(source, 'worker.mjs'), join(root, 'worker.mjs'));
+copyFileSync(join(source, 'replacement-policy.mjs'), join(root, 'replacement-policy.mjs'));
 const playwrightSource = join(dirname(dirname(process.execPath)), 'node_modules', 'playwright-core');
 if (!existsSync(playwrightSource)) throw new Error('PLAYWRIGHT_CORE_NOT_FOUND');
 const playwrightDestination = join(root, 'node_modules', 'playwright-core');

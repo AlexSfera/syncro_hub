@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
+import { approvedReplacement } from './replacement-policy.mjs';
 
 const root = join(homedir(), 'Library', 'Application Support', 'SYNCRO SHIFT Executor');
 const profilePath = join(root, 'chrome-profile');
@@ -60,36 +61,91 @@ function matches(actual, desired) {
     && (!desired.end || actual.end === desired.end.slice(0, 5));
 }
 
-async function openCell(page, assignment) {
+async function openSchedule(page) {
+  await page.goto(`${bitrixUrl}/timeman/schedules/`, {
+    waitUntil: 'domcontentloaded', timeout: 30000
+  });
+  const row = page.locator('tr[data-id="33"]');
+  await row.waitFor({ state: 'visible', timeout: 30000 });
+  await row.locator('button.main-grid-row-action-button').click();
+  await page.getByRole('menuitem', { name: 'Schedule', exact: true }).click();
+  const frame = page.frameLocator('iframe[src*="/timeman/schedules/33/shiftplan/"]');
+  await frame.locator('#TM_SHIFT_PLAN_GRID_33_table').waitFor({ state: 'visible', timeout: 30000 });
+  const activeFrame = page.frames().find(item => item.url().includes('/timeman/schedules/33/shiftplan/'));
+  if (!activeFrame) throw new Error('BITRIX_SHIFTPLAN_FRAME_MISSING');
+  return { page, frame, activeFrame, month: null };
+}
+
+async function openCell(plan, assignment) {
   if (!allowedScheduleIds.has(Number(assignment.bitrix_schedule_id))) {
     throw new Error('SCHEDULE_NOT_ALLOWED');
   }
-  const url = `${bitrixUrl}/timeman/schedules/${assignment.bitrix_schedule_id}/shiftplan/index.php?${monthQuery(assignment.date)}`;
-  if (page.url() !== url) {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const month = assignment.date.slice(0, 7);
+  if (plan.month !== month) {
+    const url = `${bitrixUrl}/timeman/schedules/${assignment.bitrix_schedule_id}/shiftplan/index.php`
+      + `?IFRAME=Y&IFRAME_TYPE=SIDE_SLIDER&${monthQuery(assignment.date)}`;
+    await plan.activeFrame.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await plan.frame.locator(`#TM_SHIFT_PLAN_GRID_${assignment.bitrix_schedule_id}_table`)
+      .waitFor({ state: 'visible', timeout: 30000 });
+    plan.month = month;
   }
-  const table = page.locator(`#TM_SHIFT_PLAN_GRID_${assignment.bitrix_schedule_id}_table`);
+  const table = plan.frame.locator(`#TM_SHIFT_PLAN_GRID_${assignment.bitrix_schedule_id}_table`);
   await table.waitFor({ state: 'visible', timeout: 30000 });
   const cell = table.locator(`td[class~="js-${assignment.bitrix_user_id}_${assignment.date}"]`);
   if (await cell.count() !== 1) throw new Error('BITRIX_CELL_NOT_UNIQUE');
   return cell;
 }
 
-async function verifyAssignment(page, assignment, dryRun) {
+async function reloadPlan(plan) {
+  await plan.activeFrame.goto(plan.activeFrame.url(), { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await plan.frame.locator('#TM_SHIFT_PLAN_GRID_33_table').waitFor({ state: 'visible', timeout: 30000 });
+}
+
+async function deleteApprovedShift(plan, cell, assignment) {
+  const menus = cell.locator('.timeman-grid-worktime-shift [data-role="shiftplan-menu-toggle"]');
+  if (await menus.count() !== 1) throw new Error('BITRIX_DELETE_TARGET_NOT_UNIQUE');
+  await menus.click();
+  const deleteItem = plan.frame.getByRole('menuitem', { name: 'Delete shift', exact: true });
+  if (await deleteItem.count() !== 1) throw new Error('BITRIX_DELETE_OPTION_NOT_UNIQUE');
+  let unexpectedDialog = false;
+  const handleDialog = async dialog => {
+    if (dialog.type() === 'confirm' && /delete shift/i.test(dialog.message())) await dialog.accept();
+    else { unexpectedDialog = true; await dialog.dismiss(); }
+  };
+  plan.page.on('dialog', handleDialog);
+  try { await deleteItem.click(); }
+  finally { plan.page.off('dialog', handleDialog); }
+  if (unexpectedDialog) throw new Error('BITRIX_DELETE_CONFIRM_UNEXPECTED');
+  await cell.locator('.timeman-grid-worktime-shift').waitFor({ state: 'detached', timeout: 15000 });
+  await reloadPlan(plan);
+  const refreshed = await openCell(plan, assignment);
+  if ((await cellState(refreshed)).length !== 0) throw new Error('BITRIX_DELETE_NOT_CONFIRMED');
+  console.log(`REPLACED_OLD_SHIFT ${assignment.bitrix_user_id} ${assignment.date}`);
+  return refreshed;
+}
+
+async function verifyAssignment(plan, assignment, dryRun, job) {
   if (!/^\d+$/.test(assignment.bitrix_user_id) || !/^\d{4}-\d{2}-\d{2}$/.test(assignment.date)) {
     throw new Error('INVALID_JOB_TARGET');
   }
-  const cell = await openCell(page, assignment);
+  let cell = await openCell(plan, assignment);
   let current = await cellState(cell);
+  const replacement = approvedReplacement(job, assignment, current);
   if (assignment.day_type !== 'turno') {
-    if (current.length) throw new Error('BITRIX_NONWORK_CONFLICT');
+    if (current.length && !replacement) throw new Error('BITRIX_NONWORK_CONFLICT');
+    if (replacement && dryRun) return { assignment_id: assignment.id, status: 'would_replace', dry_run: true };
+    if (replacement) cell = await deleteApprovedShift(plan, cell, assignment);
     return { assignment_id: assignment.id, status: 'verified' };
   }
   if (!assignment.shifts.length || assignment.shifts.some(shift => !shift.name)) {
     throw new Error('SHIFT_CATALOG_INCOMPLETE');
   }
   const unexpected = current.filter(actual => !assignment.shifts.some(desired => matches(actual, desired)));
-  if (unexpected.length) throw new Error('BITRIX_SHIFT_CONFLICT');
+  if (unexpected.length && !replacement) throw new Error('BITRIX_SHIFT_CONFLICT');
+  if (replacement && !dryRun) {
+    cell = await deleteApprovedShift(plan, cell, assignment);
+    current = [];
+  }
   let missingShift = false;
   for (const desired of assignment.shifts) {
     if (current.some(actual => matches(actual, desired))) continue;
@@ -104,13 +160,16 @@ async function verifyAssignment(page, assignment, dryRun) {
     if (dryRun) { missingShift = true; continue; }
     await cell.hover();
     await candidates.nth(matchesByHint[0]).click({ timeout: 10000 });
-    await page.waitForTimeout(1200);
+    await cell.locator('.timeman-grid-worktime-shift [data-role="name"]')
+      .filter({ hasText: expectedShiftName(desired) })
+      .waitFor({ state: 'visible', timeout: 15000 });
     current = await cellState(cell);
     if (!current.some(actual => matches(actual, desired))) throw new Error('BITRIX_SHIFT_WRITE_NOT_CONFIRMED');
   }
-  if (dryRun) return { assignment_id: assignment.id, status: missingShift ? 'would_add' : 'verified', dry_run: true };
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  const verifiedCell = await openCell(page, assignment);
+  if (dryRun) return { assignment_id: assignment.id,
+    status: replacement ? 'would_replace' : missingShift ? 'would_add' : 'verified', dry_run: true };
+  await reloadPlan(plan);
+  const verifiedCell = await openCell(plan, assignment);
   const verified = await cellState(verifiedCell);
   if (verified.length !== assignment.shifts.length
       || assignment.shifts.some(desired => !verified.some(actual => matches(actual, desired)))) {
@@ -143,32 +202,29 @@ async function run() {
   });
   try {
     const page = context.pages()[0] || await context.newPage();
-    if (login || checkSession) {
-      await page.goto(`${bitrixUrl}/timeman/schedules/33/shiftplan/`, { waitUntil: 'domcontentloaded' });
-      const gridReady = await page.locator('#TM_SHIFT_PLAN_GRID_33_table')
-        .waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
-      console.log(gridReady ? 'BITRIX_SESSION_READY' : 'BITRIX_LOGIN_REQUIRED');
-      if (login) {
-        console.log('Cierra esta ventana al terminar.');
-        await new Promise(resolve => context.on('close', resolve));
-      } else if (!gridReady) {
-        process.exitCode = 2;
-      }
+    if (login) {
+      await page.goto(`${bitrixUrl}/timeman/schedules/`, { waitUntil: 'domcontentloaded' });
+      console.log('Cierra esta ventana al terminar de iniciar sesión en Bitrix.');
+      await new Promise(resolve => context.on('close', resolve));
       return;
     }
-    await page.goto(`${bitrixUrl}/timeman/schedules/33/shiftplan/`, {
-      waitUntil: 'domcontentloaded', timeout: 30000
+    const plan = await openSchedule(page).catch(error => {
+      console.error(`BITRIX_SESSION_OR_GRID_UNAVAILABLE ${error.message}`);
+      return null;
     });
-    const gridReady = await page.locator('#TM_SHIFT_PLAN_GRID_33_table')
-      .waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
-    if (!gridReady) {
-      console.error('BITRIX_SESSION_OR_GRID_UNAVAILABLE');
+    if (!plan) {
+      if (checkSession) process.exitCode = 2;
       return; // La solicitud permanece en cola para reintentar tras iniciar sesión.
+    }
+    if (checkSession) { console.log('BITRIX_SESSION_READY'); return; }
+    if (!job || !Array.isArray(job.assignments)) {
+      console.error('BITRIX_SESSION_OR_GRID_UNAVAILABLE');
+      return;
     }
     const preflight = [];
     for (const assignment of job.assignments) {
       try {
-        preflight.push(await verifyAssignment(page, assignment, true));
+        preflight.push(await verifyAssignment(plan, assignment, true, job));
       } catch (error) {
         preflight.push({ assignment_id: assignment.id, status: 'conflict' });
         console.error(`CONFLICT ${assignment.id} ${error.message}`);
@@ -185,7 +241,7 @@ async function run() {
     const evidence = [];
     for (const assignment of job.assignments) {
       try {
-        evidence.push(await verifyAssignment(page, assignment, false));
+        evidence.push(await verifyAssignment(plan, assignment, false, job));
       } catch (error) {
         evidence.push({ assignment_id: assignment.id, status: 'conflict' });
         console.error(`WRITE_OR_VERIFY_FAILED ${assignment.id} ${error.message}`);

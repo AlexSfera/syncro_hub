@@ -4,12 +4,15 @@
   Recepción SYNCROLAB: `d409d39`, Vercel
   `dpl_7ABoWrTm9kEfB95mVr53vzzLgEj3` READY. Mac Mini con LaunchAgent de
   60 segundos y sesión Bitrix dedicada verificada. Los demás horarios siguen
-  por aviso manual. Suite: 243 PASS, 0 FAIL, 1 OMITIDA.
-- `NO VERIFICADO` el volcado real de turnos: cola automática vacía; la semana
-  19–25/10 v4 solo tiene 28/35 días, sin las siete jornadas de María Fernanda.
-  Bitrix tiene dos turnos incompatibles (Fabián 21/10 y Lucrezia 25/10), que el
-  ejecutor no sobrescribe. Ausencias/festivos aún no se escriben; resultado
-  potencial `partial`. Detalle y reversión en
+  por aviso manual. Suite actual: 244 PASS, 0 FAIL, 1 OMITIDA.
+- `VERIFICADO` para dos correcciones LIVE puntuales: Fabián 21/10 pasó de
+  13:15–21:15 a 08:00–16:00 y se retiró el 09:00–14:00 de Lucrezia 25/10;
+  recarga independiente de ShiftPlan 33 confirmó ambos resultados. El ejecutor
+  usa ahora el panel lateral operativo de Bitrix. Suite: 244 PASS, 0 FAIL,
+  1 OMITIDA. `NO VERIFICADO` aún el volcado automático de una semana completa:
+  cola vacía y semana 19–25/10 v4 con 28/35 días, sin los siete de María
+  Fernanda. Ausencias/festivos aún no se escriben; resultado potencial
+  `partial`. Detalle y reversión en
   `EJECUTOR_BITRIX_MAC_MINI_20261015.md`.
 
 ## Ejecutor de horarios Bitrix24 — avance 15/10/2026

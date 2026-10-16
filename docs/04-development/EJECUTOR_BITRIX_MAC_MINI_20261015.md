@@ -9,26 +9,36 @@ READY en `syncro-shift.vercel.app`. El flag de producción
 `SYNCRO_PLANNING_EXECUTOR_ENABLED=true` está configurado; los demás horarios
 conservan el aviso manual. El Mac Mini ejecuta el LaunchAgent cada 60 segundos,
 la sesión dedicada de Chrome respondió `BITRIX_SESSION_READY`, y las últimas
-consultas devolvieron `NO_PENDING_JOB`. Suite: 243 PASS, 0 FAIL, 1 OMITIDA.
+consultas devolvieron `NO_PENDING_JOB`. Suite actual: 244 PASS, 0 FAIL, 1 OMITIDA.
 
-`NO VERIFICADO`: ninguna solicitud automática real ha escrito un turno en
-Bitrix. La semana 19–25/10 de Recepción SYNCROLAB sigue en versión 4 con 28/35
+`TESTEADO` y `VERIFICADO` para dos correcciones LIVE puntuales autorizadas: el
+16/10 el ejecutor del Mac Mini eliminó el turno anterior de Fabián el 21/10 y
+asignó el 08:00–16:00 de SYNCRO SHIFT; eliminó el turno 09:00–14:00 de
+Lucrezia el 25/10, cuyo día está clasificado como descanso. Tras recargar el
+ShiftPlan 33, ambas celdas se comprobaron otra vez. La ruta directa de Bitrix
+fallaba al inicializar su componente JavaScript (`#content-table` ausente); el
+ejecutor corregido abre el plan mediante la acción oficial `Schedule` de la
+lista de horarios, en el panel lateral, y allí se verificó `BITRIX_SESSION_READY`.
+Suite local: 244 PASS, 0 FAIL, 1 OMITIDA.
+
+`NO VERIFICADO`: ninguna **solicitud automática de semana completa** ha
+publicado todavía sus 35 jornadas. La semana 19–25/10 de Recepción SYNCROLAB
+sigue en versión 4 con 28/35
 jornadas: la ficha activa de María Fernanda tiene el vínculo Bitrix 25033 pero
 carece de sus siete asignaciones guardadas. La solicitud antigua de versión 4
-era manual y no se convierte retroactivamente en automática. Se detectaron
-turnos preexistentes incompatibles: Fabián el 21/10 (Bitrix 13:15–21:15 frente
-a SYNCRO SHIFT 08:00–16:00) y Lucrezia el 25/10 (Bitrix 09:00–14:00 frente a
-descanso). El ejecutor se detendrá sin sobrescribir. Las vacaciones de Andreea
+era manual y no se convierte retroactivamente en automática. Las dos
+discrepancias se corrigieron según la decisión expresa de Alexander; el
+ejecutor conserva una excepción limitada a esas dos celdas y sus valores
+anteriores exactos, sin política general de sobrescritura. Las vacaciones de Andreea
 del 19 al 23/10 aparecen ya en el gráfico de ausencias de Bitrix, pero no hay
 evidencia de que esta integración las haya creado.
 
 **Pendiente para cierre integral:** la jefa debe guardar las siete jornadas de
-María Fernanda y solicitar la nueva versión completa; debe decidirse qué fuente
-prevalece en las dos discrepancias. El ejecutor actual solo escribe/verifica
+María Fernanda y solicitar la nueva versión completa. El ejecutor actual solo escribe/verifica
 turnos de `ShiftPlan`; vacaciones, bajas, festivos y recuperación festiva no
 se publican automáticamente en el gráfico de ausencias. Una semana que los
 contenga queda `partial`, no `publicado_bitrix`. No se modificaron turnos ni
-ausencias de Bitrix en esta comprobación.
+ausencias adicionales fuera de las dos correcciones expresas.
 
 ## Estado al 15/10/2026
 
@@ -54,10 +64,12 @@ semana de prueba. El antiguo equipo HP no interviene.
    la versión vigente y vuelve a validar cobertura, permisos de catálogo,
    empleado y horario. En la primera fase solo acepta el horario Bitrix 33 de
    Recepción SyncroLab.
-4. El navegador dedicado del Mac hace una comprobación previa de toda la semana.
-   Ante un turno diferente, una celda no única o falta de sesión, no sobrescribe
-   nada. Si no hay conflictos, añade únicamente los turnos que faltan y vuelve
-   a leer el plan de Bitrix para verificarlos.
+4. El navegador dedicado del Mac abre el horario mediante `Schedule` en el
+   panel lateral y comprueba previamente toda la semana. Ante un turno distinto
+   no autorizado, una celda no única o falta de sesión, no sobrescribe nada.
+   Puede sustituir únicamente las dos celdas expresamente autorizadas de
+   Fabián y Lucrezia si los valores origen y destino coinciden exactamente.
+   Añade los turnos que faltan y vuelve a leer el plan de Bitrix.
 5. El resultado se añade al log inmutable y se presenta en la semana. Una
    solicitud o aviso jamás equivalen a turno publicado.
 
