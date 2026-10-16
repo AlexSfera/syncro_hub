@@ -1,3 +1,17 @@
+## Ejecutor de horarios Bitrix24 — estado 16/10/2026
+
+- `PRODUCCIÓN` del canal automático piloto **solo** para horario 33 de
+  Recepción SYNCROLAB: `f8a9513`, Vercel
+  `dpl_93Mn9EhiUgYwqj7p2t5ToM7XCYVs` READY. Mac Mini con LaunchAgent de
+  60 segundos y sesión Bitrix dedicada verificada. Los demás horarios siguen
+  por aviso manual. Suite: 243 PASS, 0 FAIL, 1 OMITIDA.
+- `NO VERIFICADO` el volcado real de turnos: cola automática vacía; la semana
+  19–25/10 v4 solo tiene 28/35 días, sin las siete jornadas de María Fernanda.
+  Bitrix tiene dos turnos incompatibles (Fabián 21/10 y Lucrezia 25/10), que el
+  ejecutor no sobrescribe. Ausencias/festivos aún no se escriben; resultado
+  potencial `partial`. Detalle y reversión en
+  `EJECUTOR_BITRIX_MAC_MINI_20261015.md`.
+
 ## Ejecutor de horarios Bitrix24 — avance 15/10/2026
 
 - En rama de trabajo y Producción (`dpl_F3iSTYnLFpHeH2fCMxvXKrNsMQJb`,

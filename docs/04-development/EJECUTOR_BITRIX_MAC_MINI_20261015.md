@@ -1,5 +1,35 @@
 # SYNCRO SHIFT — ejecutor de turnos Bitrix en Mac Mini
 
+## Estado comprobado el 16/10/2026
+
+`IMPLEMENTADO` y `PRODUCCIÓN` para la solicitud automática **solo** del horario
+Bitrix 33 de Recepción SYNCROLAB: rama `codex/bitrix-auto-publish-20261016`,
+commit remoto `f8a9513`, deployment `dpl_93Mn9EhiUgYwqj7p2t5ToM7XCYVs`
+READY en `syncro-shift.vercel.app`. El flag de producción
+`SYNCRO_PLANNING_EXECUTOR_ENABLED=true` está configurado; los demás horarios
+conservan el aviso manual. El Mac Mini ejecuta el LaunchAgent cada 60 segundos,
+la sesión dedicada de Chrome respondió `BITRIX_SESSION_READY`, y las últimas
+consultas devolvieron `NO_PENDING_JOB`. Suite: 243 PASS, 0 FAIL, 1 OMITIDA.
+
+`NO VERIFICADO`: ninguna solicitud automática real ha escrito un turno en
+Bitrix. La semana 19–25/10 de Recepción SYNCROLAB sigue en versión 4 con 28/35
+jornadas: la ficha activa de María Fernanda tiene el vínculo Bitrix 25033 pero
+carece de sus siete asignaciones guardadas. La solicitud antigua de versión 4
+era manual y no se convierte retroactivamente en automática. Se detectaron
+turnos preexistentes incompatibles: Fabián el 21/10 (Bitrix 13:15–21:15 frente
+a SYNCRO SHIFT 08:00–16:00) y Lucrezia el 25/10 (Bitrix 09:00–14:00 frente a
+descanso). El ejecutor se detendrá sin sobrescribir. Las vacaciones de Andreea
+del 19 al 23/10 aparecen ya en el gráfico de ausencias de Bitrix, pero no hay
+evidencia de que esta integración las haya creado.
+
+**Pendiente para cierre integral:** la jefa debe guardar las siete jornadas de
+María Fernanda y solicitar la nueva versión completa; debe decidirse qué fuente
+prevalece en las dos discrepancias. El ejecutor actual solo escribe/verifica
+turnos de `ShiftPlan`; vacaciones, bajas, festivos y recuperación festiva no
+se publican automáticamente en el gráfico de ausencias. Una semana que los
+contenga queda `partial`, no `publicado_bitrix`. No se modificaron turnos ni
+ausencias de Bitrix en esta comprobación.
+
 ## Estado al 15/10/2026
 
 `IMPLEMENTADO` en la rama de trabajo y `PRODUCCIÓN` para la web en el deployment
