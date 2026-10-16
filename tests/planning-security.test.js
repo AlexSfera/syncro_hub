@@ -63,6 +63,7 @@ test('la integración Bitrix lee catálogo y solo crea el aviso oficial de carga
   assert.match(publish, /solicitar_carga_bitrix/);
   assert.match(publish, /PENDING_MAC_MINI/);
   assert.doesNotMatch(publish, /publicado_bitrix/);
+  assert.match(server, /scheduleIds\.length === 1 && Number\(scheduleIds\[0\]\) === 33/);
 });
 
 test('interfaz expone planificación a todas las ramas de navegación', async () => {
