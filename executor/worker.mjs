@@ -142,6 +142,7 @@ async function verifyAssignment(plan, assignment, dryRun, job) {
   }
   const unexpected = current.filter(actual => !assignment.shifts.some(desired => matches(actual, desired)));
   if (unexpected.length && !replacement) throw new Error('BITRIX_SHIFT_CONFLICT');
+  let changed = replacement;
   if (replacement && !dryRun) {
     cell = await deleteApprovedShift(plan, cell, assignment);
     current = [];
@@ -160,6 +161,7 @@ async function verifyAssignment(plan, assignment, dryRun, job) {
     if (dryRun) { missingShift = true; continue; }
     await cell.hover();
     await candidates.nth(matchesByHint[0]).click({ timeout: 10000 });
+    changed = true;
     await cell.locator('.timeman-grid-worktime-shift [data-role="name"]')
       .filter({ hasText: expectedShiftName(desired) })
       .waitFor({ state: 'visible', timeout: 15000 });
@@ -168,6 +170,9 @@ async function verifyAssignment(plan, assignment, dryRun, job) {
   }
   if (dryRun) return { assignment_id: assignment.id,
     status: replacement ? 'would_replace' : missingShift ? 'would_add' : 'verified', dry_run: true };
+  if (!changed && current.length === assignment.shifts.length) {
+    return { assignment_id: assignment.id, status: 'verified' };
+  }
   await reloadPlan(plan);
   const verifiedCell = await openCell(plan, assignment);
   const verified = await cellState(verifiedCell);
