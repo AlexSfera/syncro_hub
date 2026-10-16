@@ -121,10 +121,11 @@ async function verifyAssignment(page, assignment, dryRun) {
 
 async function run() {
   const login = process.argv.includes('--login');
+  const checkSession = process.argv.includes('--check-session');
   const dryRun = process.argv.includes('--dry-run');
   let token;
   let job;
-  if (!login) {
+  if (!login && !checkSession) {
     token = readToken();
     ({ job } = await api(token, 'GET'));
     if (!job) { console.log('NO_PENDING_JOB'); return; }
@@ -142,10 +143,17 @@ async function run() {
   });
   try {
     const page = context.pages()[0] || await context.newPage();
-    if (login) {
+    if (login || checkSession) {
       await page.goto(`${bitrixUrl}/timeman/schedules/33/shiftplan/`, { waitUntil: 'domcontentloaded' });
-      console.log('Inicia sesión en Bitrix en esta ventana y ciérrala al terminar.');
-      await new Promise(resolve => context.on('close', resolve));
+      const gridReady = await page.locator('#TM_SHIFT_PLAN_GRID_33_table')
+        .waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false);
+      console.log(gridReady ? 'BITRIX_SESSION_READY' : 'BITRIX_LOGIN_REQUIRED');
+      if (login) {
+        console.log('Cierra esta ventana al terminar.');
+        await new Promise(resolve => context.on('close', resolve));
+      } else if (!gridReady) {
+        process.exitCode = 2;
+      }
       return;
     }
     await page.goto(`${bitrixUrl}/timeman/schedules/33/shiftplan/`, {

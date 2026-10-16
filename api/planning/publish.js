@@ -120,7 +120,7 @@ export default async function handler(req) {
     );
 
     const automatic = process.env.SYNCRO_PLANNING_EXECUTOR_ENABLED === 'true'
-      && !!process.env.SYNCRO_PLANNING_EXECUTOR_TOKEN;
+      && String(process.env.SYNCRO_PLANNING_EXECUTOR_TOKEN || '').length >= 32;
     let notification = automatic ? { sent: false, skipped: 'EXECUTOR_QUEUE' }
       : Array.isArray(existingNotifications) && existingNotifications[0]
       ? { sent: true, task_id: existingNotifications[0].response_snapshot.bitrix_task_id, duplicate: true }

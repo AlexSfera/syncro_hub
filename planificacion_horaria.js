@@ -198,7 +198,7 @@ function _phRender(){
     + (canEdit ? '<button class="btn" onclick="_phOpenOperation(\'absence\')">Ausencia</button>' : '')
     + (canEdit ? '<button class="btn" onclick="_phOpenOperation(\'extra\')">Extra / recuperación</button>' : '')
     + (_ph.data.permissions.canManageLaborConditions ? '<button class="btn" onclick="_phOpenOperation(\'labor\')">Condición laboral</button>' : '')
-    + (canEdit ? '<button class="btn" onclick="_phRefreshCatalog(false)">Actualizar Bitrix24</button>' : '')
+    + (canEdit ? '<button class="btn" onclick="_phRefreshCatalog(false)">Actualizar catálogo de turnos</button>' : '')
     + (canEdit ? '<button class="btn btn-primary" onclick="_phSaveWeek()">Guardar borrador</button>' : '')
     + (canEdit && week ? '<button class="btn" onclick="_phPublishWeek()">Solicitar carga en Bitrix</button>' : '')
     + '</div></div>'
@@ -217,7 +217,9 @@ function _phRender(){
           : notificationError ? ' Aviso no confirmado: ' + _phEsc(notificationError) + '.' : '')
         + '</div>' : '')
     + (_phUnregisteredTotal() ? '<div class="ph-alert warn"><strong>Clasificación incompleta:</strong> quedan ' + _phUnregisteredTotal() + ' jornadas sin registrar en esta semana.</div>' : '')
-    + (!_ph.data.bitrixWriteSupported ? '<div class="ph-alert warn"><strong>Integración en preparación:</strong> Bitrix24 no ofrece escritura oficial del ShiftPlan por API. La solicitud queda en cola para el ejecutor del Mac Mini; hasta verificar su instalación no debe considerarse publicada.</div>' : '')
+    + (_ph.data.automaticExecutorEnabled
+      ? '<div class="ph-alert"><strong>Carga automática:</strong> al solicitarla, el Mac Mini comprobará la semana completa y los turnos de Bitrix. Solo aparecerá como verificada tras leer el resultado; los conflictos se detienen sin sobrescribir.</div>'
+      : '<div class="ph-alert warn"><strong>Carga manual:</strong> el ejecutor automático aún no está activado. Esta solicitud solo registra un aviso; no publica turnos.</div>')
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th>'
     + (_ph.data.dates || []).map(function(date){ return '<th>' + _phEsc(_phDayLabel(date)) + '<div class="ph-muted">' + _phEsc(date.slice(5)) + '</div></th>'; }).join('')
     + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
