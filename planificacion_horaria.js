@@ -204,12 +204,14 @@ function _phRender(){
     + '</div></div>'
     + '<div class="ph-status"><span class="ph-pill">Estado: ' + _phEsc(state) + '</span><span class="ph-pill">Versión: ' + version + '</span>'
     + '<span class="ph-pill">Catálogo Bitrix24: ' + _phEsc(refreshed) + '</span><span class="ph-pill">' + _phEsc(_phOpeningLabel()) + '</span></div>'
-    + (executionResult ? '<div class="ph-alert ' + (executionResult.resultado_envio === 'verified_shifts' ? '' : 'warn')
+    + (executionResult ? '<div class="ph-alert ' + (executionResult.resultado_envio === 'verified_schedule' ? '' : 'warn')
       + '"><strong>Resultado del ejecutor:</strong> '
-      + _phEsc(executionResult.resultado_envio === 'verified_shifts'
-        ? 'turnos verificados en Bitrix para esta versión.'
+      + _phEsc(executionResult.resultado_envio === 'verified_schedule'
+        ? 'semana completa verificada en turnos y gráfico de ausencias de Bitrix.'
+        : executionResult.resultado_envio === 'verified_shifts'
+          ? 'turnos verificados; los días no laborables del gráfico de ausencias siguen pendientes.'
         : executionResult.resultado_envio === 'partial'
-          ? 'turnos tratados, pero las ausencias o festivos aún no están confirmados en Bitrix.'
+          ? 'turnos tratados, pero los días no laborables aún no están confirmados en Bitrix.'
           : 'carga bloqueada o fallida; no está publicada.')
       + (executionResult.error_seguro ? ' ' + _phEsc(executionResult.error_seguro) : '') + '</div>'
       : publicationRequest ? '<div class="ph-alert warn"><strong>Carga Bitrix pendiente:</strong> la solicitud está en cola para el ejecutor del Mac Mini.'
@@ -218,7 +220,7 @@ function _phRender(){
         + '</div>' : '')
     + (_phUnregisteredTotal() ? '<div class="ph-alert warn"><strong>Clasificación incompleta:</strong> quedan ' + _phUnregisteredTotal() + ' jornadas sin registrar en esta semana.</div>' : '')
     + (_ph.data.automaticExecutorEnabled
-      ? '<div class="ph-alert"><strong>Carga automática:</strong> al solicitarla, el Mac Mini comprobará la semana completa y los turnos de Bitrix. Solo aparecerá como verificada tras leer el resultado; los conflictos se detienen sin sobrescribir.</div>'
+      ? '<div class="ph-alert"><strong>Carga automática:</strong> al solicitarla, el Mac Mini comprobará la semana completa, los turnos y el gráfico de ausencias de Bitrix. Solo aparecerá como publicada tras verificar ambos; los conflictos se detienen sin sobrescribir.</div>'
       : '<div class="ph-alert warn"><strong>Carga manual:</strong> el ejecutor automático aún no está activado. Esta solicitud solo registra un aviso; no publica turnos.</div>')
     + '<div class="ph-table-wrap"><table class="ph-table"><thead><tr><th>Empleado</th>'
     + (_ph.data.dates || []).map(function(date){ return '<th>' + _phEsc(_phDayLabel(date)) + '<div class="ph-muted">' + _phEsc(date.slice(5)) + '</div></th>'; }).join('')

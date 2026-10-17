@@ -3,6 +3,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { approvedReplacement } from './replacement-policy.mjs';
+import { openAbsenceChart, checkAbsence, createAndVerifyAbsence } from './absence-chart.mjs';
+import { calendarResult } from './absence-policy.mjs';
 
 const root = join(homedir(), 'Library', 'Application Support', 'SYNCRO SHIFT Executor');
 const profilePath = join(root, 'chrome-profile');
@@ -226,10 +228,14 @@ async function run() {
       console.error('BITRIX_SESSION_OR_GRID_UNAVAILABLE');
       return;
     }
+    const chart = await openAbsenceChart(context, job.assignments);
     const preflight = [];
     for (const assignment of job.assignments) {
       try {
-        preflight.push(await verifyAssignment(plan, assignment, true, job));
+        const shift = await verifyAssignment(plan, assignment, true, job);
+        const calendarStatus = await checkAbsence(chart, assignment);
+        if (calendarStatus === 'conflict') throw new Error('BITRIX_ABSENCE_CONFLICT');
+        preflight.push({ ...shift, calendar_status: calendarStatus });
       } catch (error) {
         preflight.push({ assignment_id: assignment.id, status: 'conflict' });
         console.error(`CONFLICT ${assignment.id} ${error.message}`);
@@ -246,20 +252,20 @@ async function run() {
     const evidence = [];
     for (const assignment of job.assignments) {
       try {
-        evidence.push(await verifyAssignment(plan, assignment, false, job));
+        const shift = await verifyAssignment(plan, assignment, false, job);
+        const calendarStatus = await checkAbsence(chart, assignment);
+        if (calendarStatus === 'conflict') throw new Error('BITRIX_ABSENCE_CONFLICT');
+        if (calendarStatus === 'missing') await createAndVerifyAbsence(chart, assignment);
+        evidence.push({ ...shift, calendar_status: await checkAbsence(chart, assignment) });
       } catch (error) {
         evidence.push({ assignment_id: assignment.id, status: 'conflict' });
         console.error(`WRITE_OR_VERIFY_FAILED ${assignment.id} ${error.message}`);
         break;
       }
     }
-    const allVerified = evidence.length === job.assignments.length
-      && evidence.every(item => item.status === 'verified');
-    const absencePending = job.assignments.some(item =>
-      ['ausencia', 'vacaciones', 'festivo'].includes(item.day_type));
-    const result = !allVerified ? 'error' : absencePending ? 'partial' : 'verified_shifts';
+    const result = calendarResult(job.assignments, evidence);
     await api(token, 'POST', { week_id: job.week_id, version: job.version,
-      result, error: allVerified ? null : 'BITRIX_SHIFT_CONFLICT', evidence });
+      result, error: result === 'verified_schedule' ? null : 'BITRIX_PUBLICATION_CONFLICT', evidence });
     console.log(`RESULT ${job.week_id} v${job.version} ${result}`);
   } finally {
     await context.close().catch(() => {});

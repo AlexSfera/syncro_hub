@@ -1,5 +1,26 @@
 # SYNCRO SHIFT — ejecutor de turnos Bitrix en Mac Mini
 
+## Trabajo en curso el 17/10/2026
+
+En la rama local se ha implementado la segunda fase: lectura y alta controlada
+del gráfico de ausencias de Bitrix para descanso, vacaciones, festivo y otras
+ausencias. El ejecutor no crea eventos si existe uno de distinto tipo o un
+duplicado, y solo informa `verified_schedule` tras verificar los 35 días tanto
+en ShiftPlan como en el gráfico de ausencias. La API exige evidencia única por
+jornada, registra auditoría y solo entonces pone la semana en
+`publicado_bitrix`. La recuperación festiva aún se bloquea porque el esquema
+actual no guarda el festivo de origen. Las pruebas locales de lógica y API
+están superadas; el alta real de un evento y el circuito completo están
+`NO VERIFICADOS`.
+
+La semana 19–25/10 de Recepción SYNCROLAB continúa con 28/35 jornadas LIVE:
+faltan las siete de María Fernanda. Hasta que Lucrezia las guarde y solicite
+una versión nueva, no se puede completar la prueba sin inventar el horario.
+Esta segunda fase no está instalada ni en Producción ni en el Mac Mini; no ha
+escrito ausencias LIVE. El rollback del código es volver al commit anterior y
+reinstalar el ejecutor previo; cualquier ausencia ya creada en Bitrix requiere
+revisión individual, no borrado masivo.
+
 ## Estado comprobado el 16/10/2026
 
 `IMPLEMENTADO` y `PRODUCCIÓN` para la solicitud automática **solo** del horario

@@ -1,3 +1,17 @@
+## Ejecutor de horarios Bitrix24 — trabajo en curso 17/10/2026
+
+- `IMPLEMENTADO` localmente y `TESTEADO` con pruebas aisladas: el ejecutor
+  comprueba el ShiftPlan y el gráfico de ausencias por persona y fecha. Para
+  días no laborables, conserva registros coincidentes, prepara los faltantes
+  y se detiene ante un evento distinto o duplicado. La API solo cambia la
+  semana a `publicado_bitrix` con evidencia completa de ambos lados.
+- `NO VERIFICADO` el alta real de ausencias ni una publicación automática
+  semanal. La versión LIVE de 19–25/10 sigue con 28/35 días; María Fernanda
+  tiene 0/7. Este trabajo local todavía no se ha instalado en el ejecutor ni
+  publicado en Producción. La recuperación festiva sigue bloqueada sin fecha
+  origen verificable. Supabase LIVE y Bitrix no se han modificado por este
+  cambio.
+
 ## Ejecutor de horarios Bitrix24 — estado 16/10/2026
 
 - `PRODUCCIÓN` del canal automático piloto **solo** para horario 33 de

@@ -4,6 +4,23 @@ import { validateDraftAgainstDatabase } from '../../lib/planning-server.js';
 
 export const config = { runtime: 'edge' };
 
+export function completeExecutorEvidence(assignments, evidence, calendar = false) {
+  if (!Array.isArray(assignments) || !Array.isArray(evidence)
+      || assignments.length === 0 || evidence.length !== assignments.length) return false;
+  const expected = new Map(assignments.map(item => [Number(item.id), item]));
+  if (expected.size !== assignments.length) return false;
+  const reported = new Set();
+  for (const item of evidence) {
+    const id = Number(item.assignment_id);
+    if (!expected.has(id) || reported.has(id) || item.status !== 'verified') return false;
+    reported.add(id);
+    if (calendar && item.calendar_status !== (expected.get(id).tipo_dia === 'turno' ? 'clear' : 'verified')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function authorized(req) {
   const secret = process.env.SYNCRO_PLANNING_EXECUTOR_TOKEN || '';
   const supplied = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
@@ -95,6 +112,7 @@ async function loadJob(request) {
         id: item.id,
         date: item.fecha_operativa,
         day_type: item.tipo_dia,
+        employee_name: String(employee && employee.nombre || ''),
         bitrix_user_id: String(employee && employee.bitrix_user_id || ''),
         bitrix_schedule_id: scheduleId,
         shifts: item.tipo_dia === 'turno' ? tramos.map(segment => {
@@ -118,13 +136,15 @@ async function recordResult(body) {
     + encodeURIComponent(requestKey) + '&select=id,actor&limit=1');
   if (!original || !original[0]) return jsonResponse({ error: 'REQUEST_NOT_FOUND' }, 404);
   const result = String(body.result || '');
-  if (!['blocked', 'verified_shifts', 'partial', 'error'].includes(result)) {
+  if (!['blocked', 'verified_shifts', 'verified_schedule', 'partial', 'error'].includes(result)) {
     return jsonResponse({ error: 'INVALID_RESULT' }, 400);
   }
   const evidence = Array.isArray(body.evidence) ? body.evidence : [];
   if (evidence.length > 500 || evidence.some(item =>
     !Number.isInteger(Number(item.assignment_id))
-    || !['verified', 'conflict', 'error'].includes(item.status))) {
+    || !['verified', 'conflict', 'error', 'would_add', 'would_replace'].includes(item.status)
+    || (item.calendar_status != null
+      && !['clear', 'verified', 'missing', 'conflict'].includes(item.calendar_status)))) {
     return jsonResponse({ error: 'INVALID_EVIDENCE' }, 400);
   }
   const assignments = await adminRequest('planificacion_asignaciones?semana_id=eq.' + weekId
@@ -133,12 +153,45 @@ async function recordResult(body) {
   if (evidence.some(item => !expected.has(Number(item.assignment_id)))) {
     return jsonResponse({ error: 'FOREIGN_ASSIGNMENT' }, 400);
   }
-  if (result === 'verified_shifts') {
+  if (result === 'verified_shifts' || result === 'verified_schedule') {
     const currentJob = await loadJob({ id: original[0].id, semana_id: weekId, version });
     if (currentJob.blocked) return jsonResponse({ error: currentJob.blocked }, 409);
-    const reported = new Set(evidence.filter(item => item.status === 'verified').map(item => Number(item.assignment_id)));
-    if (reported.size !== assignments.length || evidence.length !== assignments.length) {
+    if (!completeExecutorEvidence(assignments, evidence)) {
       return jsonResponse({ error: 'INCOMPLETE_EVIDENCE' }, 409);
+    }
+    if (result === 'verified_schedule') {
+      if (!completeExecutorEvidence(assignments, evidence, true)) {
+        return jsonResponse({ error: 'INCOMPLETE_CALENDAR_EVIDENCE' }, 409);
+      }
+      const before = await adminRequest('planificacion_semanas?id=eq.' + weekId
+        + '&version_actual=eq.' + version + '&select=id,estado,departamento_id&limit=1');
+      if (!Array.isArray(before) || before.length !== 1) {
+        return jsonResponse({ error: 'VERSION_CONFLICT' }, 409);
+      }
+      const now = new Date().toISOString();
+      const updated = await adminRequest('planificacion_semanas?id=eq.' + weekId
+        + '&version_actual=eq.' + version + '&select=id,estado', {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ estado: 'publicado_bitrix', publicado_por: original[0].actor,
+          publicado_at: now, ultima_verificacion_at: now, ultimo_error: null, updated_at: now })
+      });
+      if (!Array.isArray(updated) || updated.length !== 1) {
+        return jsonResponse({ error: 'VERSION_CONFLICT' }, 409);
+      }
+      const audits = await adminRequest('planificacion_audit?semana_id=eq.' + weekId
+        + '&accion=eq.PUBLICAR_SEMANA_BITRIX&select=id,detalle_seguro');
+      if (!audits.some(item => Number(item.detalle_seguro?.version) === version)) {
+        await adminRequest('planificacion_audit', {
+          method: 'POST', headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ actor: original[0].actor, accion: 'PUBLICAR_SEMANA_BITRIX',
+            entidad: 'planificacion_semana', entidad_id: String(weekId),
+            departamento_id: before[0].departamento_id, semana_id: weekId,
+            valor_anterior: { version, estado: before[0].estado },
+            valor_nuevo: { version, estado: 'publicado_bitrix' },
+            motivo: 'Turnos y gráfico de ausencias verificados en Bitrix', resultado: 'ok',
+            detalle_seguro: { version, request_id: original[0].id } })
+        });
+      }
     }
   }
   const key = `${weekId}:${version}:executor-result`;
@@ -147,11 +200,13 @@ async function recordResult(body) {
     body: JSON.stringify({
       semana_id: weekId, version, asignacion_id: null,
       operacion: 'ejecutor_resultado_bitrix', idempotency_key: key,
-      resultado_envio: result, resultado_verificacion: result === 'verified_shifts' ? 'turnos_verificados' : 'no_verificado',
+      resultado_envio: result, resultado_verificacion: result === 'verified_schedule'
+        ? 'planificacion_verificada' : result === 'verified_shifts' ? 'turnos_verificados' : 'no_verificado',
       actor: original[0].actor, intentos: 1,
       error_seguro: result === 'blocked' || result === 'error' ? String(body.error || 'EXECUTOR_FAILED').slice(0, 120) : null,
       request_snapshot: { week_id: weekId, version },
-      response_snapshot: { evidence: evidence.map(item => ({ assignment_id: Number(item.assignment_id), status: item.status })) }
+      response_snapshot: { evidence: evidence.map(item => ({ assignment_id: Number(item.assignment_id),
+        status: item.status, calendar_status: item.calendar_status || null })) }
     })
   });
   return jsonResponse({ ok: true, result }, 200);
