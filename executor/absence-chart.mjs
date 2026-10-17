@@ -39,9 +39,13 @@ async function ensureMonth(chart, assignment, reload = false) {
   const [from, to] = await chart.page.evaluate(({ year, number }) => [
     new Date(year, number - 1, 1).getTime(), new Date(year, number, 1).getTime()
   ], { year, number });
-  await chart.page.goto(`${bitrixUrl}/timeman/#AP:month|${from}|${to}`, {
-    waitUntil: 'domcontentloaded', timeout: 30000
-  });
+  if (reload && chart.month === month) {
+    await chart.page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+  } else {
+    await chart.page.goto(`${bitrixUrl}/timeman/#AP:month|${from}|${to}`, {
+      waitUntil: 'domcontentloaded', timeout: 30000
+    });
+  }
   const department = chart.page.getByRole('combobox', { name: 'Department:' });
   await department.waitFor({ state: 'visible', timeout: 30000 });
   const selected = await department.locator('option:checked').textContent();
@@ -97,6 +101,9 @@ export async function createAndVerifyAbsence(chart, assignment) {
   await form.locator('.popup-window-button-accept').click();
   await form.waitFor({ state: 'hidden', timeout: 15000 });
   await ensureMonth(chart, assignment, true);
+  if (classifyAbsence(assignment, chart.entries) !== 'verified') {
+    await ensureMonth(chart, assignment, true);
+  }
   if (classifyAbsence(assignment, chart.entries) !== 'verified') {
     throw new Error('BITRIX_ABSENCE_WRITE_NOT_CONFIRMED');
   }

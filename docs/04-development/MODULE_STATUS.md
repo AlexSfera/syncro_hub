@@ -5,6 +5,12 @@
   días no laborables, conserva registros coincidentes, prepara los faltantes
   y se detiene ante un evento distinto o duplicado. La API solo cambia la
   semana a `publicado_bitrix` con evidencia completa de ambos lados.
+- `TESTEADO` en Preview `dpl_3wsbYmRYr3Cu8Bz1QxLMxMwmPcGm`
+  (rama `codex/bitrix-executor-slidepanel-20261016`, revisión `83e9ca2`):
+  build READY, 250 pruebas correctas, 0 fallidas, 1 omitida. El lector de
+  Preview no pudo validar el recurso JS protegido; no equivale a una prueba
+  de publicación LIVE. La sesión dedicada del Mac Mini sí leyó en Bitrix,
+  sin escribir, las vacaciones existentes de Andreea en el gráfico.
 - `NO VERIFICADO` el alta real de ausencias ni una publicación automática
   semanal. La versión LIVE de 19–25/10 sigue con 28/35 días; María Fernanda
   tiene 0/7. Este trabajo local todavía no se ha instalado en el ejecutor ni

@@ -13,6 +13,12 @@ actual no guarda el festivo de origen. Las pruebas locales de lógica y API
 están superadas; el alta real de un evento y el circuito completo están
 `NO VERIFICADOS`.
 
+La rama `codex/bitrix-executor-slidepanel-20261016` llegó a Preview READY
+en `dpl_3wsbYmRYr3Cu8Bz1QxLMxMwmPcGm` (`83e9ca2`); 250 pruebas pasaron,
+ninguna falló y una quedó omitida. Una lectura real sin escrituras desde la
+sesión dedicada del Mac Mini encontró las vacaciones ya existentes de Andreea
+en Bitrix. Esto comprueba acceso y lectura, no el alta ni la publicación.
+
 La semana 19–25/10 de Recepción SYNCROLAB continúa con 28/35 jornadas LIVE:
 faltan las siete de María Fernanda. Hasta que Lucrezia las guarde y solicite
 una versión nueva, no se puede completar la prueba sin inventar el horario.
